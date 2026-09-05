@@ -9,8 +9,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@tailwindcss/vite": "^4.3.3",
     "pdfjs-dist": "^6.3.289",
     "pptxgenjs": "^4.0.1",
+    "tailwindcss": "^4.3.3",
     "zod": "^4.5.4"
   },
   "devDependencies": {
