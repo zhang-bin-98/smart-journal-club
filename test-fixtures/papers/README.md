@@ -1,6 +1,6 @@
-# 代表论文测试夹具
+# 代表论文测试夹具（本地）
 
-这些 PDF 用于 smartJC M0/M3 的 PDF 解析、Figure/Panel 来源、裁图和三篇论文人工内容检查。文件来自 PLOS 官方 `printable` 下载端点，三篇均为原创研究并采用 Creative Commons Attribution（CC BY）许可；不会被 Vite 构建复制到 `dist/`。
+这些 PDF 仅用于本地 smartJC M0/M3 的 PDF 解析、Figure/Panel 来源、裁图和三篇论文人工内容检查，已通过 `.gitignore` 排除，不提交到仓库。需要运行相关本地检查时，请从下列 PLOS 官方 `printable` 下载端点取得文件并放入本目录；三篇均为原创研究并采用 Creative Commons Attribution（CC BY）许可。
 
 | 类别 | 文件 | 论文 | 标识 | 页数 | 大小 | SHA-256 |
 | --- | --- | --- | ---: | ---: | ---: | --- |
@@ -14,4 +14,4 @@
 - https://journals.plos.org/plosbiology/article/file?id=10.1371/journal.pbio.3002963&type=printable
 - https://journals.plos.org/plosmedicine/article/file?id=10.1371/journal.pmed.1004329&type=printable
 
-下载日期：2026-09-06。校验命令：`pdfinfo test-fixtures/papers/*.pdf`、`Get-FileHash -Algorithm SHA256`。若发布构建需要测试数据，应通过本地选择文件或 fixture 脚本注入，不把 PDF 复制到应用静态资源。
+下载日期：2026-09-06。校验命令：`pdfinfo test-fixtures/papers/*.pdf`、`Get-FileHash -Algorithm SHA256`。PDF 不属于发布构建输入；若检查需要测试数据，应通过本地选择文件或 fixture 脚本注入，不把 PDF 复制到应用静态资源。
