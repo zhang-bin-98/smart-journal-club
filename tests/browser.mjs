@@ -13,6 +13,21 @@ try {
   const errors = []; page.on('pageerror', error => errors.push(error.message));
   await page.goto(base);
   console.log(await page.evaluate(async () => (await import('/tests/contracts.ts')).runContracts()));
+  console.log(await page.evaluate(async () => (await import('/tests/analysis-contracts.ts')).runAnalysisContracts()));
+  let modelCase = 'success';
+  await page.route('https://api.deepseek.com/chat/completions', async route => {
+    if (modelCase === 'authentication') { await route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ error: { message: 'invalid key', type: 'authentication_error' } }) }); return; }
+    const content = modelCase === 'invalid' ? '{"result":{"unexpected":true}}' : '{"result":{"connected":true}}';
+    const body = `data: ${JSON.stringify({ id: 'fixed', object: 'chat.completion.chunk', choices: [{ index: 0, delta: { role: 'assistant', tool_calls: [{ index: 0, id: 'call-fixed', type: 'function', function: { name: 'submit_result', arguments: content } }] }, finish_reason: null }] })}\n\ndata: ${JSON.stringify({ id: 'fixed', object: 'chat.completion.chunk', choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] })}\n\ndata: [DONE]\n\n`;
+    await route.fulfill({ status: 200, contentType: 'text/event-stream', body });
+  });
+  assert.deepEqual(await page.evaluate(async () => (await import('/tests/analysis-contracts.ts')).fixedModelRequest()), { connected: true });
+  for (const [kind, code] of [['invalid', 'invalid-output'], ['authentication', 'authentication']]) {
+    modelCase = kind;
+    assert.equal(await page.evaluate(async () => { try { await (await import('/tests/analysis-contracts.ts')).fixedModelRequest(); } catch (error) { return error.code; } }), code);
+  }
+  await page.unroute('https://api.deepseek.com/chat/completions');
+  console.log('PASS: Pi AI fixed SSE/JSON/authentication/invalid output');
   await page.goto(base + '#/fixture');
   const title = page.getByRole('textbox', { name: '幻灯片标题', exact: true });
   await title.fill('中文草稿');

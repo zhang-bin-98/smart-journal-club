@@ -2,6 +2,8 @@ import { DeckSchema, ProjectSchema, type Deck, type Paper, type PdfAsset, type P
 import { validateDeck } from './layout';
 import { validatePaper } from './sources';
 import type { RevisionRecord } from './deck';
+import { DEFAULT_SETTINGS, ModelSettingsSchema, type ModelSettings } from './model';
+import { prompts } from './prompts';
 
 const DATABASE = 'smartjc';
 const stores = ['projects', 'papers', 'assets', 'plans', 'decks', 'history', 'settings'] as const;
@@ -67,7 +69,7 @@ export type ProjectData = { project: Project; paper: Paper; asset?: PdfAsset; de
 export function loadProject(id: string): Promise<ProjectData> {
   return transaction(['projects', 'papers', 'assets', 'decks'], 'readonly', async tx => {
     const project = await projectIn(tx, id);
-    const paper = validatePaper(await get(tx, 'papers', project.paperId));
+    const paper = validatePaper(await get(tx, 'papers', project.paperId), ['paper-ready', 'deck-plan-ready'].includes(project.checkpoint));
     const asset = await get<PdfAsset>(tx, 'assets', project.pdfAssetId);
     const deck = project.currentDeckId ? DeckSchema.parse(await get(tx, 'decks', project.currentDeckId)) : undefined;
     if (paper.id !== project.paperId) throw new Error('论文关联不一致');
@@ -100,9 +102,10 @@ export function deleteProject(id: string) {
 }
 
 export type StageCapture = Pick<Project, 'id' | 'paperId' | 'pdfAssetId' | 'checkpoint'>;
-export function saveStage(captured: StageCapture, output: { checkpoint: 'pdf-parsed' | 'figures-ready'; paper: Paper }, signal: AbortSignal) {
-  const paper = validatePaper(output.paper);
-  const prior = output.checkpoint === 'pdf-parsed' ? 'project-created' : 'pdf-parsed';
+export function saveStage(captured: StageCapture, output: { checkpoint: 'pdf-parsed' | 'figures-ready'; paper: Paper } | { checkpoint: 'paper-ready'; paper: Paper; strategyId: string }, signal: AbortSignal) {
+  const paper = validatePaper(output.paper, output.checkpoint === 'paper-ready');
+  const prior = { 'pdf-parsed': 'project-created', 'figures-ready': 'pdf-parsed', 'paper-ready': 'figures-ready' }[output.checkpoint];
+  if (output.checkpoint === 'paper-ready' && !prompts.strategies.some(strategy => strategy.id === output.strategyId)) throw new Error('研究叙事策略不存在');
   if (captured.checkpoint !== prior || paper.id !== captured.paperId || !paper.pages.length) throw new Error('阶段产物或顺序不正确');
   return transaction(['projects', 'papers', 'assets'], 'readwrite', async tx => {
     const project = await projectIn(tx, captured.id);
@@ -110,6 +113,7 @@ export function saveStage(captured: StageCapture, output: { checkpoint: 'pdf-par
     if (!((await get<PdfAsset>(tx, 'assets', project.pdfAssetId))?.blob instanceof Blob)) throw new Error('原 PDF 缺失，无法保存本阶段');
     signal.throwIfAborted();
     const next: Project = { ...project, name: !project.nameIsCustom && paper.metadata.title ? paper.metadata.title : project.name, checkpoint: output.checkpoint, updatedAt: Date.now() };
+    if (output.checkpoint === 'paper-ready') next.preferences = { ...project.preferences, strategyId: output.strategyId };
     tx.objectStore('papers').put(paper, paper.id); tx.objectStore('projects').put(next, next.id);
     return next;
   }, signal);
@@ -129,4 +133,12 @@ export function saveRevision(projectId: string, previous: Deck, next: Deck, reco
     const history = (await request(tx.objectStore('history').getAll()) as RevisionRecord[]).filter(item => item.projectId === projectId).sort((a, b) => b.createdAt - a.createdAt);
     history.slice(100).forEach(item => tx.objectStore('history').delete(item.id));
   }, signal);
+}
+
+export function loadSettings() {
+  return transaction(['settings'], 'readonly', async tx => ModelSettingsSchema.parse(await get(tx, 'settings', 'model') ?? DEFAULT_SETTINGS));
+}
+export function saveSettings(settings: ModelSettings) {
+  const next = ModelSettingsSchema.parse({ ...settings, apiKey: settings.apiKey.trim() });
+  return transaction(['settings'], 'readwrite', async tx => { tx.objectStore('settings').put(next, 'model'); return next; });
 }

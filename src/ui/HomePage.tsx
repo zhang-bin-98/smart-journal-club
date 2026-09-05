@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { FileUp, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
+import { FileUp, MoreHorizontal, Pencil, Settings, Trash2 } from 'lucide-react';
 import { createProject, deleteProject, listProjects, updateProject } from '../storage';
 import { Brand, Button, errorMessage, IconButton, inputClass } from './controls';
 
-export function HomePage({ openProject }: { openProject: (id: string) => void }) {
+export function HomePage({ openProject, onSettings }: { openProject: (id: string) => void; onSettings: () => void }) {
   const [projects, setProjects] = useState<Awaited<ReturnType<typeof listProjects>>>([]);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -35,7 +35,7 @@ export function HomePage({ openProject }: { openProject: (id: string) => void })
     catch (cause) { setError(errorMessage(cause)); }
   }
   return <main className="mx-auto min-h-screen max-w-[1080px] px-5 py-6 text-ink">
-    <header className="flex items-center justify-between border-b border-line pb-5"><Brand /></header>
+    <header className="flex items-center justify-between border-b border-line pb-5"><Brand /><IconButton label="模型设置" disabled={saving} onClick={onSettings}><Settings size={17} /></IconButton></header>
     <section className="py-12 sm:py-16">
       <h1 className="text-2xl font-semibold">论文项目</h1>
       <div className="mt-6 flex min-h-[220px] flex-col items-center justify-center gap-5 border-2 border-dashed border-control bg-white px-5 py-8" onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); void upload(event.dataTransfer.files); }}>

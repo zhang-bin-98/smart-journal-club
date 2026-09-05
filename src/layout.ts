@@ -42,6 +42,7 @@ export function validateDeck(input: unknown, paper?: Paper) {
       if (paper && element.type === 'citation' && element.sourceIds.some(id => !paper.sources.some(source => source.id === id))) errors.push('来源不存在：' + element.id);
     });
     if (paper && slide.sourceIds.some(id => !paper.sources.some(source => source.id === id))) errors.push('页来源不存在：' + slide.id);
+    if (paper && slide.claimIds.some(id => !paper.claims.some(claim => claim.id === id))) errors.push('页结论不存在：' + slide.id);
   });
   return errors;
 }

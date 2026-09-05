@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowDown, ArrowLeft, ArrowUp, Crop, Download, FileText, List, Plus, Quote, Redo2, Trash2, Undo2 } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowUp, Crop, Download, FileText, List, Plus, Quote, Redo2, Settings, Trash2, Undo2 } from 'lucide-react';
 import { createSlide, DeckSession, type DeckMutation, type RevisionScope } from '../../deck';
 import type { Deck, Element, Paper, Slide } from '../../types';
 import { LayoutIds } from '../../types';
@@ -7,9 +7,10 @@ import { Brand, Button, errorMessage, IconButton } from '../controls';
 import { SlidePreview, type FigureImage, type TextEdit } from './SlidePreview';
 
 const layoutNames = ['标题', '文字', '单图', '图文', '双图', 'Panel 网格'];
-export function Editor({ session, paper, image, name, initialSlideId, onLeave, onExport, onSelection, onSource }: {
+export function Editor({ session, paper, image, name, initialSlideId, onLeave, onExport, onSelection, onSource, onSettings }: {
   session: DeckSession; paper: Paper; image: FigureImage; name: string; initialSlideId?: string;
   onLeave?: () => void; onExport: (deck: Deck) => Promise<void>; onSelection?: (id?: string) => Promise<void>;
+  onSettings?: () => void;
   onSource?: (sourceId: string, element: Extract<Element, { type: 'figure' }> | undefined, slideId: string, crop: boolean, apply: (element: Extract<Element, { type: 'figure' }>) => Promise<void>) => void;
 }) {
   const [, refresh] = useState(0);
@@ -109,6 +110,7 @@ export function Editor({ session, paper, image, name, initialSlideId, onLeave, o
         setExporting(true);
         try { await onExport(structuredClone(session.current)); } finally { if (active.current) setExporting(false); }
       })}><Download size={15} />{exporting ? '正在导出…' : '导出 PPTX'}</Button>
+      {onSettings && <IconButton label="模型设置" disabled={exporting} onClick={() => void run(onSettings)}><Settings size={17} /></IconButton>}
     </header>
     {error && <div role="alert" className="flex items-center gap-3 border-b border-red-200 py-3 text-sm text-red-700"><span className="flex-1">{error}</span>{draft.current && <Button onClick={() => void run(async () => {})}>重试保存</Button>}</div>}
     <div className="mt-4 grid min-h-[680px] grid-cols-1 border border-line bg-white lg:grid-cols-[190px_minmax(0,1fr)_210px] xl:grid-cols-[210px_minmax(0,1fr)_230px]">

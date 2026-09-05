@@ -9,7 +9,7 @@ export function figureSource(paper: Paper, element: Extract<Element, { type: 'fi
   return source;
 }
 
-export function validatePaper(input: unknown): Paper {
+export function validatePaper(input: unknown, ready = false): Paper {
   const paper = PaperSchema.parse(input);
   const ids = new Set<string>();
   const addId = (id: string) => { if (ids.has(id)) throw new Error('论文中有重复 ID：' + id); ids.add(id); };
@@ -30,6 +30,19 @@ export function validatePaper(input: unknown): Paper {
       if (!panelSource?.bbox || !['panel', 'figure'].includes(panelSource.kind) || panelSource.pageNumber !== source.pageNumber) throw new Error('Panel 与 Figure 来源不在同一页');
     });
   });
+  const hasSources = (values: string[]) => values.every(id => paper.sources.some(source => source.id === id));
+  paper.evidences.forEach(evidence => { addId(evidence.id); if (!hasSources(evidence.sourceIds)) throw new Error('Evidence 来源不存在'); });
+  paper.claims.forEach(claim => {
+    addId(claim.id);
+    if (!claim.evidenceIds.every(id => paper.evidences.some(evidence => evidence.id === id))) throw new Error('Claim 证据不存在');
+    if (ready && claim.importance === 'primary' && !claim.evidenceIds.length) throw new Error('主要结论缺少证据');
+  });
+  if (paper.studyProfile && !hasSources(paper.studyProfile.sourceIds)) throw new Error('研究设计来源不存在');
+  if (paper.story) Object.values(paper.story).flat().forEach(point => {
+    if (!hasSources(point.sourceIds) || !point.claimIds.every(id => paper.claims.some(claim => claim.id === id))) throw new Error('故事点引用不存在');
+    if (ready && !point.sourceIds.length && !point.claimIds.length) throw new Error('故事点缺少依据');
+  });
+  if (ready && (!paper.studyProfile || !paper.story || !paper.claims.some(claim => claim.importance === 'primary'))) throw new Error('论文理解缺少研究设计、故事或主要结论');
   return paper;
 }
 
