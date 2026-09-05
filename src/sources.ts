@@ -1,0 +1,38 @@
+import { PaperSchema, type Element, type Paper } from './types';
+
+export function figureSource(paper: Paper, element: Extract<Element, { type: 'figure' }>) {
+  const figure = paper.figures.find(item => item.id === element.figureId);
+  if (!figure) throw new Error('Figure 不存在');
+  const sourceId = element.panelId ? figure.panels.find(panel => panel.id === element.panelId)?.sourceId : figure.sourceId;
+  const source = paper.sources.find(item => item.id === sourceId);
+  if (!source?.bbox) throw new Error('图源缺失，无法查看或导出');
+  return source;
+}
+
+export function validatePaper(input: unknown): Paper {
+  const paper = PaperSchema.parse(input);
+  const ids = new Set<string>();
+  const addId = (id: string) => { if (ids.has(id)) throw new Error('论文中有重复 ID：' + id); ids.add(id); };
+  const pages = new Set(paper.pages.map(page => page.pageNumber));
+  if (pages.size !== paper.pages.length || paper.pages.some((page, index) => page.pageNumber !== index + 1)) throw new Error('论文页码不连续');
+  paper.sources.forEach(source => {
+    addId(source.id);
+    if (!pages.has(source.pageNumber)) throw new Error('来源页码不存在');
+    if ((source.kind === 'figure' || source.kind === 'panel') && !source.bbox) throw new Error('图源必须有 bbox');
+  });
+  paper.figures.forEach(figure => {
+    addId(figure.id);
+    const source = paper.sources.find(item => item.id === figure.sourceId);
+    if (!source?.bbox || source.kind !== 'figure') throw new Error('Figure 来源无效');
+    figure.panels.forEach(panel => {
+      addId(panel.id);
+      const panelSource = paper.sources.find(item => item.id === panel.sourceId);
+      if (!panelSource?.bbox || !['panel', 'figure'].includes(panelSource.kind) || panelSource.pageNumber !== source.pageNumber) throw new Error('Panel 与 Figure 来源不在同一页');
+    });
+  });
+  return paper;
+}
+
+export function sourceText(paper: Paper, sourceIds: string[]) {
+  return [...new Set(sourceIds.map(id => paper.sources.find(source => source.id === id)?.pageNumber).filter(Boolean))].map(page => `论文第 ${page} 页`).join(' · ');
+}

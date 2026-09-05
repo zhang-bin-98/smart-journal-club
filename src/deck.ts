@@ -1,4 +1,4 @@
-import { validateDeck } from './layout';
+import { layoutCapacity, validateDeck } from './layout';
 import type { Deck, Element, Paper, Slide, SlideKind } from './types';
 export type RevisionScope = { type: 'element'; slideId: string; elementId: string } | { type: 'slides'; slideIds: string[] } | { type: 'deck' };
 export type DeckMutation =
@@ -10,6 +10,8 @@ export type DeckMutation =
   | { type: 'replace-element'; slideId: string; element: Element }
   | { type: 'delete-element'; slideId: string; elementId: string };
 export type DeckSnapshot = Pick<Deck, 'title' | 'language' | 'slides'>;
+export type RevisionRecord = { id: string; projectId: string; deckId: string; baseRevision: number; committedRevision: number; scope: RevisionScope; affectedSlideIds: string[]; summary: string; createdAt: number };
+export type PersistRevision = (previous: Deck, next: Deck, record: RevisionRecord) => Promise<void>;
 const clone = <T>(value: T): T => structuredClone(value);
 const snapshot = (deck: Deck): DeckSnapshot => clone({ title: deck.title, language: deck.language, slides: deck.slides });
 function findSlide(deck: Deck, id: string) { const slide = deck.slides.find(item => item.id === id); if (!slide) throw new Error('找不到幻灯片：' + id); return slide; }
@@ -35,21 +37,53 @@ function applyMutation(deck: Deck, mutation: DeckMutation): { affected: string[]
   if (mutation.type === 'update-slide') { Object.assign(slide, clone(mutation.changes)); return { affected: [slide.id] }; }
   if (mutation.type === 'add-element') { if (deck.slides.some(s => s.elements.some(e => e.id === mutation.element.id))) throw new Error('新增元素 ID 已存在'); slide.elements.push(clone(mutation.element)); return { affected: [slide.id], element: { slideId: slide.id, elementId: mutation.element.id } }; }
   const index = slide.elements.findIndex(e => e.id === (mutation.type === 'replace-element' ? mutation.element.id : mutation.elementId));
-  if (mutation.type === 'replace-element') { if (index < 0) throw new Error('替换目标不存在'); slide.elements[index] = clone(mutation.element); return { affected: [slide.id], element: { slideId: slide.id, elementId: mutation.element.id } }; }
-  if (index < 0) throw new Error('删除目标不存在'); slide.elements.splice(index, 1); slide.layoutId = fallbackLayout(slide); return { affected: [slide.id], element: { slideId: slide.id, elementId: mutation.elementId } };
+  if (mutation.type === 'replace-element') {
+    if (index < 0) throw new Error('替换目标不存在');
+    const previous = slide.elements[index]; const next = clone(mutation.element);
+    if (previous.type === 'figure' && next.type === 'figure' && (previous.figureId !== next.figureId || previous.panelId !== next.panelId)) delete next.cropOverride;
+    slide.elements[index] = next;
+    return { affected: [slide.id], element: { slideId: slide.id, elementId: mutation.element.id } };
+  }
+  if (index < 0) throw new Error('删除目标不存在');
+  slide.elements.splice(index, 1);
+  if (!layoutCapacity(slide)) { slide.layoutId = fallbackLayout(slide); return { affected: [slide.id] }; }
+  return { affected: [slide.id], element: { slideId: slide.id, elementId: mutation.elementId } };
 }
 export class DeckSession {
   current: Deck; private undoStack: DeckSnapshot[] = []; private redoStack: DeckSnapshot[] = [];
-  constructor(initial: Deck, private readonly paper: Paper) { this.current = clone(initial); this.assertValid(this.current); }
+  private saving = false;
+  constructor(initial: Deck, private readonly paper: Paper, private readonly persist?: PersistRevision) { this.current = clone(initial); this.assertValid(this.current); }
   get canUndo() { return this.undoStack.length > 0; } get canRedo() { return this.redoStack.length > 0; }
   private assertValid(deck: Deck) { const errors = validateDeck(deck, this.paper); if (errors.length) throw new Error(errors.join('；')); }
-  commit(scope: RevisionScope, mutations: DeckMutation[], _summary: string) {
-    const next = clone(this.current); for (const mutation of mutations) { const result = applyMutation(next, mutation); ensureScope(scope, result.affected, result.element); }
-    this.assertValid(next); this.undoStack.push(snapshot(this.current)); if (this.undoStack.length > 20) this.undoStack.shift(); this.redoStack = [];
-    next.revision = this.current.revision + 1; next.updatedAt = Date.now(); this.current = next; return clone(this.current);
+  private async save(next: Deck, scope: RevisionScope, summary: string, affectedSlideIds: string[], requestId: string = crypto.randomUUID()) {
+    if (this.saving) throw new Error('正在保存，请稍后重试');
+    this.assertValid(next);
+    next.revision = this.current.revision + 1; next.updatedAt = Date.now();
+    const record: RevisionRecord = { id: requestId, projectId: '', deckId: next.id, baseRevision: this.current.revision, committedRevision: next.revision, scope, affectedSlideIds, summary, createdAt: next.updatedAt };
+    this.saving = true;
+    try { await this.persist?.(clone(this.current), clone(next), record); this.current = next; }
+    finally { this.saving = false; }
   }
-  undo() { if (!this.canUndo) return false; this.redoStack.push(snapshot(this.current)); const previous = this.undoStack.pop()!; this.current = { ...this.current, ...clone(previous), revision: this.current.revision + 1, updatedAt: Date.now() }; this.assertValid(this.current); return true; }
-  redo() { if (!this.canRedo) return false; this.undoStack.push(snapshot(this.current)); const next = this.redoStack.pop()!; this.current = { ...this.current, ...clone(next), revision: this.current.revision + 1, updatedAt: Date.now() }; this.assertValid(this.current); return true; }
+  async commit(scope: RevisionScope, mutations: DeckMutation[], summary: string, requestId?: string) {
+    if (!mutations.length) throw new Error('修改内容为空');
+    const previous = snapshot(this.current); const next = clone(this.current); const affected = new Set<string>();
+    for (const mutation of mutations) { const result = applyMutation(next, mutation); ensureScope(scope, result.affected, result.element); result.affected.forEach(id => affected.add(id)); }
+    await this.save(next, scope, summary, [...affected], requestId);
+    this.undoStack.push(previous); if (this.undoStack.length > 20) this.undoStack.shift(); this.redoStack = [];
+    return clone(this.current);
+  }
+  async undo() {
+    if (!this.canUndo) return false;
+    const current = snapshot(this.current); const previous = this.undoStack.at(-1)!;
+    await this.save({ ...this.current, ...clone(previous) }, { type: 'deck' }, '撤销修改', previous.slides.map(slide => slide.id));
+    this.undoStack.pop(); this.redoStack.push(current); if (this.redoStack.length > 20) this.redoStack.shift(); return true;
+  }
+  async redo() {
+    if (!this.canRedo) return false;
+    const current = snapshot(this.current); const next = this.redoStack.at(-1)!;
+    await this.save({ ...this.current, ...clone(next) }, { type: 'deck' }, '重做修改', next.slides.map(slide => slide.id));
+    this.redoStack.pop(); this.undoStack.push(current); if (this.undoStack.length > 20) this.undoStack.shift(); return true;
+  }
   reset(initial: Deck) { this.current = clone(initial); this.undoStack = []; this.redoStack = []; this.assertValid(this.current); }
 }
 export function createSlide(id: string, number: number): Slide { return { id, kind: 'custom' as SlideKind, title: '新幻灯片 ' + number, layoutId: 'text-only', elements: [{ id: id + '-text', type: 'text', text: '' }], claimIds: [], sourceIds: [] }; }

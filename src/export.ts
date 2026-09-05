@@ -1,6 +1,47 @@
 import pptxgen from 'pptxgenjs';
-import { computeLayout } from './layout';
-import type { Deck } from './types';
+import { computeLayout, validateDeck } from './layout';
+import type { Deck, Element, Paper } from './types';
+import { figureSource, sourceText } from './sources';
 function contain(sourceWidth: number, sourceHeight: number, x: number, y: number, width: number, height: number) { const scale = Math.min(width / sourceWidth, height / sourceHeight); const w = sourceWidth * scale; const h = sourceHeight * scale; return { x: x + (width - w) / 2, y: y + (height - h) / 2, w, h }; }
-async function imageSize(dataUrl: string) { return await new Promise<{ width: number; height: number }>((resolve) => { const image = new Image(); image.onload = () => resolve({ width: image.naturalWidth || 800, height: image.naturalHeight || 480 }); image.onerror = () => resolve({ width: 800, height: 480 }); image.src = dataUrl; }); }
-export async function exportDeck(deck: Deck, figureDataUrl: string) { if (!deck.slides.length) throw new Error('空 Deck 不能导出'); const pptx = new pptxgen(); pptx.layout = 'LAYOUT_WIDE'; pptx.author = 'smartJC'; const source = await imageSize(figureDataUrl); for (const slide of deck.slides) { const out = pptx.addSlide(); const layout = computeLayout(slide); out.addText(slide.title, { x: layout.title.x * 13.333, y: layout.title.y * 7.5, w: layout.title.width * 13.333, h: layout.title.height * 7.5, fontFace: 'Arial', fontSize: 22, bold: true, color: '203040', margin: 0 }); if (layout.message) out.addText(slide.message ?? '', { x: layout.message.x * 13.333, y: layout.message.y * 7.5, w: layout.message.width * 13.333, h: layout.message.height * 7.5, fontSize: 10, color: '526575', margin: 0 }); layout.elements.forEach(({ element, rect }) => { const opts = { x: rect.x * 13.333, y: rect.y * 7.5, w: rect.width * 13.333, h: rect.height * 7.5, margin: .08 }; if (element.type === 'figure') out.addImage({ data: figureDataUrl, ...contain(source.width, source.height, opts.x, opts.y, opts.w, opts.h) }); else if (element.type === 'text') out.addText(element.text, opts); else if (element.type === 'bullet-list') out.addText(element.items.map(item => ({ text: item, options: { bullet: { indent: 12 } } })), opts); else out.addText(element.sourceIds.map(sourceId => '来源：' + sourceId).join('\n'), { ...opts, fontSize: 8, color: '526575' }); }); out.addText('来源：PDF page 1 · Source source-fig-3', { x: .8, y: 7, w: 11.7, h: .2, fontSize: 8, color: '526575', margin: 0 }); } return (await pptx.write({ outputType: 'blob' })) as Blob; }
+async function imageSize(dataUrl: string) {
+  return new Promise<{ width: number; height: number }>((resolve, reject) => {
+    const image = new Image(); image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight });
+    image.onerror = () => reject(new Error('图源无法解码，导出已停止')); image.src = dataUrl;
+  });
+}
+export async function exportDeck(deck: Deck, paper: Paper, getImage: (element: Extract<Element, { type: 'figure' }>) => Promise<string>, signal?: AbortSignal) {
+  if (!deck.slides.length) throw new Error('空 Deck 不能导出');
+  const errors = validateDeck(deck, paper); if (errors.length) throw new Error(errors.join('；'));
+  const pptx = new pptxgen(); pptx.layout = 'LAYOUT_WIDE'; pptx.author = 'smartJC'; pptx.title = deck.title;
+  for (const slide of deck.slides) {
+    signal?.throwIfAborted();
+    const out = pptx.addSlide(); const layout = computeLayout(slide);
+    const box = (rect: { x: number; y: number; width: number; height: number }) => ({ x: rect.x * 13.333, y: rect.y * 7.5, w: rect.width * 13.333, h: rect.height * 7.5, margin: 0, fontFace: 'Arial', color: '203040' });
+    out.addText(slide.title, { ...box(layout.title), fontSize: 22, bold: true });
+    if (layout.message) out.addText(slide.message ?? '', { ...box(layout.message), fontSize: 10, color: '526575' });
+    const sourceIds = new Set(slide.sourceIds);
+    for (const { element, rect } of layout.elements) {
+      const opts = box(rect);
+      if (element.type === 'figure') {
+        let data: string;
+        try { data = await getImage(element); } catch { throw new Error(`第 ${deck.slides.indexOf(slide) + 1} 页图源缺失，导出已停止`); }
+        const size = await imageSize(data); signal?.throwIfAborted();
+        out.addImage({ data, ...contain(size.width, size.height, opts.x, opts.y, opts.w, opts.h) });
+        sourceIds.add(figureSource(paper, element).id);
+      } else if (element.type === 'text') out.addText(element.text, { ...opts, fontSize: 14, breakLine: false });
+      else if (element.type === 'bullet-list') out.addText(element.items.map(item => ({ text: item, options: { bullet: { indent: 12 }, breakLine: true } })), { ...opts, fontSize: 14 });
+      else { element.sourceIds.forEach(id => sourceIds.add(id)); out.addText(sourceText(paper, element.sourceIds), { ...opts, fontSize: 8, color: '526575' }); }
+    }
+    out.addText(sourceText(paper, [...sourceIds]), { ...box(layout.sourceLabel), fontSize: 8, color: '526575' });
+  }
+  signal?.throwIfAborted();
+  const blob = await pptx.write({ outputType: 'blob' }) as Blob;
+  signal?.throwIfAborted();
+  return blob;
+}
+
+export function downloadDeck(blob: Blob, name: string) {
+  const url = URL.createObjectURL(blob); const link = document.createElement('a');
+  link.href = url; link.download = (name.replace(/[<>:"/\\|?*]/g, '-') || 'smartJC') + '.pptx'; link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}

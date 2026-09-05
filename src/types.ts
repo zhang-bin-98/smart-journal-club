@@ -18,6 +18,16 @@ export type FigureRef = z.infer<typeof FigureRefSchema>;
 export const PaperSchema = z.object({ schemaVersion: z.literal(1), id: z.string().min(1), metadata: z.object({ title: z.string().optional() }), pages: z.array(z.object({ pageNumber: z.number().int().positive(), width: z.number().positive(), height: z.number().positive(), text: z.string() })), sources: z.array(SourceReferenceSchema), figures: z.array(FigureRefSchema), claims: z.array(z.unknown()), evidences: z.array(z.unknown()) });
 export type Paper = z.infer<typeof PaperSchema>;
 
+export const Checkpoints = ['project-created', 'pdf-parsed', 'figures-ready', 'paper-ready', 'deck-plan-ready', 'deck-ready'] as const;
+export const ProjectSchema = z.strictObject({
+  schemaVersion: z.literal(1), id: z.string().min(1), name: z.string().min(1), nameIsCustom: z.boolean().optional(), paperId: z.string().min(1), pdfAssetId: z.string().min(1),
+  currentDeckId: z.string().optional(), previousDeckId: z.string().optional(), checkpoint: z.enum(Checkpoints),
+  preferences: z.strictObject({ instruction: z.string(), language: z.string().optional(), targetSlides: z.number().int().positive().optional(), strategyId: z.string().optional() }),
+  lastOpenedSlideId: z.string().optional(), createdAt: z.number().int().nonnegative(), updatedAt: z.number().int().nonnegative(),
+});
+export type Project = z.infer<typeof ProjectSchema>;
+export type PdfAsset = { blob: Blob; name: string };
+
 const TextElementSchema = z.object({ id: z.string().min(1), type: z.literal('text'), text: z.string() });
 const BulletListElementSchema = z.object({ id: z.string().min(1), type: z.literal('bullet-list'), items: z.array(z.string()) });
 const FigureElementSchema = z.object({ id: z.string().min(1), type: z.literal('figure'), figureId: z.string().min(1), panelId: z.string().optional(), cropOverride: BBoxSchema.optional() });

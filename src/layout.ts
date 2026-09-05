@@ -1,4 +1,5 @@
 import { DeckSchema, LayoutIds, type BBox, type Element, type LayoutId, type Paper, type Slide } from './types';
+import { figureSource, validatePaper } from './sources';
 export type Rect = BBox;
 export type ComputedLayout = { title: Rect; message?: Rect; sourceLabel: Rect; elements: { element: Element; rect: Rect }[] };
 const r = (x: number, y: number, width: number, height: number): Rect => ({ x, y, width, height });
@@ -18,7 +19,7 @@ export function computeLayout(slide: Slide): ComputedLayout {
   return { title, message, sourceLabel: r(.06, .95, .88, .025), elements };
 }
 export function validateBBox(box: BBox) { return Number.isFinite(box.x) && Number.isFinite(box.y) && box.width > 0 && box.height > 0 && box.x >= 0 && box.y >= 0 && box.x + box.width <= 1 && box.y + box.height <= 1; }
-function layoutCapacity(slide: Slide) {
+export function layoutCapacity(slide: Slide) {
   const figures = slide.elements.filter(element => element.type === 'figure').length; const content = slide.elements.filter(element => element.type !== 'citation').length;
   if (slide.layoutId === 'title') return figures === 0 && content <= 1;
   if (slide.layoutId === 'text-only') return figures === 0 && content <= 4;
@@ -30,13 +31,14 @@ function layoutCapacity(slide: Slide) {
 export function validateDeck(input: unknown, paper?: Paper) {
   const parsed = DeckSchema.safeParse(input); if (!parsed.success) return parsed.error.issues.map(issue => issue.path.join('.') + ': ' + issue.message);
   const deck = parsed.data; const ids = new Set<string>(); const errors: string[] = [];
+  if (paper) { try { validatePaper(paper); } catch (error) { errors.push(error instanceof Error ? error.message : String(error)); } }
   if (paper && deck.paperId !== paper.id) errors.push('Deck 不属于当前 Paper');
   deck.slides.forEach(slide => {
     if (ids.has(slide.id)) errors.push('重复 slide id'); ids.add(slide.id);
     if (!layoutCapacity(slide)) errors.push('布局无法容纳当前元素：' + slide.id);
     slide.elements.forEach(element => {
       if (ids.has(element.id)) errors.push('重复 element id'); ids.add(element.id);
-      if (paper && element.type === 'figure') { const figure = paper.figures.find(item => item.id === element.figureId); if (!figure) errors.push('Figure 不存在：' + element.figureId); if (element.panelId && !figure?.panels.some(panel => panel.id === element.panelId)) errors.push('Panel 不属于 Figure：' + element.panelId); }
+      if (paper && element.type === 'figure') { try { figureSource(paper, element); } catch (error) { errors.push(error instanceof Error ? error.message : String(error)); } }
       if (paper && element.type === 'citation' && element.sourceIds.some(id => !paper.sources.some(source => source.id === id))) errors.push('来源不存在：' + element.id);
     });
     if (paper && slide.sourceIds.some(id => !paper.sources.some(source => source.id === id))) errors.push('页来源不存在：' + slide.id);

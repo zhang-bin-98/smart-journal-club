@@ -6,17 +6,24 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "check:browser": "node tests/browser.mjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",
+    "lucide-react": "^1.41.0",
     "pdfjs-dist": "^6.3.289",
     "pptxgenjs": "^4.0.1",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
     "tailwindcss": "^4.3.3",
     "zod": "^4.5.4"
   },
   "devDependencies": {
     "@types/node": "^24.3.0",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
+    "@vitejs/plugin-react": "^5.2.0",
     "typescript": "^5.9.2",
     "vite": "^7.1.3"
   }
