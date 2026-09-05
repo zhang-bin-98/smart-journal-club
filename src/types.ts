@@ -46,3 +46,7 @@ export const SlideSchema = z.object({ id: z.string().min(1), kind: z.enum(SlideK
 export type Slide = z.infer<typeof SlideSchema>;
 export const DeckSchema = z.object({ schemaVersion: z.literal(1), id: z.string().min(1), paperId: z.string().min(1), revision: z.number().int().nonnegative(), title: z.string(), language: z.string().min(1), slides: z.array(SlideSchema), createdAt: z.number().int().nonnegative(), updatedAt: z.number().int().nonnegative() });
 export type Deck = z.infer<typeof DeckSchema>;
+export const DeckPlanSchema = DeckSchema.pick({ schemaVersion: true, paperId: true, title: true, language: true }).extend({
+  slides: z.array(SlideSchema.omit({ elements: true }).extend({ figures: z.array(FigureElementSchema.pick({ figureId: true, panelId: true })) })).min(1),
+});
+export type DeckPlan = z.infer<typeof DeckPlanSchema>;

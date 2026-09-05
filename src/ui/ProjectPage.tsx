@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, FileText, Play, Settings, X } from 'lucide-react';
+import { ArrowLeft, Check, Circle, FileText, LoaderCircle, Play, Settings, X } from 'lucide-react';
 import { DeckSession } from '../deck';
 import { PdfResource, PDF_EXPORT_EDGE } from '../pdf';
-import { loadProject, saveRevision, saveStage, updateProject, type ProjectData } from '../storage';
+import { loadProject, saveRevision, updateProject, type ProjectData } from '../storage';
 import { Brand, Button, errorMessage, IconButton, inputClass } from './controls';
 import { Editor } from './editor/Editor';
 import { SourceDialog, type SourceSelection } from './SourceDialog';
 import type { ModelSettings } from '../model';
+import { Checkpoints } from '../types';
+import { generateProject, GENERATION_STEPS } from '../generation';
 
 type OpenProject = { data: ProjectData; resource?: PdfResource; controller: AbortController };
 export function ProjectPage({ id, onLeave, settings, onSettings }: { id: string; onLeave: () => void; settings: ModelSettings; onSettings: () => void }) {
@@ -34,8 +36,9 @@ function ProjectContent({ opened, onLeave, settings, onSettings }: { opened: Ope
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [stage, setStage] = useState('');
+  const [warning, setWarning] = useState('');
   const parseTask = useRef<AbortController | undefined>(undefined);
-  const [session] = useState(() => data.deck ? new DeckSession(data.deck, data.paper, (previous, next, record) => saveRevision(data.project.id, previous, next, record, controller.signal)) : undefined);
+  const session = useMemo(() => data.deck ? new DeckSession(data.deck, data.paper, (previous, next, record) => saveRevision(data.project.id, previous, next, record, controller.signal)) : undefined, [data.deck, data.paper, data.project.id, controller]);
   const image = useMemo(() => async (element: Parameters<PdfResource['image']>[1]) => {
     if (!resource) throw new Error('原 PDF 缺失'); return resource.image(data.paper, element);
   }, [resource, data.paper]);
@@ -46,30 +49,19 @@ function ProjectContent({ opened, onLeave, settings, onSettings }: { opened: Ope
     if (!controller.signal.aborted) setData(value => ({ ...value, project }));
     return project;
   }
-  async function parse() {
-    if (!resource || parseTask.current) return;
-    const task = new AbortController(); parseTask.current = task; setBusy(true); setError(''); setStage('解析论文');
-    const cancel = () => task.abort(); controller.signal.addEventListener('abort', cancel, { once: true });
-    try {
-      await savePreferences();
-      const paper = await resource.parse(data.paper, task.signal);
-      const project = await saveStage(data.project, { checkpoint: 'pdf-parsed', paper }, task.signal);
-      if (!controller.signal.aborted) setData(value => ({ ...value, paper, project }));
-    } catch (cause) { if (!controller.signal.aborted) setError(task.signal.aborted ? '已停止解析，原 PDF 已保存。' : errorMessage(cause)); }
-    finally { controller.signal.removeEventListener('abort', cancel); parseTask.current = undefined; if (!controller.signal.aborted) setBusy(false); }
-  }
-  async function analyze() {
+  async function generate() {
     if (!resource || parseTask.current) return;
     const task = new AbortController(); parseTask.current = task; setBusy(true); setError('');
     const cancel = () => task.abort(); controller.signal.addEventListener('abort', cancel, { once: true });
     try {
       const project = await savePreferences();
-      const { analyzeProject } = await import('../analysis');
-      await analyzeProject({ ...data, project }, resource, settings, task.signal, setStage, saved => { if (!controller.signal.aborted) setData(saved); });
-    } catch (cause) { if (!controller.signal.aborted) setError(task.signal.aborted ? '已停止，完整阶段已保存，可继续分析。' : errorMessage(cause)); }
+      await generateProject({ ...data, project }, resource, settings, task.signal, setStage, saved => { if (!controller.signal.aborted) setData(saved); }, setWarning);
+    } catch (cause) { if (!controller.signal.aborted) setError(task.signal.aborted ? '已停止，完整阶段已保存，可继续生成。' : errorMessage(cause)); }
     finally { controller.signal.removeEventListener('abort', cancel); parseTask.current = undefined; if (!controller.signal.aborted) setBusy(false); }
   }
+  const completed = Checkpoints.indexOf(data.project.checkpoint);
   const content = session ? <Editor session={session} paper={data.paper} image={image} name={data.project.name} initialSlideId={data.project.lastOpenedSlideId} onLeave={onLeave} onSettings={onSettings}
+    notice={warning || '请核对主要结论、图例和裁图边缘；自动识别的图源可能需要调整。'}
     onSelection={async id => { await updateProject(data.project.id, { lastOpenedSlideId: id }); }}
     onSource={(sourceId, element, _slideId, crop, apply) => setSource({ sourceId, element, crop, apply })}
     onExport={async deck => {
@@ -83,18 +75,21 @@ function ProjectContent({ opened, onLeave, settings, onSettings }: { opened: Ope
     <section className="mx-auto max-w-[760px] py-12">
       <p className="flex items-center gap-3 text-sm text-muted"><FileText size={20} />已保存：{data.asset?.name ?? '原 PDF 缺失'}</p>
       <label className="mt-10 block text-sm font-medium" htmlFor="instruction">你希望怎么汇报这篇论文？（可选）</label>
-      <textarea id="instruction" className={`${inputClass} mt-3 min-h-36 resize-y`} placeholder="例如：中文，15 页左右，重点讲结果和创新点" value={instruction} disabled={busy} onChange={event => setInstruction(event.target.value)} onBlur={() => { void savePreferences().catch(cause => setError(errorMessage(cause))); }} />
+      <textarea id="instruction" className={`${inputClass} mt-3 min-h-36 resize-y`} placeholder="例如：中文，15 页左右，重点讲结果和创新点" value={instruction} disabled={busy || data.project.checkpoint === 'deck-plan-ready'} onChange={event => setInstruction(event.target.value)} onBlur={() => { void savePreferences().catch(cause => setError(errorMessage(cause))); }} />
+      {(busy || completed > 0) && <ol className="mt-6 space-y-3 border-y border-line py-5">{GENERATION_STEPS.map((label, index) => <li key={label} className={`flex items-center gap-3 text-sm ${index < completed ? 'text-success' : index === completed ? 'text-ink' : 'text-muted'}`}>
+        {index < completed ? <Check size={16} /> : busy && index === completed ? <LoaderCircle size={16} className="animate-spin" /> : <Circle size={16} />}<span>{label}</span>
+      </li>)}</ol>}
+      {!busy && completed > 0 && <p className="mt-4 text-sm text-muted">下次从“{GENERATION_STEPS[completed]}”继续，已完成的步骤已保存。</p>}
       {error && <p role="alert" className="mt-4 text-sm text-red-700">{error}</p>}
+      {warning && <p role="status" className="mt-4 text-sm text-muted">{warning}</p>}
       {!resource && <p role="alert" className="mt-4 text-sm text-red-700">原 PDF 缺失，请保留项目中的可读内容。</p>}
       <div className="mt-5 flex flex-wrap items-center justify-end gap-3">
         {busy ? <><span role="status" className="text-sm text-muted">{stage}…</span><Button onClick={() => parseTask.current?.abort()}><X size={15} />取消</Button></>
-          : data.project.checkpoint === 'project-created' ? <Button primary disabled={!resource} onClick={() => void parse()}><Play size={15} />{error ? '重试解析论文' : '解析论文'}</Button>
-          : <><span className="text-sm text-success">已解析 {data.paper.pages.length} 页</span><Button disabled={!resource || !data.paper.sources.length} onClick={() => setSource({ sourceId: data.paper.sources[0].id, crop: false })}><FileText size={15} />查看论文</Button>
-            {data.project.checkpoint !== 'paper-ready' && <Button primary disabled={!resource || !settings.apiKey} onClick={() => void analyze()}><Play size={15} />{data.project.checkpoint === 'figures-ready' || error ? '继续分析' : '分析论文'}</Button>}
+          : <>{data.paper.pages.length > 0 && <><span className="text-sm text-success">已解析 {data.paper.pages.length} 页</span><Button disabled={!resource || !data.paper.sources.length} onClick={() => setSource({ sourceId: data.paper.sources[0].id, crop: false })}><FileText size={15} />查看论文</Button></>}
+            <Button primary disabled={!resource || !settings.apiKey} onClick={() => void generate()}><Play size={15} />{error ? '重试当前步骤' : completed > 0 ? '继续生成' : '生成 PPT'}</Button>
           </>}
       </div>
       {!settings.apiKey && !busy && <div className="mt-4 flex items-center justify-end gap-3 text-xs text-muted"><span>尚未配置模型 Key</span><Button onClick={onSettings}>模型设置</Button></div>}
-      {data.project.checkpoint === 'paper-ready' && <p role="status" className="mt-6 text-sm text-success">论文理解已保存</p>}
       {!!data.paper.figures.length && !busy && <div className="mt-8 flex flex-wrap gap-2 border-t border-line pt-4">{data.paper.figures.map(figure => <Button key={figure.id} onClick={() => setSource({ sourceId: figure.sourceId, crop: false })}><FileText size={14} />{figure.label ?? 'Figure'}</Button>)}</div>}
     </section>
   </main>;

@@ -5,12 +5,14 @@ import type { Deck, Element, Paper, Slide } from '../../types';
 import { LayoutIds } from '../../types';
 import { Brand, Button, errorMessage, IconButton } from '../controls';
 import { SlidePreview, type FigureImage, type TextEdit } from './SlidePreview';
+import { computeLayout } from '../../layout';
 
 const layoutNames = ['标题', '文字', '单图', '图文', '双图', 'Panel 网格'];
-export function Editor({ session, paper, image, name, initialSlideId, onLeave, onExport, onSelection, onSource, onSettings }: {
+export function Editor({ session, paper, image, name, initialSlideId, onLeave, onExport, onSelection, onSource, onSettings, notice }: {
   session: DeckSession; paper: Paper; image: FigureImage; name: string; initialSlideId?: string;
   onLeave?: () => void; onExport: (deck: Deck) => Promise<void>; onSelection?: (id?: string) => Promise<void>;
   onSettings?: () => void;
+  notice?: string;
   onSource?: (sourceId: string, element: Extract<Element, { type: 'figure' }> | undefined, slideId: string, crop: boolean, apply: (element: Extract<Element, { type: 'figure' }>) => Promise<void>) => void;
 }) {
   const [, refresh] = useState(0);
@@ -25,6 +27,8 @@ export function Editor({ session, paper, image, name, initialSlideId, onLeave, o
   const deck = session.current;
   const slide = deck.slides.find(item => item.id === selectedId) ?? deck.slides[0];
   const element = slide?.elements.find(item => item.id === selectedElement);
+  const geometry = slide && computeLayout(slide);
+  const crowded = geometry && (geometry.titleText.overflow || geometry.messageText.overflow || geometry.elements.some(item => item.text.overflow));
   useEffect(() => {
     active.current = true;
     const beforeUnload = (event: BeforeUnloadEvent) => { if (draft.current || pending.current) event.preventDefault(); };
@@ -112,6 +116,7 @@ export function Editor({ session, paper, image, name, initialSlideId, onLeave, o
       })}><Download size={15} />{exporting ? '正在导出…' : '导出 PPTX'}</Button>
       {onSettings && <IconButton label="模型设置" disabled={exporting} onClick={() => void run(onSettings)}><Settings size={17} /></IconButton>}
     </header>
+    {notice && <p className="border-b border-line py-2 text-xs text-muted">{notice}</p>}
     {error && <div role="alert" className="flex items-center gap-3 border-b border-red-200 py-3 text-sm text-red-700"><span className="flex-1">{error}</span>{draft.current && <Button onClick={() => void run(async () => {})}>重试保存</Button>}</div>}
     <div className="mt-4 grid min-h-[680px] grid-cols-1 border border-line bg-white lg:grid-cols-[190px_minmax(0,1fr)_210px] xl:grid-cols-[210px_minmax(0,1fr)_230px]">
       <aside className="min-w-0 border-b border-line bg-panel p-3 lg:border-r lg:border-b-0">
@@ -141,6 +146,7 @@ export function Editor({ session, paper, image, name, initialSlideId, onLeave, o
           }} /> : <Button onClick={() => void run(addSlide)}><Plus size={16} />新增页</Button>}
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2 border-b border-line pb-3">
+          {crowded && <p role="status" className="w-full text-xs text-red-700">本页文字可能溢出，请精简文字或拆页后核对导出。</p>}
           <select aria-label="选择布局" value={slide?.layoutId ?? 'text-only'} disabled={!slide} className="h-9 max-w-full rounded border border-control bg-white px-2 text-xs disabled:opacity-45" onChange={event => {
             const layoutId = event.target.value as Slide['layoutId']; if (slide) void run(() => commit({ type: 'slides', slideIds: [slide.id] }, [{ type: 'update-slide', slideId: slide.id, changes: { layoutId } }], '切换布局'));
           }}>{LayoutIds.map((id, index) => <option key={id} value={id}>{layoutNames[index]}</option>)}</select>

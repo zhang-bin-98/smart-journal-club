@@ -1,4 +1,4 @@
-import { GlobalWorkerOptions, getDocument, type PDFDocumentProxy, type PDFDocumentLoadingTask, type RenderTask } from 'pdfjs-dist';
+import { GlobalWorkerOptions, getDocument, OPS, type PDFDocumentProxy, type PDFDocumentLoadingTask, type RenderTask } from 'pdfjs-dist';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url';
 import { BBoxSchema, type BBox, type Element, type Paper } from './types';
 import { figureSource } from './sources';
@@ -72,6 +72,42 @@ export class PdfResource {
     this.renders.add(task); signal.addEventListener('abort', cancel, { once: true });
     try { await task.promise; signal.throwIfAborted(); }
     finally { this.renders.delete(task); signal.removeEventListener('abort', cancel); }
+  }
+  async imageRegions(pageNumber: number): Promise<BBox[]> {
+    const pdf = await this.getDocument();
+    const page = await pdf.getPage(pageNumber);
+    const viewport = page.getViewport({ scale: 1 });
+    const operators = await page.getOperatorList();
+    const stack: number[][] = [];
+    let matrix = [1, 0, 0, 1, 0, 0];
+    const regions: BBox[] = [];
+    const multiply = (left: number[], right: number[]) => [
+      left[0] * right[0] + left[2] * right[1], left[1] * right[0] + left[3] * right[1],
+      left[0] * right[2] + left[2] * right[3], left[1] * right[2] + left[3] * right[3],
+      left[0] * right[4] + left[2] * right[5] + left[4], left[1] * right[4] + left[3] * right[5] + left[5],
+    ];
+    const point = (transform: number[], x: number, y: number) => [transform[0] * x + transform[2] * y + transform[4], transform[1] * x + transform[3] * y + transform[5]];
+    for (let index = 0; index < operators.fnArray.length; index++) {
+      const fn = operators.fnArray[index]; const args = operators.argsArray[index] as unknown[] | null;
+      if (fn === OPS.save) stack.push([...matrix]);
+      else if (fn === OPS.restore) matrix = stack.pop() ?? matrix;
+      else if (fn === OPS.transform && args?.length === 6) matrix = multiply(matrix, args as number[]);
+      else if ((fn === OPS.paintImageXObject || fn === OPS.paintInlineImageXObject) && args && args.length >= 3) {
+        const width = Number(args[1]); const height = Number(args[2]);
+        if (!Number.isFinite(width) || !Number.isFinite(height)) continue;
+        // PDF.js applies the current transform to the image unit square; args[1/2] are source pixels.
+        const points = [[0, 0], [1, 0], [0, 1], [1, 1]].map(([x, y]) => {
+          const [pointX, pointY] = point(matrix, x, y); return viewport.convertToViewportPoint(pointX, pointY);
+        });
+        const x = Math.max(0, Math.min(...points.map(item => item[0])) / viewport.width);
+        const y = Math.max(0, Math.min(...points.map(item => item[1])) / viewport.height);
+        const right = Math.min(1, Math.max(...points.map(item => item[0])) / viewport.width);
+        const bottom = Math.min(1, Math.max(...points.map(item => item[1])) / viewport.height);
+        if (right - x > .03 && bottom - y > .03) regions.push(BBoxSchema.parse({ x, y, width: right - x, height: bottom - y }));
+      }
+    }
+    page.cleanup();
+    return regions;
   }
   async image(paper: Paper, element: Extract<Element, { type: 'figure' }>, edge = PDF_PREVIEW_EDGE) {
     const source = figureSource(paper, element); const box = BBoxSchema.parse(element.cropOverride ?? source.bbox);

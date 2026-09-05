@@ -46,10 +46,10 @@ export function SlidePreview({ slide, paper, image, selectedElement, onSelect, o
 }) {
   const layout = computeLayout(slide);
   return <div data-slide-preview={thumbnail ? 'thumbnail' : 'current'} className="relative aspect-video w-full overflow-hidden border border-control bg-white text-ink [container-type:inline-size] [&>*]:absolute">
-    <div className="text-[3.2cqw] font-bold leading-[1.2]" style={position(layout.title)}><Editable value={slide.title} editKey="title" label="幻灯片标题" editing={editing} /></div>
-    {layout.message && <div className="text-[1.6cqw] leading-[1.3] text-muted" style={position(layout.message)}><Editable value={slide.message ?? ''} editKey="message" label="幻灯片副标题" editing={editing} /></div>}
-    {layout.elements.map(({ element, rect }) => <div key={element.id} data-element-id={element.id} onClick={() => onSelect?.(element.id)}
-      className={`overflow-hidden ${element.type === 'citation' ? 'text-[1.2cqw] leading-[1.2]' : 'text-[2cqw] leading-[1.45]'} ${selectedElement === element.id ? 'outline-2 outline-offset-2 outline-accent' : ''}`} style={position(rect)}>
+    <div className="overflow-hidden font-bold" style={{ ...position(layout.title), fontSize: `${layout.titleText.fontSize / 9.6}cqw`, lineHeight: layout.titleText.lineHeight }}><Editable value={slide.title} editKey="title" label="幻灯片标题" editing={editing} /></div>
+    {layout.message && <div className="overflow-hidden text-muted" style={{ ...position(layout.message), fontSize: `${layout.messageText.fontSize / 9.6}cqw`, lineHeight: layout.messageText.lineHeight }}><Editable value={slide.message ?? ''} editKey="message" label="幻灯片副标题" editing={editing} /></div>}
+    {layout.elements.map(({ element, rect, text }) => <div key={element.id} data-element-id={element.id} onClick={() => onSelect?.(element.id)}
+      className={`overflow-hidden ${selectedElement === element.id ? 'outline-2 outline-offset-2 outline-accent' : ''}`} style={{ ...position(rect), fontSize: `${text.fontSize / 9.6}cqw`, lineHeight: text.lineHeight }}>
       {element.type === 'figure' ? <button type="button" tabIndex={thumbnail ? -1 : 0} aria-label="选择 Figure" className="grid size-full cursor-pointer place-items-center bg-panel focus-visible:outline-2 focus-visible:outline-focus"><Figure element={element} image={image} /></button>
         : element.type === 'citation' ? <button type="button" tabIndex={thumbnail ? -1 : 0} className="block cursor-pointer text-left text-muted hover:underline" onClick={() => onSource?.(element.sourceIds[0])}>{sourceLabel(paper, element.sourceIds)}</button>
         : <Editable value={element.type === 'text' ? element.text : element.items.join('\n')} editKey={element.id} label={element.type === 'text' ? '幻灯片文字' : '幻灯片列表'} editing={editing} />}

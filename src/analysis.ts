@@ -4,7 +4,6 @@ import { requestJson, type ModelSettings } from './model';
 import { prompts } from './prompts';
 import { validatePaper } from './sources';
 import { PdfResource } from './pdf';
-import { saveStage, type ProjectData } from './storage';
 
 export const FigurePageSchema = z.strictObject({ figures: z.array(z.strictObject({
   label: z.string().min(1), caption: z.string(), description: z.string(), bbox: BBoxSchema,
@@ -25,7 +24,8 @@ export async function analyzeFigures(paper: Paper, resource: PdfResource, settin
     let image: string;
     try { await resource.render(page.pageNumber, canvas, ANALYSIS_EDGE, signal); image = canvas.toDataURL('image/png'); }
     finally { canvas.width = 0; canvas.height = 0; }
-    const output = await requestJson(settings, prompts.common + '\n\n' + prompts.stages.figures, { pageNumber: page.pageNumber, pageText: page.text }, FigurePageSchema, signal, 'figures', image);
+    const imageRegions = await resource.imageRegions(page.pageNumber);
+    const output = await requestJson(settings, prompts.common + '\n\n' + prompts.stages.figures, { pageNumber: page.pageNumber, pageText: page.text, imageRegions }, FigurePageSchema, signal, 'figures', image);
     for (const figure of output.figures) {
       const sourceId = crypto.randomUUID();
       working.sources.push({ id: sourceId, kind: 'figure', pageNumber: page.pageNumber, bbox: figure.bbox });
@@ -56,21 +56,4 @@ export async function understandPaper(paper: Paper, settings: ModelSettings, ins
     instruction, strategies: prompts.strategies, paper,
   }, UnderstandingSchema, signal, 'understand');
   return mapUnderstanding(paper, result);
-}
-export async function analyzeProject(initial: ProjectData, resource: PdfResource, settings: ModelSettings, signal: AbortSignal,
-  onStage: (stage: string) => void, onSaved: (data: ProjectData) => void) {
-  let data = initial;
-  if (data.project.checkpoint === 'pdf-parsed') {
-    onStage('分析 Figure / Panel');
-    const paper = await analyzeFigures(data.paper, resource, settings, signal);
-    const project = await saveStage(data.project, { checkpoint: 'figures-ready', paper }, signal);
-    data = { ...data, paper, project }; onSaved(data);
-  }
-  if (data.project.checkpoint === 'figures-ready') {
-    onStage('理解研究内容');
-    const result = await understandPaper(data.paper, settings, data.project.preferences.instruction, signal);
-    const project = await saveStage(data.project, { checkpoint: 'paper-ready', ...result }, signal);
-    data = { ...data, paper: result.paper, project }; onSaved(data);
-  }
-  return data;
 }

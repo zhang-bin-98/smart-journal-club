@@ -14,6 +14,7 @@ try {
   await page.goto(base);
   console.log(await page.evaluate(async () => (await import('/tests/contracts.ts')).runContracts()));
   console.log(await page.evaluate(async () => (await import('/tests/analysis-contracts.ts')).runAnalysisContracts()));
+  console.log(await page.evaluate(async () => (await import('/tests/generation-contracts.ts')).runGenerationContracts()));
   let modelCase = 'success';
   await page.route('https://api.deepseek.com/chat/completions', async route => {
     if (modelCase === 'authentication') { await route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ error: { message: 'invalid key', type: 'authentication_error' } }) }); return; }
@@ -64,31 +65,48 @@ try {
   assert.equal(await page.locator('[data-slide-id]').count(), 1);
   console.log('PASS: React draft/focus/composition/selection/reorder/undo/redo/empty/export');
 
+  const generationCalls = []; let holdDeck = true; let heldRoute;
+  await page.route('https://api.deepseek.com/chat/completions', async route => {
+    const request = route.request().postDataJSON();
+    const content = request.messages.find(message => message.role === 'user').content;
+    const data = JSON.parse(typeof content === 'string' ? content : content.find(item => item.type === 'text').text);
+    const stage = data.plan ? 'generate' : data.layoutRules ? 'plan' : data.strategies ? 'understand' : 'figures';
+    generationCalls.push(stage);
+    if (stage === 'generate' && holdDeck) { heldRoute = route; return; }
+    const result = await page.evaluate(async ({ stage, data }) => {
+      if (stage === 'figures') return { figures: data.pageNumber === 8 ? [{ label: 'Figure 3', caption: '固定图注', description: '固定图源', bbox: { x: .12, y: .2, width: .76, height: .58 }, panels: [] }] : [] };
+      if (stage === 'understand') return (await import('/tests/analysis-contracts.ts')).understanding(data.paper);
+      const fixed = await import('/tests/generation-contracts.ts');
+      return stage === 'plan' ? fixed.fixedPlan(data.paper) : fixed.fixedSlides(data.plan);
+    }, { stage, data });
+    const body = `data: ${JSON.stringify({ id: 'fixed', object: 'chat.completion.chunk', choices: [{ index: 0, delta: { role: 'assistant', tool_calls: [{ index: 0, id: 'call-fixed', type: 'function', function: { name: 'submit_result', arguments: JSON.stringify({ result }) } }] }, finish_reason: null }] })}\n\ndata: ${JSON.stringify({ id: 'fixed', object: 'chat.completion.chunk', choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] })}\n\ndata: [DONE]\n\n`;
+    await route.fulfill({ status: 200, contentType: 'text/event-stream', body });
+  });
   await page.goto(base);
+  await page.evaluate(async () => { const { saveSettings } = await import('/src/storage.ts'); const { DEFAULT_SETTINGS } = await import('/src/model.ts'); await saveSettings({ ...DEFAULT_SETTINGS, apiKey: 'fixed-test-key' }); });
+  await page.reload();
   await page.getByLabel('选择论文 PDF').setInputFiles(resolve('test-fixtures/papers/mechanism-modt-cdifficile.pdf'));
   await page.waitForURL(/project/);
-  await page.getByRole('button', { name: '解析论文', exact: true }).click();
-  await page.getByText('已解析 32 页').waitFor({ timeout: 60000 });
+  const generationRequest = page.waitForRequest(request => { if (!request.url().includes('api.deepseek.com')) return false; return request.postData().includes('制作完整幻灯片'); }, { timeout: 120000 });
+  await page.getByRole('button', { name: '生成 PPT', exact: true }).click();
+  await generationRequest;
   const id = page.url().split('/project/')[1];
-  // M2 沿用同一 Deck fixture 注入开发标注；模型生成在后续阶段接入。
-  await page.evaluate(async id => {
-    const { loadProject } = await import('/src/storage.ts'); const { fixtureDeck, fixturePaper } = await import('/src/fixtures.ts');
-    const data = await loadProject(id); const paper = structuredClone(data.paper);
-    paper.sources.push(...structuredClone(fixturePaper.sources).map(source => ({ ...source, pageNumber: 8 })));
-    paper.figures = structuredClone(fixturePaper.figures);
-    const deck = { ...structuredClone(fixtureDeck), id: crypto.randomUUID(), paperId: paper.id };
-    await new Promise((resolve, reject) => {
-      const req = indexedDB.open('smartjc', 1); req.onsuccess = () => {
-        const db = req.result; const tx = db.transaction(['papers', 'projects', 'decks'], 'readwrite');
-        tx.objectStore('papers').put(paper, paper.id); tx.objectStore('decks').put(deck, deck.id);
-        tx.objectStore('projects').put({ ...data.project, checkpoint: 'deck-ready', currentDeckId: deck.id }, id);
-        tx.oncomplete = () => { db.close(); resolve(); }; tx.onabort = () => reject(tx.error);
-      };
-    });
-  }, id);
+  await page.getByRole('button', { name: '取消', exact: true }).click();
+  await page.getByRole('button', { name: '重试当前步骤', exact: true }).waitFor();
+  if (heldRoute) await heldRoute.abort().catch(() => {});
+  const priorCalls = [...generationCalls];
+  const checkpoint = await page.evaluate(async id => (await (await import('/src/storage.ts')).loadProject(id)).project.checkpoint, id);
+  assert.equal(checkpoint, 'deck-plan-ready');
+  holdDeck = false;
   await page.reload();
-  await page.locator('[data-slide-id="slide-2"]').click();
-  await page.locator('[data-slide-preview="current"] [data-element-id="f1"]').click();
+  await page.getByRole('button', { name: '继续生成', exact: true }).click();
+  await page.getByRole('button', { name: '导出 PPTX', exact: true }).waitFor();
+  assert.deepEqual(generationCalls.slice(priorCalls.length), ['generate']);
+  console.log('PASS: upload/all stages/cancel/reload/resume only incomplete stage/editor entry');
+  const generated = await page.evaluate(async id => (await (await import('/src/storage.ts')).loadProject(id)).deck, id);
+  const resultId = generated.slides[1].id; const firstFigureId = generated.slides[1].elements.find(element => element.type === 'figure').id;
+  await page.locator(`[data-slide-id="${resultId}"]`).click();
+  await page.locator(`[data-slide-preview="current"] [data-element-id="${firstFigureId}"]`).click();
   await page.getByRole('button', { name: '裁图', exact: true }).click();
   await page.getByText('正在加载原页…').waitFor({ state: 'hidden' });
   assert.equal(await page.locator('canvas').evaluate(canvas => {
@@ -102,8 +120,8 @@ try {
   await page.getByRole('button', { name: '应用到本页', exact: true }).click();
   await page.getByRole('dialog').waitFor({ state: 'hidden' });
   const saved = await page.evaluate(async id => (await (await import('/src/storage.ts')).loadProject(id)).deck, id);
-  assert.ok(saved.slides[1].elements.find(e => e.id === 'f1').cropOverride);
-  assert.equal(saved.slides[2].elements.find(e => e.id === 'f2').cropOverride, undefined);
+  assert.ok(saved.slides[1].elements.find(e => e.id === firstFigureId).cropOverride);
+  assert.equal(saved.slides[2].elements.find(e => e.type === 'figure').cropOverride, undefined);
   assert.equal(saved.revision, 1);
   const editingTitle = page.getByRole('textbox', { name: '幻灯片标题', exact: true });
   await page.evaluate(() => {
@@ -121,7 +139,7 @@ try {
   await page.getByRole('status').filter({ hasText: '已保存' }).waitFor();
   await page.reload();
   await page.locator('[data-slide-preview="current"] img').waitFor();
-  assert.equal(await page.locator('[data-slide-id][aria-current="page"]').getAttribute('data-slide-id'), 'slide-2');
+  assert.equal(await page.locator('[data-slide-id][aria-current="page"]').getAttribute('data-slide-id'), resultId);
   assert.ok((await page.locator('[data-slide-preview="current"] img').getAttribute('src')).startsWith('data:image/png;base64,'));
   const download = page.waitForEvent('download'); await page.getByRole('button', { name: '导出 PPTX', exact: true }).click();
   await (await download).saveAs(join(output, 'paper.pptx'));

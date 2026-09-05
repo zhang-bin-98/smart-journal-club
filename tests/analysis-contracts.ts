@@ -9,7 +9,7 @@ import type { Paper } from '../src/types';
 
 const assert = (value: unknown, message: string) => { if (!value) throw new Error(message); };
 async function rejected(work: () => unknown | Promise<unknown>) { let failed = false; try { await work(); } catch { failed = true; } assert(failed, '应拒绝非法结果'); }
-function understanding(paper: Paper) {
+export function understanding(paper: Paper) {
   const sourceId = paper.sources[0].id;
   return { supported: true, strategyId: 'general', metadata: { title: '固定检查论文' },
     studyProfile: { type: '固定研究类型', designSummary: '固定设计说明', sourceIds: [sourceId] },

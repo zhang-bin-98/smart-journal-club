@@ -1,5 +1,5 @@
-import { DeckSchema, ProjectSchema, type Deck, type Paper, type PdfAsset, type Project } from './types';
-import { validateDeck } from './layout';
+import { DeckSchema, ProjectSchema, type Deck, type DeckPlan, type Paper, type PdfAsset, type Project } from './types';
+import { validateDeck, validatePlan } from './layout';
 import { validatePaper } from './sources';
 import type { RevisionRecord } from './deck';
 import { DEFAULT_SETTINGS, ModelSettingsSchema, type ModelSettings } from './model';
@@ -65,18 +65,19 @@ export function listProjects() {
     return Promise.all(items.map(async project => ({ project, slideCount: project.currentDeckId ? (await get<Deck>(tx, 'decks', project.currentDeckId))?.slides.length : undefined })));
   });
 }
-export type ProjectData = { project: Project; paper: Paper; asset?: PdfAsset; deck?: Deck };
+export type ProjectData = { project: Project; paper: Paper; asset?: PdfAsset; deck?: Deck; plan?: DeckPlan };
 export function loadProject(id: string): Promise<ProjectData> {
-  return transaction(['projects', 'papers', 'assets', 'decks'], 'readonly', async tx => {
+  return transaction(['projects', 'papers', 'assets', 'decks', 'plans'], 'readonly', async tx => {
     const project = await projectIn(tx, id);
-    const paper = validatePaper(await get(tx, 'papers', project.paperId), ['paper-ready', 'deck-plan-ready'].includes(project.checkpoint));
+    const paper = validatePaper(await get(tx, 'papers', project.paperId), ['paper-ready', 'deck-plan-ready', 'deck-ready'].includes(project.checkpoint));
     const asset = await get<PdfAsset>(tx, 'assets', project.pdfAssetId);
     const deck = project.currentDeckId ? DeckSchema.parse(await get(tx, 'decks', project.currentDeckId)) : undefined;
     if (paper.id !== project.paperId) throw new Error('论文关联不一致');
     if (project.checkpoint !== 'project-created' && !paper.pages.length) throw new Error('已保存阶段缺少解析结果，请保留项目并检查本地存储');
     if (project.checkpoint === 'deck-ready' && !deck) throw new Error('已保存的幻灯片缺失');
     if (deck) { const errors = validateDeck(deck, paper); if (errors.length) throw new Error(errors.join('；')); }
-    return { project, paper, asset: asset?.blob instanceof Blob ? asset : undefined, deck };
+    const plan = project.checkpoint === 'deck-plan-ready' ? validatePlan(await get(tx, 'plans', id), paper) : undefined;
+    return { project, paper, asset: asset?.blob instanceof Blob ? asset : undefined, deck, plan };
   });
 }
 export function updateProject(id: string, changes: Partial<Pick<Project, 'name' | 'preferences' | 'lastOpenedSlideId'>>) {
@@ -102,19 +103,35 @@ export function deleteProject(id: string) {
 }
 
 export type StageCapture = Pick<Project, 'id' | 'paperId' | 'pdfAssetId' | 'checkpoint'>;
-export function saveStage(captured: StageCapture, output: { checkpoint: 'pdf-parsed' | 'figures-ready'; paper: Paper } | { checkpoint: 'paper-ready'; paper: Paper; strategyId: string }, signal: AbortSignal) {
-  const paper = validatePaper(output.paper, output.checkpoint === 'paper-ready');
-  const prior = { 'pdf-parsed': 'project-created', 'figures-ready': 'pdf-parsed', 'paper-ready': 'figures-ready' }[output.checkpoint];
-  if (output.checkpoint === 'paper-ready' && !prompts.strategies.some(strategy => strategy.id === output.strategyId)) throw new Error('研究叙事策略不存在');
-  if (captured.checkpoint !== prior || paper.id !== captured.paperId || !paper.pages.length) throw new Error('阶段产物或顺序不正确');
-  return transaction(['projects', 'papers', 'assets'], 'readwrite', async tx => {
+type StageOutput = { checkpoint: 'pdf-parsed' | 'figures-ready'; paper: Paper } | { checkpoint: 'paper-ready'; paper: Paper; strategyId: string }
+  | { checkpoint: 'deck-plan-ready'; plan: DeckPlan } | { checkpoint: 'deck-ready'; deck: Deck; strategyId: string };
+export function saveStage(captured: StageCapture, output: StageOutput, signal: AbortSignal) {
+  const prior = { 'pdf-parsed': 'project-created', 'figures-ready': 'pdf-parsed', 'paper-ready': 'figures-ready', 'deck-plan-ready': 'paper-ready', 'deck-ready': 'deck-plan-ready' }[output.checkpoint];
+  if ('strategyId' in output && !prompts.strategies.some(strategy => strategy.id === output.strategyId)) throw new Error('研究叙事策略不存在');
+  if (captured.checkpoint !== prior) throw new Error('阶段产物或顺序不正确');
+  return transaction(['projects', 'papers', 'assets', 'plans', 'decks'], 'readwrite', async tx => {
     const project = await projectIn(tx, captured.id);
     if (project.checkpoint !== captured.checkpoint || project.paperId !== captured.paperId || project.pdfAssetId !== captured.pdfAssetId) throw new Error('项目阶段已在其他页面变化，请重新打开');
     if (!((await get<PdfAsset>(tx, 'assets', project.pdfAssetId))?.blob instanceof Blob)) throw new Error('原 PDF 缺失，无法保存本阶段');
+    const paper = validatePaper('paper' in output ? output.paper : await get(tx, 'papers', project.paperId), ['paper-ready', 'deck-plan-ready', 'deck-ready'].includes(output.checkpoint));
+    if (paper.id !== captured.paperId || !paper.pages.length) throw new Error('阶段产物或论文关联不正确');
+    if (output.checkpoint === 'deck-plan-ready') validatePlan(output.plan, paper);
+    if (output.checkpoint === 'deck-ready') {
+      const plan = validatePlan(await get(tx, 'plans', project.id), paper);
+      const errors = validateDeck(output.deck, paper);
+      if (errors.length || !output.deck.slides.length || output.deck.revision !== 0 || output.deck.slides.length !== plan.slides.length || output.deck.slides.some((slide, i) => slide.id !== plan.slides[i].id)) throw new Error('完整幻灯片或计划关联无效：' + errors.join('；'));
+    }
     signal.throwIfAborted();
     const next: Project = { ...project, name: !project.nameIsCustom && paper.metadata.title ? paper.metadata.title : project.name, checkpoint: output.checkpoint, updatedAt: Date.now() };
     if (output.checkpoint === 'paper-ready') next.preferences = { ...project.preferences, strategyId: output.strategyId };
-    tx.objectStore('papers').put(paper, paper.id); tx.objectStore('projects').put(next, next.id);
+    if ('paper' in output) tx.objectStore('papers').put(paper, paper.id);
+    if (output.checkpoint === 'deck-plan-ready') tx.objectStore('plans').put(output.plan, project.id);
+    if (output.checkpoint === 'deck-ready') {
+      tx.objectStore('decks').add(output.deck, output.deck.id); tx.objectStore('plans').delete(project.id);
+      next.currentDeckId = output.deck.id; next.lastOpenedSlideId = output.deck.slides[0].id;
+      next.preferences = { ...project.preferences, strategyId: output.strategyId };
+    }
+    tx.objectStore('projects').put(next, next.id);
     return next;
   }, signal);
 }
