@@ -68,10 +68,9 @@ function planRecord(project: Project, plan: DeckPlan): PlanRecord {
   return PlanRecordSchema.parse({
     recordVersion: 1,
     projectId: project.id,
-    mode: project.currentDeckId ? 'regeneration' : 'initial',
+    mode: 'initial',
     plan,
     preferences: project.preferences,
-    updatedAt: Date.now(),
   });
 }
 // v1 Deck/Plan 在同一 readwrite 事务内确定性迁移并原子写回；全部已是 v2 时不产生任何写入。
