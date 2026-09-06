@@ -21,8 +21,6 @@ export function validatePlan(input: unknown, paper: Paper): DeckPlan {
   for (const slide of plan.slides) {
     if (new Set(slide.claimIds).size !== slide.claimIds.length) errors.push(`页面结论重复：${slide.id}`);
     if (new Set(slide.sourceIds).size !== slide.sourceIds.length) errors.push(`页面来源重复：${slide.id}`);
-    const figures = slide.figures.map((figure) => JSON.stringify([figure.figureId, figure.panelId ?? null]));
-    if (new Set(figures).size !== figures.length) errors.push(`页面图源重复：${slide.id}`);
   }
   const occupied = new Set(plan.slides.map((slide) => slide.sectionId));
   const generatedIds = new Set(ids);

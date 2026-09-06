@@ -12,6 +12,23 @@ import {
 } from '../src/modules/project/projectRepository';
 import type { DeckPlan } from '../src/modules/outline/outline.schema';
 import type { Paper } from '../src/modules/paper/paper.schema';
+import { narrativePlan } from './narrative-fixture';
+
+export function fixedOutline(paper: Paper): DeckPlan {
+  const plan = narrativePlan();
+  plan.paperId = paper.id;
+  plan.title = paper.metadata.title ?? plan.title;
+  plan.slides = plan.slides.map((slide) => ({
+    ...slide,
+    claimIds: slide.kind === 'result' ? [paper.claims[0].id] : [],
+    sourceIds: slide.kind === 'result' ? paper.sources.map((source) => source.id) : [],
+    figures: slide.figures.map(() => ({ figureId: paper.figures[0].id })),
+  }));
+  const secondResult = plan.slides.filter((slide) => slide.kind === 'result')[1];
+  secondResult.layoutId = 'figure-full';
+  secondResult.figures = [{ figureId: paper.figures[0].id }];
+  return plan;
+}
 
 const assert = (value: unknown, message: string) => {
   if (!value) throw new Error(message);
@@ -50,6 +67,15 @@ export function fixedPlan(paper: Paper): DeckPlan {
   };
 }
 export function fixedSlides(plan: DeckPlan) {
+  if (plan.slides.length !== fixtureDeck.slides.length)
+    return {
+      slides: plan.slides.map((slide) => ({
+        id: slide.id,
+        elements: slide.figures.length
+          ? slide.figures.map((figure, index) => ({ id: `${slide.id}-figure-${index}`, type: 'figure', ...figure }))
+          : [{ id: `${slide.id}-text`, type: 'text', text: slide.message || slide.title }],
+      })),
+    };
   return {
     slides: plan.slides.map((slide, index) => {
       let figureIndex = 0;

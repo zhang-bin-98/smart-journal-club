@@ -82,6 +82,8 @@ function ProjectContent({
     image,
     persistRevision,
     generate,
+    confirmOutline,
+    outlineIssues,
     restore,
     cancelTask,
     exportPresentation,
@@ -123,7 +125,17 @@ function ProjectContent({
       onExport={exportPresentation}
     />
   ) : data.plan ? (
-    <OutlineSummary plan={data.plan} busy={busy} onGenerate={() => void generate()} onBack={onLeave} />
+    <OutlineSummary
+      plan={data.plan}
+      busy={busy}
+      onGenerate={() => void generate()}
+      onBack={onLeave}
+      onConfirm={confirmOutline}
+      issues={outlineIssues!}
+      error={error}
+      onCancel={cancelTask}
+      canGenerate={!!settings.apiKey.trim() && online && !!resource}
+    />
   ) : (
     <main className="mx-auto max-w-[1080px] px-5 py-6">
       <header className="flex items-center gap-3 border-b border-line pb-5">
@@ -141,6 +153,28 @@ function ProjectContent({
           <FileText size={20} />
           已保存：{data.asset?.name ?? '原 PDF 缺失'}
         </p>
+        {data.project.checkpoint === 'paper-ready' && (
+          <section className="mt-8 space-y-5" aria-label="论文理解">
+            <h2 className="text-lg font-semibold">论文理解</h2>
+            <h3 className="text-base font-medium">{data.paper.metadata.title}</h3>
+            {(['question', 'studyDesign', 'mainFindings', 'limitations'] as const).map((topic) => (
+              <div key={topic}>
+                <h4 className="text-sm font-semibold">
+                  {
+                    { question: '研究问题', studyDesign: '研究设计', mainFindings: '主要发现', limitations: '局限' }[
+                      topic
+                    ]
+                  }
+                </h4>
+                {data.paper.story?.[topic].map((point) => (
+                  <p key={`${topic}-${point.text}`} className="mt-2 text-sm">
+                    {point.text}
+                  </p>
+                ))}
+              </div>
+            ))}
+          </section>
+        )}
         <label className="mt-10 block text-sm font-medium" htmlFor="instruction">
           你希望怎么汇报这篇论文？（可选）
         </label>
@@ -172,7 +206,7 @@ function ProjectContent({
             ))}
           </ol>
         )}
-        {!busy && completed > 0 && (
+        {!busy && completed > 0 && completed < 3 && (
           <p className="mt-4 text-sm text-muted">下次从“{GENERATION_STEPS[completed]}”继续，已完成的步骤已保存。</p>
         )}
         {error && (
@@ -217,7 +251,13 @@ function ProjectContent({
               )}
               <Button primary disabled={!resource || !settings.apiKey || !online} onClick={() => void generate()}>
                 <Play size={15} />
-                {error ? '重试当前步骤' : completed > 0 ? '继续生成' : '生成 PPT'}
+                {data.project.checkpoint === 'paper-ready'
+                  ? '生成学术大纲'
+                  : error
+                    ? '重试当前步骤'
+                    : completed > 0
+                      ? '继续分析论文'
+                      : '分析论文'}
               </Button>
             </>
           )}
@@ -277,12 +317,23 @@ function OutlineSummary({
   busy,
   onGenerate,
   onBack,
+  onConfirm,
+  issues,
+  error,
+  onCancel,
+  canGenerate,
 }: {
   plan: import('../../modules/outline/outline.schema').DeckPlan;
   busy: boolean;
   onGenerate: () => void;
   onBack: () => void;
+  onConfirm: (warningsAccepted: boolean) => Promise<void>;
+  issues: import('../../modules/outline/narrativeRules').NarrativeValidation;
+  error: string;
+  onCancel: () => void;
+  canGenerate: boolean;
 }) {
+  const [warningsAccepted, setWarningsAccepted] = useState(false);
   const confirmed = plan.status === 'confirmed';
   return (
     <main className="mx-auto max-w-[1080px] px-5 py-6">
@@ -311,8 +362,47 @@ function OutlineSummary({
             </li>
           ))}
         </ol>
-        <div className="mt-7 flex justify-end">
-          <Button primary disabled={!confirmed || busy} onClick={onGenerate}>
+        {error && (
+          <p role="alert" className="mt-4 text-sm text-red-700">
+            {error}
+          </p>
+        )}
+        {[...issues.errors, ...issues.warnings].map((issue) => (
+          <p
+            key={`${issue.code}-${issue.slideId ?? issue.sectionId ?? issue.claimId ?? issue.figureId ?? issue.message}`}
+            className="mt-2 text-sm text-muted"
+          >
+            {issue.message}
+          </p>
+        ))}
+        {!!issues.warnings.length && !confirmed && (
+          <label className="mt-4 flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={warningsAccepted}
+              onChange={(event) => setWarningsAccepted(event.target.checked)}
+            />
+            已核对警告，继续确认
+          </label>
+        )}
+        <div className="mt-7 flex justify-end gap-3">
+          {busy && (
+            <Button onClick={onCancel}>
+              <X size={15} />
+              取消
+            </Button>
+          )}
+          {!confirmed && (
+            <Button
+              primary
+              disabled={busy || !!issues.errors.length || (!!issues.warnings.length && !warningsAccepted)}
+              onClick={() => void onConfirm(warningsAccepted)}
+            >
+              <Check size={15} />
+              确认大纲
+            </Button>
+          )}
+          <Button primary disabled={!confirmed || busy || !canGenerate} onClick={onGenerate}>
             <Play size={15} />
             生成幻灯片
           </Button>

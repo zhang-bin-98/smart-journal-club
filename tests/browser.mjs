@@ -19,6 +19,7 @@ try {
     await page.evaluate(async () => (await import('/tests/generation-contracts.ts')).runGenerationContracts()),
   );
   console.log(await page.evaluate(async () => (await import('/tests/migration-contracts.ts')).runMigrationContracts()));
+  console.log(await page.evaluate(async () => (await import('/tests/outline-contracts.ts')).runOutlineContracts()));
   console.log(await page.evaluate(async () => (await import('/tests/ai-contracts.ts')).runAiContracts()));
   let modelCase = 'success';
   await page.route('https://api.deepseek.com/chat/completions', async (route) => {
@@ -128,7 +129,7 @@ try {
           };
         if (stage === 'understand') return (await import('/tests/analysis-contracts.ts')).understanding(data.paper);
         const fixed = await import('/tests/generation-contracts.ts');
-        return stage === 'plan' ? fixed.fixedPlan(data.paper) : fixed.fixedSlides(data.plan);
+        return stage === 'plan' ? fixed.fixedOutline(data.paper) : fixed.fixedSlides(data.plan);
       },
       { stage, data },
     );
@@ -144,6 +145,17 @@ try {
   await page.reload();
   await page.getByLabel('选择论文 PDF').setInputFiles(resolve('test-fixtures/papers/mechanism-modt-cdifficile.pdf'));
   await page.waitForURL(/project/);
+  await page.getByRole('button', { name: '分析论文', exact: true }).click();
+  await page.getByRole('button', { name: '生成学术大纲', exact: true }).waitFor({ timeout: 120000 });
+  const analysisCalls = generationCalls.length;
+  assert.equal(generationCalls.includes('plan'), false);
+  await page.reload();
+  await page.getByRole('button', { name: '生成学术大纲', exact: true }).click();
+  await page.getByRole('button', { name: '确认大纲', exact: true }).waitFor();
+  assert.deepEqual(generationCalls.slice(analysisCalls), ['plan']);
+  await page.reload();
+  await page.getByRole('button', { name: '确认大纲', exact: true }).click();
+  await page.getByRole('button', { name: '确认大纲', exact: true }).waitFor({ state: 'hidden' });
   const generationRequest = page.waitForRequest(
     (request) => {
       if (!request.url().includes('api.deepseek.com')) return false;
@@ -151,11 +163,11 @@ try {
     },
     { timeout: 120000 },
   );
-  await page.getByRole('button', { name: '生成 PPT', exact: true }).click();
+  await page.getByRole('button', { name: '生成幻灯片', exact: true }).click();
   await generationRequest;
   const id = page.url().split('/project/')[1];
   await page.getByRole('button', { name: '取消', exact: true }).click();
-  await page.getByRole('button', { name: '重试当前步骤', exact: true }).waitFor();
+  await page.getByRole('button', { name: '取消', exact: true }).waitFor({ state: 'hidden' });
   if (heldRoute) await heldRoute.abort().catch(() => {});
   const priorCalls = [...generationCalls];
   const checkpoint = await page.evaluate(
@@ -166,7 +178,7 @@ try {
   assert.equal(checkpoint, 'deck-plan-ready');
   holdDeck = false;
   await page.reload();
-  await page.getByRole('button', { name: '继续生成', exact: true }).click();
+  await page.getByRole('button', { name: '生成幻灯片', exact: true }).click();
   await page.getByRole('button', { name: '导出 PPTX', exact: true }).waitFor();
   assert.deepEqual(generationCalls.slice(priorCalls.length), ['generate']);
   console.log('PASS: upload/all stages/cancel/reload/resume only incomplete stage/editor entry');
@@ -174,8 +186,9 @@ try {
     async (id) => (await (await import('/src/modules/project/projectRepository.ts')).loadProject(id)).deck,
     id,
   );
-  const resultId = generated.slides[1].id;
-  const firstFigureId = generated.slides[1].elements.find((element) => element.type === 'figure').id;
+  const resultIndex = generated.slides.findIndex((slide) => slide.kind === 'result');
+  const resultId = generated.slides[resultIndex].id;
+  const firstFigureId = generated.slides[resultIndex].elements.find((element) => element.type === 'figure').id;
   await page.locator(`[data-slide-id="${resultId}"]`).click();
   await page.locator(`[data-slide-preview="current"] [data-element-id="${firstFigureId}"]`).click();
   await page.getByRole('button', { name: '裁图', exact: true }).click();
@@ -201,8 +214,8 @@ try {
     async (id) => (await (await import('/src/modules/project/projectRepository.ts')).loadProject(id)).deck,
     id,
   );
-  assert.ok(saved.slides[1].elements.find((e) => e.id === firstFigureId).cropOverride);
-  assert.equal(saved.slides[2].elements.find((e) => e.type === 'figure').cropOverride, undefined);
+  assert.ok(saved.slides[resultIndex].elements.find((e) => e.id === firstFigureId).cropOverride);
+  assert.equal(saved.slides[resultIndex + 1].elements.find((e) => e.type === 'figure').cropOverride, undefined);
   assert.equal(saved.revision, 1);
   const editingTitle = page.getByRole('textbox', { name: '幻灯片标题', exact: true });
   await page.evaluate(() => {

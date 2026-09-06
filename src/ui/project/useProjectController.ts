@@ -14,6 +14,9 @@ import type { PersistAssistantRevision } from '../../modules/assistant/revision/
 import { errorMessage } from '../controls';
 import type { SourceSelection } from '../SourceDialog';
 import type { OpenProject } from './useProjectWorkspace';
+import { OutlineSession } from '../../modules/outline/OutlineSession';
+import { savePlanRevision } from '../../modules/outline/outlineRepository';
+import { validatePlanNarrative } from '../../modules/outline/validateNarrative';
 
 /** 项目工作区控制器：Deck 会话与修订持久化、偏好保存队列、生成/重生成/恢复/导出任务及对话框状态。 */
 export function useProjectController(
@@ -43,6 +46,13 @@ export function useProjectController(
   const preferenceKey = `preferences-${data.project.id}`;
   const dialogKey = `project-dialog-${data.project.id}`;
   const parseTask = useRef<AbortController | undefined>(undefined);
+  const outlineRef = useRef<OutlineSession | undefined>(undefined);
+  if (data.plan && outlineRef.current?.current.id !== data.plan.id)
+    outlineRef.current = new OutlineSession(data.plan, data.paper, data.project.id, savePlanRevision);
+  if (!data.plan) outlineRef.current = undefined;
+  const outlineIssues = data.plan
+    ? validatePlanNarrative({ ...data.plan, status: 'confirmed', confirmedAt: Date.now() }, data.paper)
+    : undefined;
   const persistRevision: PersistAssistantRevision = (previous, next, record, options, messages) =>
     saveRevision(
       data.project.id,
@@ -172,14 +182,23 @@ export function useProjectController(
         if (!controller.signal.aborted) acceptData(next);
       } else {
         const project = await savePreferences();
-        let next = { ...dataRef.current, project };
-        if (next.project.checkpoint === 'project-created')
-          next = await preparePaper(next, resource!, settings, signal, setStage);
-        if (next.project.checkpoint === 'pdf-parsed' || next.project.checkpoint === 'figures-ready')
-          next = await preparePaper(next, resource!, settings, signal, setStage);
-        if (next.project.checkpoint === 'paper-ready') next = await prepareOutline(next, settings, signal, setStage);
-        if (next.project.checkpoint === 'deck-plan-ready' && next.plan?.status === 'confirmed')
-          next = await buildPresentation(next, settings, signal, setStage);
+        const initial = { ...dataRef.current, project };
+        const onStage = (label: string) => {
+          if (current()) setStage(label);
+        };
+        let next: ProjectData;
+        switch (initial.project.checkpoint) {
+          case 'paper-ready':
+            next = await prepareOutline(initial, settings, signal, onStage);
+            break;
+          case 'deck-plan-ready':
+            next = await buildPresentation(initial, settings, signal, onStage);
+            break;
+          default:
+            next = await preparePaper(initial, resource!, settings, signal, onStage, (saved) => {
+              if (!controller.signal.aborted) acceptData(saved);
+            });
+        }
         if (!controller.signal.aborted) acceptData(next);
       }
     } catch (cause) {
@@ -234,6 +253,26 @@ export function useProjectController(
   function cancelTask() {
     parseTask.current?.abort();
   }
+  async function confirmOutline(warningsAccepted: boolean) {
+    const outline = outlineRef.current;
+    if (!outline || parseTask.current) return;
+    const task = new AbortController();
+    parseTask.current = task;
+    const done = beginActivity();
+    setBusy(true);
+    setError('');
+    try {
+      const signal = AbortSignal.any([task.signal, controller.signal]);
+      const plan = await outline.confirm(outline.capture(), { signal, warningsAccepted });
+      if (!controller.signal.aborted) acceptData({ ...dataRef.current, plan });
+    } catch (cause) {
+      if (!controller.signal.aborted) setError(errorMessage(cause));
+    } finally {
+      if (parseTask.current === task) parseTask.current = undefined;
+      if (!controller.signal.aborted) setBusy(false);
+      done();
+    }
+  }
   async function exportPresentation(deck: Deck) {
     if (!resource && deck.slides.some((slide) => slide.elements.some((element) => element.type === 'figure')))
       throw new Error('原 PDF 缺失，无法导出图源');
@@ -266,6 +305,8 @@ export function useProjectController(
     image,
     persistRevision,
     generate,
+    confirmOutline,
+    outlineIssues,
     restore,
     cancelTask,
     exportPresentation,
