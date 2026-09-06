@@ -13,6 +13,7 @@ import { useProjectController } from './useProjectController';
 import { OutlineEditor } from '../../modules/outline/ui/OutlineEditor';
 import { PaperUnderstanding } from './PaperUnderstanding';
 import { FinalOutline } from './FinalOutline';
+import { CheckExport } from './CheckExport';
 
 export function ProjectPage({
   id,
@@ -73,7 +74,7 @@ function ProjectContent({
   const online = useOnline();
   const controller = useProjectController(opened, settings, online, registerLeaveGuard);
   const [currentView, setCurrentView] = useState(false);
-  const [view, setView] = useState<'paper' | 'final-outline'>();
+  const [view, setView] = useState<'paper' | 'final-outline' | 'check'>();
   const {
     data,
     instruction,
@@ -105,11 +106,14 @@ function ProjectContent({
     resource,
   } = controller;
   const completed = Checkpoints.indexOf(data.project.checkpoint);
-  async function switchStep(next: 'paper' | 'outline' | 'slides') {
+  async function switchStep(next: 'paper' | 'outline' | 'slides' | 'check') {
     if (busy || source || regeneration || reanalysis || !(await refreshOutline())) return;
     if (next === 'paper') setView('paper');
     else if (next === 'outline' && session) setView('final-outline');
-    else {
+    else if (next === 'check') {
+      setView('check');
+      setCurrentView(false);
+    } else {
       setView(undefined);
       setCurrentView(next === 'slides');
     }
@@ -119,11 +123,13 @@ function ProjectContent({
       ? 'paper'
       : view === 'final-outline'
         ? 'outline'
-        : session && (!data.plan || currentView)
-          ? 'slides'
-          : data.plan
-            ? 'outline'
-            : 'paper';
+        : view === 'check'
+          ? 'check'
+          : session && (!data.plan || currentView)
+            ? 'slides'
+            : data.plan
+              ? 'outline'
+              : 'paper';
   const content =
     session && (!data.plan || currentView) ? (
       <Editor
@@ -327,17 +333,21 @@ function ProjectContent({
       {completed >= 3 && (
         <nav aria-label="项目步骤" className="border-b border-line bg-white px-5 py-2">
           <div role="tablist" aria-label="项目步骤" className="mx-auto flex max-w-[1080px] flex-wrap gap-1">
-            {(['paper', 'outline', 'slides'] as const).map((step, index) => (
+            {(['paper', 'outline', 'slides', 'check'] as const).map((step, index) => (
               <button
                 key={step}
                 type="button"
                 role="tab"
                 aria-selected={selectedStep === step}
-                disabled={busy || (step === 'outline' && !data.plan && !session) || (step === 'slides' && !session)}
+                disabled={
+                  busy ||
+                  (step === 'outline' && !data.plan && !session) ||
+                  ((step === 'slides' || step === 'check') && !session)
+                }
                 onClick={() => void switchStep(step)}
                 className={`min-h-10 rounded px-3 py-2 text-sm disabled:opacity-45 ${selectedStep === step ? 'bg-accent/10 font-medium text-accent' : 'text-muted'}`}
               >
-                {index + 1} · {{ paper: '论文理解', outline: '学术大纲', slides: '幻灯片' }[step]}
+                {index + 1} · {{ paper: '论文理解', outline: '学术大纲', slides: '幻灯片', check: '检查与导出' }[step]}
               </button>
             ))}
           </div>
@@ -371,7 +381,15 @@ function ProjectContent({
             </IconButton>
           </header>
           <div className="mx-auto max-w-[760px] py-6">
-            {view === 'paper' ? (
+            {view === 'check' && session ? (
+              <CheckExport
+                deck={session.current}
+                paper={data.paper}
+                resourceAvailable={!!resource}
+                exporting={busy}
+                onExport={() => void exportPresentation(session.current)}
+              />
+            ) : view === 'paper' ? (
               <PaperUnderstanding
                 paper={data.paper}
                 strategyId={data.project.preferences.strategyId}
