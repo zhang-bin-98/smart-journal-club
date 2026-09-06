@@ -34,7 +34,22 @@ export function assistantStream(settings: ModelSettings): StreamFn {
     }).then(
       (message) => {
         const block = partial.content[0];
-        stream.push({ type: 'text_end', contentIndex: 0, content: block.type === 'text' ? block.text : '', partial });
+        if (message.content.some((item) => item.type === 'toolCall')) {
+          partial.content = message.content;
+          message.content.forEach((item, index) => {
+            if (item.type !== 'toolCall') return;
+            stream.push({ type: 'toolcall_start', contentIndex: index, partial });
+            stream.push({
+              type: 'toolcall_delta',
+              contentIndex: index,
+              delta: JSON.stringify(item.arguments),
+              partial,
+            });
+            stream.push({ type: 'toolcall_end', contentIndex: index, toolCall: item, partial });
+          });
+        } else {
+          stream.push({ type: 'text_end', contentIndex: 0, content: block.type === 'text' ? block.text : '', partial });
+        }
         if (message.stopReason === 'error' || message.stopReason === 'aborted')
           stream.push({ type: 'error', reason: message.stopReason, error: message });
         else if (message.stopReason === 'pending')
