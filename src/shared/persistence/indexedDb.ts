@@ -60,9 +60,10 @@ export async function transaction<T>(
 }
 export const get = <T>(tx: IDBTransaction, name: Store, key: string) =>
   request(tx.objectStore(name).get(key)) as Promise<T | undefined>;
-export function stored<T>(schema: { parse(value: unknown): T }, value: unknown, label: string): T {
+// 仅对象结构版本检查：Deck/DeckPlan 已升 v2，v1 数据的迁移属 M9.2，未迁移前按不兼容拒绝。
+export function stored<T>(schema: { parse(value: unknown): T }, value: unknown, label: string, version = 1): T {
   if (value === undefined) throw new Error(`${label}数据缺失，请保留项目并检查本地存储。`);
-  if (!value || typeof value !== 'object' || !('schemaVersion' in value) || value.schemaVersion !== 1)
+  if (!value || typeof value !== 'object' || !('schemaVersion' in value) || value.schemaVersion !== version)
     throw new Error(`${label}数据版本与当前应用不兼容，请更新应用后重试；项目数据已保留。`);
   return schema.parse(value);
 }

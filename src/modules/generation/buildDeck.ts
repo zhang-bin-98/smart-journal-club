@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { DeckSchema, SlideSchema, type Deck } from '../deck/deck.schema';
+import { DeckSchema, DeckSchemaVersion, SlideSchema, type Deck } from '../deck/deck.schema';
 import type { DeckPlan } from '../outline/outline.schema';
 import type { Project } from '../project/project.schema';
 import type { Paper } from '../paper/paper.schema';
@@ -23,12 +23,16 @@ export function assembleDeck(plan: DeckPlan, raw: unknown, paper: Paper): Deck {
     throw new Error('生成结果未完整遵循已保存计划，请重试制作幻灯片');
   const now = Date.now();
   const deck = DeckSchema.parse({
-    ...plan,
+    schemaVersion: DeckSchemaVersion,
     id: crypto.randomUUID(),
+    paperId: plan.paperId,
     revision: 0,
+    title: plan.title,
+    language: plan.language,
+    sections: plan.sections.map(({ slideBudget, ...section }) => section),
     createdAt: now,
     updatedAt: now,
-    slides: plan.slides.map(({ figures, ...slide }, index) => {
+    slides: plan.slides.map(({ figures, ...planned }, index) => {
       const elements = output.slides[index].elements;
       const actual = elements.filter((element) => element.type === 'figure');
       if (
@@ -39,7 +43,10 @@ export function assembleDeck(plan: DeckPlan, raw: unknown, paper: Paper): Deck {
         )
       )
         throw new Error('生成结果改变了计划中的图源，请重试制作幻灯片');
-      return { ...slide, elements: elements.map((element) => ({ ...element, id: crypto.randomUUID() })) };
+      return {
+        ...planned,
+        elements: elements.map((element) => ({ ...element, id: crypto.randomUUID() })),
+      };
     }),
   });
   const errors = validateDeck(deck, paper);

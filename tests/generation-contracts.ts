@@ -28,16 +28,25 @@ async function rejected(work: () => unknown | Promise<unknown>) {
 export function fixedPlan(paper: Paper): DeckPlan {
   const figure = paper.figures[0];
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
+    id: 'fixture-plan',
     paperId: paper.id,
     title: fixtureDeck.title,
     language: fixtureDeck.language,
-    slides: fixtureDeck.slides.map(({ elements, ...slide }) => ({
+    status: 'draft',
+    revision: 0,
+    sections: fixtureDeck.sections.map((section) => ({ ...section, slideBudget: 1 })),
+    slides: fixtureDeck.slides.map(({ elements, purpose, message, ...slide }) => ({
       ...slide,
+      purpose: purpose ?? '',
+      message: message ?? '',
       sourceIds: [figure.sourceId],
       claimIds: [],
       figures: elements.filter((element) => element.type === 'figure').map(() => ({ figureId: figure.id })),
     })),
+    claimEmphasis: [],
+    createdAt: 0,
+    updatedAt: 0,
   };
 }
 export function fixedSlides(plan: DeckPlan) {
@@ -260,23 +269,26 @@ async function checkVersions(initial: ProjectData) {
     '旧 Current 或 revision 的结果不得覆盖新编辑和 Previous',
   );
   const compatible = opened.deck!;
-  await deckRecord(compatible.id, { ...compatible, schemaVersion: 2 });
-  try {
-    const error = await loadProject(initial.project.id).then(
-      () => '',
-      (cause) => String(cause.message),
-    );
-    assert(error.includes('不兼容'), '未知 Schema 应明确提示不兼容');
-    await rejected(() =>
-      session.commit(
-        { type: 'slides', slideIds: [third.slides[0].id] },
-        [{ type: 'update-slide', slideId: third.slides[0].id, changes: { title: '不能覆盖新版数据' } }],
-        '未知 Schema 拒绝修改',
-      ),
-    );
-    assert((await deckRecord(compatible.id)).schemaVersion === 2, '拒绝读取和修改不得重置未知版本数据');
-  } finally {
-    await deckRecord(compatible.id, compatible);
+  // v1 尚未迁移（M9.2）、v3 及以上为未来版本：读取都应按不兼容拒绝且不得重置数据。
+  for (const version of [1, 3]) {
+    await deckRecord(compatible.id, { ...compatible, schemaVersion: version });
+    try {
+      const error = await loadProject(initial.project.id).then(
+        () => '',
+        (cause) => String(cause.message),
+      );
+      assert(error.includes('不兼容'), `Schema 版本 ${version} 应明确提示不兼容`);
+      await rejected(() =>
+        session.commit(
+          { type: 'slides', slideIds: [third.slides[0].id] },
+          [{ type: 'update-slide', slideId: third.slides[0].id, changes: { title: '不能覆盖新版数据' } }],
+          '未知 Schema 拒绝修改',
+        ),
+      );
+      assert((await deckRecord(compatible.id)).schemaVersion === version, '拒绝读取和修改不得重置未知版本数据');
+    } finally {
+      await deckRecord(compatible.id, compatible);
+    }
   }
 }
 async function deckRecord(id: string, next?: unknown): Promise<Record<string, unknown>> {

@@ -11,7 +11,7 @@ import type { Paper } from '../paper/paper.schema';
 import { validateDeck } from './validateDeck';
 import { applyMutation, ensureScope, findSlide } from './mutations';
 
-export type DeckSnapshot = Pick<Deck, 'title' | 'language' | 'slides'>;
+export type DeckSnapshot = Pick<Deck, 'title' | 'language' | 'sections' | 'slides'>;
 export type RevisionOptions = { signal?: AbortSignal; isTaskActive?: () => boolean };
 export type PersistRevision = (
   previous: Deck,
@@ -22,7 +22,7 @@ export type PersistRevision = (
 export type RevisionCommitOptions = RevisionOptions & { request?: RevisionRequest; persist?: PersistRevision };
 const clone = <T>(value: T): T => structuredClone(value);
 const snapshot = (deck: Deck): DeckSnapshot =>
-  clone({ title: deck.title, language: deck.language, slides: deck.slides });
+  clone({ title: deck.title, language: deck.language, sections: deck.sections, slides: deck.slides });
 export class DeckSession {
   current: Deck;
   private undoStack: DeckSnapshot[] = [];

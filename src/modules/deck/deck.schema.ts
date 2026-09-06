@@ -15,6 +15,28 @@ export const SlideKinds = [
   'custom',
 ] as const;
 export type SlideKind = (typeof SlideKinds)[number];
+export const SectionKinds = [
+  'opening',
+  'background',
+  'question',
+  'study-design',
+  'results',
+  'synthesis',
+  'limitations',
+  'takeaways',
+  'discussion',
+  'custom',
+] as const;
+export type SectionKind = (typeof SectionKinds)[number];
+
+export const DeckSectionSchema = z.strictObject({
+  id: z.string().min(1),
+  kind: z.enum(SectionKinds),
+  title: z.string(),
+  purpose: z.string(),
+  transitionToNext: z.string().optional(),
+});
+export type DeckSection = z.infer<typeof DeckSectionSchema>;
 
 export const TextElementSchema = z.strictObject({ id: z.string().min(1), type: z.literal('text'), text: z.string() });
 export const BulletListElementSchema = z.strictObject({
@@ -44,8 +66,10 @@ export type SlideElement = z.infer<typeof SlideElementSchema>;
 export type Element = SlideElement;
 export const SlideSchema = z.strictObject({
   id: z.string().min(1),
+  sectionId: z.string().min(1),
   kind: z.enum(SlideKinds),
   title: z.string(),
+  purpose: z.string().optional(),
   message: z.string().optional(),
   layoutId: z.enum(LayoutIds),
   elements: z.array(SlideElementSchema),
@@ -53,13 +77,15 @@ export const SlideSchema = z.strictObject({
   sourceIds: z.array(z.string()),
 });
 export type Slide = z.infer<typeof SlideSchema>;
+export const DeckSchemaVersion = 2;
 export const DeckSchema = z.strictObject({
-  schemaVersion: z.literal(1),
+  schemaVersion: z.literal(DeckSchemaVersion),
   id: z.string().min(1),
   paperId: z.string().min(1),
   revision: z.number().int().nonnegative(),
   title: z.string(),
   language: z.string().min(1),
+  sections: z.array(DeckSectionSchema),
   slides: z.array(SlideSchema),
   createdAt: z.number().int().nonnegative(),
   updatedAt: z.number().int().nonnegative(),
@@ -77,6 +103,7 @@ const SlideChangesSchema = z
   .strictObject({
     kind: z.enum(SlideKinds).optional(),
     title: z.string().optional(),
+    purpose: z.string().optional(),
     message: z.string().optional(),
     layoutId: z.enum(LayoutIds).optional(),
     claimIds: z.array(z.string()).optional(),
@@ -89,6 +116,7 @@ export const DeckMutationSchema = z.discriminatedUnion('type', [
   z.strictObject({
     type: z.literal('move-slide'),
     slideId: z.string().min(1),
+    targetSectionId: z.string().min(1),
     afterSlideId: z.string().min(1).nullable(),
   }),
   z.strictObject({ type: z.literal('update-slide'), slideId: z.string().min(1), changes: SlideChangesSchema }),

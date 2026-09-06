@@ -18,13 +18,12 @@ export async function validateAiCandidate(raw: unknown, target: AiTarget, deck: 
     for (const mutation of args.mutations) {
       if (mutation.type === 'set-language') throw new Error('局部请求不能修改整套语言');
       if (mutation.type === 'add-slide') {
-        if (
-          !target.allowNewSlides ||
-          (mutation.afterSlideId === null
-            ? !!deck.slides.length && !target.slideIds.includes(deck.slides[0].id)
-            : !allowed.has(mutation.afterSlideId))
-        )
-          throw new Error('新增页面超出请求范围');
+        if (!target.allowNewSlides) throw new Error('新增页面超出请求范围');
+        if (mutation.afterSlideId === null) {
+          // 空锚点落在新增页所属章节的块首，该章现有首页必须仍在绑定范围内。
+          const firstInSection = deck.slides.find((slide) => slide.sectionId === mutation.slide.sectionId);
+          if (firstInSection && !target.slideIds.includes(firstInSection.id)) throw new Error('新增页面超出请求范围');
+        } else if (!allowed.has(mutation.afterSlideId)) throw new Error('新增页面超出请求范围');
         continue;
       }
       if (!allowed.has(mutation.slideId)) throw new Error('修改超出本次请求绑定的页面范围');

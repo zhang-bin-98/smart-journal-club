@@ -18,6 +18,12 @@ export function deckReadTool(args: unknown, deck: Deck) {
     language: deck.language,
     slides: ids
       ? deck.slides.filter((slide) => ids.includes(slide.id))
-      : deck.slides.map(({ id, title, kind }, index) => ({ id, title, kind, pageNumber: index + 1 })),
+      : deck.slides.map(({ id, title, kind, sectionId }, index) => ({
+          id,
+          title,
+          kind,
+          sectionId,
+          pageNumber: index + 1,
+        })),
   };
 }

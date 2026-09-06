@@ -47,17 +47,23 @@ fixturePaper.story = {
   conclusion: [],
 };
 export const fixtureDeck: Deck = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   id: 'fixture-deck',
   paperId: fixturePaper.id,
   revision: 0,
   title: 'smartJC fixture',
   language: 'zh-CN',
+  sections: [
+    { id: 'sec-opening', kind: 'opening', title: '开场', purpose: '说明研究主题与汇报目标' },
+    { id: 'sec-results', kind: 'results', title: '主要结果', purpose: '呈现核心发现及其证据' },
+    { id: 'sec-takeaways', kind: 'takeaways', title: '结论', purpose: '汇总结论与证据链' },
+  ],
   createdAt: now,
   updatedAt: now,
   slides: [
     {
       id: 'slide-1',
+      sectionId: 'sec-opening',
       kind: 'title',
       title: '一个可追溯的研究结论',
       layoutId: 'title',
@@ -67,8 +73,10 @@ export const fixtureDeck: Deck = {
     },
     {
       id: 'slide-2',
+      sectionId: 'sec-results',
       kind: 'result',
       title: 'Figure 3 展示处理组的差异',
+      purpose: '说明处理组差异的方向与原图证据',
       message: '保留原图与证据来源，避免把相关性写成因果。',
       layoutId: 'figure-text',
       elements: [
@@ -81,6 +89,7 @@ export const fixtureDeck: Deck = {
     },
     {
       id: 'slide-3',
+      sectionId: 'sec-takeaways',
       kind: 'summary',
       title: '结论与证据链',
       layoutId: 'two-figures',

@@ -1,7 +1,7 @@
 import { get, request, stored, stores, transaction } from '../../shared/persistence/indexedDb';
 import { ProjectSchema, type PdfAsset, type Project } from './project.schema';
 import { PaperSchema, type Paper } from '../paper/paper.schema';
-import { DeckSchema, type Deck, type RevisionRecord } from '../deck/deck.schema';
+import { DeckSchema, DeckSchemaVersion, type Deck, type RevisionRecord } from '../deck/deck.schema';
 import { DeckPlanSchema, type DeckPlan } from '../outline/outline.schema';
 import { validatePlan } from '../outline/validatePlan';
 import { validateDeck } from '../deck/validateDeck';
@@ -53,7 +53,8 @@ export function listProjects() {
         const value = project.currentDeckId ? await get(tx, 'decks', project.currentDeckId) : undefined;
         return {
           project,
-          slideCount: value === undefined ? undefined : stored(DeckSchema, value, '幻灯片').slides.length,
+          slideCount:
+            value === undefined ? undefined : stored(DeckSchema, value, '幻灯片', DeckSchemaVersion).slides.length,
         };
       }),
     );
@@ -69,7 +70,7 @@ export function loadProject(id: string): Promise<ProjectData> {
     );
     const asset = await get<PdfAsset>(tx, 'assets', project.pdfAssetId);
     const deck = project.currentDeckId
-      ? stored(DeckSchema, await get(tx, 'decks', project.currentDeckId), '幻灯片')
+      ? stored(DeckSchema, await get(tx, 'decks', project.currentDeckId), '幻灯片', DeckSchemaVersion)
       : undefined;
     if (paper.id !== project.paperId) throw new Error('论文关联不一致');
     if (project.checkpoint !== 'project-created' && !paper.pages.length)
@@ -81,7 +82,7 @@ export function loadProject(id: string): Promise<ProjectData> {
     }
     const plan =
       project.checkpoint === 'deck-plan-ready'
-        ? validatePlan(stored(DeckPlanSchema, await get(tx, 'plans', id), '汇报计划'), paper)
+        ? validatePlan(stored(DeckPlanSchema, await get(tx, 'plans', id), '汇报计划', DeckSchemaVersion), paper)
         : undefined;
     return { project, paper, asset: asset?.blob instanceof Blob ? asset : undefined, deck, plan };
   });
@@ -94,7 +95,7 @@ export function updateProject(
     const project = await projectIn(tx, id);
     if ('lastOpenedSlideId' in changes && changes.lastOpenedSlideId) {
       const deck = project.currentDeckId
-        ? stored(DeckSchema, await get(tx, 'decks', project.currentDeckId), '当前幻灯片')
+        ? stored(DeckSchema, await get(tx, 'decks', project.currentDeckId), '当前幻灯片', DeckSchemaVersion)
         : undefined;
       if (!deck?.slides.some((slide) => slide.id === changes.lastOpenedSlideId))
         throw new Error('当前页已变化，请重新打开项目');
@@ -166,7 +167,10 @@ export function saveStage(captured: StageCapture, output: StageOutput, signal: A
       if (paper.id !== captured.paperId || !paper.pages.length) throw new Error('阶段产物或论文关联不正确');
       if (output.checkpoint === 'deck-plan-ready') validatePlan(output.plan, paper);
       if (output.checkpoint === 'deck-ready') {
-        const plan = validatePlan(stored(DeckPlanSchema, await get(tx, 'plans', project.id), '汇报计划'), paper);
+        const plan = validatePlan(
+          stored(DeckPlanSchema, await get(tx, 'plans', project.id), '汇报计划', DeckSchemaVersion),
+          paper,
+        );
         const errors = validateDeck(output.deck, paper);
         if (
           errors.length ||

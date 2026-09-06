@@ -1,7 +1,7 @@
 import { get, request, stored, transaction } from '../../shared/persistence/indexedDb';
 import { assertMessage, isMessage, trimHistory, type HistoryEntry } from '../../shared/persistence/historyStore';
 import type { ChatMessage } from './assistant.schema';
-import { DeckSchema } from '../deck/deck.schema';
+import { DeckSchema, DeckSchemaVersion } from '../deck/deck.schema';
 import { projectIn } from '../project/projectRepository';
 
 export function loadHistory(projectId: string): Promise<ChatMessage[]> {
@@ -26,7 +26,7 @@ export function saveConversation(
     async (tx) => {
       const project = await projectIn(tx, projectId);
       const deck = project.currentDeckId
-        ? stored(DeckSchema, await get(tx, 'decks', project.currentDeckId), '当前幻灯片')
+        ? stored(DeckSchema, await get(tx, 'decks', project.currentDeckId), '当前幻灯片', DeckSchemaVersion)
         : undefined;
       if (!deck) throw new Error('当前文稿已变化，请重新打开项目');
       for (const message of messages) {

@@ -226,13 +226,16 @@ export function useEditorController({
     );
   }
   async function addSlide() {
-    const next = createSlide(crypto.randomUUID(), deck.slides.length + 1);
+    const next = createSlide(crypto.randomUUID(), deck.slides.length + 1, slide?.sectionId ?? '');
     await commit({ type: 'deck' }, [{ type: 'add-slide', slide: next, afterSlideId: slide?.id ?? null }], '新增幻灯片');
     await select(next.id);
   }
   async function move(id: string, afterSlideId: string | null) {
     if (id === afterSlideId) return;
-    await commit({ type: 'deck' }, [{ type: 'move-slide', slideId: id, afterSlideId }], '调整页顺序');
+    // 重排仍按锚点落位；目标章节取锚点页（或首页）所属章节，跨章由领域层改写归属并清理空章。
+    const anchor = afterSlideId ? deck.slides.find((item) => item.id === afterSlideId) : deck.slides[0];
+    const targetSectionId = anchor?.sectionId ?? '';
+    await commit({ type: 'deck' }, [{ type: 'move-slide', slideId: id, targetSectionId, afterSlideId }], '调整页顺序');
   }
   async function history(direction: 'undo' | 'redo') {
     manualEdit();

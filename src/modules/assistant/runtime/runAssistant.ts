@@ -44,7 +44,14 @@ function localContext(paper: Paper, deck: Deck, target: AiTarget) {
     ...figures.flatMap((figure) => [figure.sourceId, ...figure.panels.map((panel) => panel.sourceId)]),
   ]);
   return {
-    deck: { id: deck.id, revision: deck.revision, title: deck.title, language: deck.language, slides },
+    deck: {
+      id: deck.id,
+      revision: deck.revision,
+      title: deck.title,
+      language: deck.language,
+      sections: deck.sections,
+      slides,
+    },
     paper: {
       metadata: paper.metadata,
       studyProfile: paper.studyProfile,
