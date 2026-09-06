@@ -2,7 +2,10 @@ import { get, request, stored, stores, transaction } from '../../shared/persiste
 import { ProjectSchema, type PdfAsset, type Project } from './project.schema';
 import { PaperSchema, type Paper } from '../paper/paper.schema';
 import { DeckSchema, DeckSchemaVersion, type Deck, type RevisionRecord } from '../deck/deck.schema';
+import { migrateDeckV1, readableSlideCount, schemaVersionOf } from '../deck/migrateDeck';
 import { DeckPlanSchema, type DeckPlan } from '../outline/outline.schema';
+import { migratePlanV1 } from '../outline/migrateDeckPlan';
+import { UnsupportedSchemaVersionError } from '../../shared/errors/migration';
 import { validatePlan } from '../outline/validatePlan';
 import { validateDeck } from '../deck/validateDeck';
 import { validatePaper } from '../paper/sources';
@@ -53,38 +56,72 @@ export function listProjects() {
         const value = project.currentDeckId ? await get(tx, 'decks', project.currentDeckId) : undefined;
         return {
           project,
-          slideCount:
-            value === undefined ? undefined : stored(DeckSchema, value, '幻灯片', DeckSchemaVersion).slides.length,
+          slideCount: value === undefined ? undefined : readableSlideCount(value),
         };
       }),
     );
   });
 }
 export type ProjectData = { project: Project; paper: Paper; asset?: PdfAsset; deck?: Deck; plan?: DeckPlan };
+// v1 Deck/Plan 在同一 readwrite 事务内确定性迁移并原子写回；全部已是 v2 时不产生任何写入。
 export function loadProject(id: string): Promise<ProjectData> {
-  return transaction(['projects', 'papers', 'assets', 'decks', 'plans'], 'readonly', async (tx) => {
+  return transaction(['projects', 'papers', 'assets', 'decks', 'plans'], 'readwrite', async (tx) => {
     const project = await projectIn(tx, id);
     const paper = validatePaper(
       stored(PaperSchema, await get(tx, 'papers', project.paperId), '论文'),
       ['paper-ready', 'deck-plan-ready', 'deck-ready'].includes(project.checkpoint),
     );
     const asset = await get<PdfAsset>(tx, 'assets', project.pdfAssetId);
-    const deck = project.currentDeckId
-      ? stored(DeckSchema, await get(tx, 'decks', project.currentDeckId), '幻灯片', DeckSchemaVersion)
-      : undefined;
     if (paper.id !== project.paperId) throw new Error('论文关联不一致');
     if (project.checkpoint !== 'project-created' && !paper.pages.length)
       throw new Error('已保存阶段缺少解析结果，请保留项目并检查本地存储');
+    const currentRaw = project.currentDeckId ? await get(tx, 'decks', project.currentDeckId) : undefined;
+    if (project.currentDeckId && currentRaw === undefined)
+      throw new Error('幻灯片数据缺失，请保留项目并检查本地存储。');
+    const previousRaw = project.previousDeckId ? await get(tx, 'decks', project.previousDeckId) : undefined;
+    const deck = currentRaw === undefined ? undefined : migrateDeckV1(currentRaw);
+    const previous = previousRaw === undefined ? undefined : migrateDeckV1(previousRaw);
     if (project.checkpoint === 'deck-ready' && !deck) throw new Error('已保存的幻灯片缺失');
-    if (deck) {
-      const errors = validateDeck(deck, paper);
+    for (const candidate of [deck, previous]) {
+      if (!candidate) continue;
+      const errors = validateDeck(candidate, paper);
       if (errors.length) throw new Error(errors.join('；'));
     }
-    const plan =
-      project.checkpoint === 'deck-plan-ready'
-        ? validatePlan(stored(DeckPlanSchema, await get(tx, 'plans', id), '汇报计划', DeckSchemaVersion), paper)
-        : undefined;
-    return { project, paper, asset: asset?.blob instanceof Blob ? asset : undefined, deck, plan };
+    let plan: DeckPlan | undefined;
+    let discardLegacyPlan = false;
+    let planWasLegacy = false;
+    if (project.checkpoint === 'deck-plan-ready') {
+      const raw = await get(tx, 'plans', id);
+      if (raw === undefined) throw new Error('汇报计划数据缺失，请保留项目并检查本地存储。');
+      planWasLegacy = schemaVersionOf(raw) === 1;
+      try {
+        plan = validatePlan(
+          migratePlanV1(raw, {
+            projectId: project.id,
+            projectCreatedAt: project.createdAt,
+            projectUpdatedAt: project.updatedAt,
+          }),
+          paper,
+        );
+      } catch (cause) {
+        // 未来版本与当前格式损坏照常报错；仅无法安全迁移的 v1 临时计划原子回退，等待重新规划。
+        if (cause instanceof UnsupportedSchemaVersionError || !planWasLegacy) throw cause;
+        discardLegacyPlan = true;
+      }
+    }
+    if (deck && currentRaw !== undefined && schemaVersionOf(currentRaw) === 1)
+      tx.objectStore('decks').put(deck, deck.id);
+    if (previous && previousRaw !== undefined && schemaVersionOf(previousRaw) === 1)
+      tx.objectStore('decks').put(previous, previous.id);
+    let opened = project;
+    if (discardLegacyPlan) {
+      tx.objectStore('plans').delete(id);
+      opened = ProjectSchema.parse({ ...project, checkpoint: 'paper-ready' });
+      tx.objectStore('projects').put(opened, id);
+    } else if (plan && planWasLegacy) {
+      tx.objectStore('plans').put(plan, id);
+    }
+    return { project: opened, paper, asset: asset?.blob instanceof Blob ? asset : undefined, deck, plan };
   });
 }
 export function updateProject(

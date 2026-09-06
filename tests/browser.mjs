@@ -18,6 +18,7 @@ try {
   console.log(
     await page.evaluate(async () => (await import('/tests/generation-contracts.ts')).runGenerationContracts()),
   );
+  console.log(await page.evaluate(async () => (await import('/tests/migration-contracts.ts')).runMigrationContracts()));
   console.log(await page.evaluate(async () => (await import('/tests/ai-contracts.ts')).runAiContracts()));
   let modelCase = 'success';
   await page.route('https://api.deepseek.com/chat/completions', async (route) => {

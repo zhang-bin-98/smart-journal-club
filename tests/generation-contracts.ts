@@ -269,7 +269,7 @@ async function checkVersions(initial: ProjectData) {
     '旧 Current 或 revision 的结果不得覆盖新编辑和 Previous',
   );
   const compatible = opened.deck!;
-  // v1 尚未迁移（M9.2）、v3 及以上为未来版本：读取都应按不兼容拒绝且不得重置数据。
+  // v3 及以上为未来版本按不兼容拒绝；v1 标记的 v2 形状不是合法 legacy 记录，按无法安全升级可恢复拒绝；均零写入。
   for (const version of [1, 3]) {
     await deckRecord(compatible.id, { ...compatible, schemaVersion: version });
     try {
@@ -277,7 +277,7 @@ async function checkVersions(initial: ProjectData) {
         () => '',
         (cause) => String(cause.message),
       );
-      assert(error.includes('不兼容'), `Schema 版本 ${version} 应明确提示不兼容`);
+      assert(error.includes(version === 3 ? '不兼容' : '无法安全升级'), `Schema 版本 ${version} 应可恢复拒绝`);
       await rejected(() =>
         session.commit(
           { type: 'slides', slideIds: [third.slides[0].id] },
