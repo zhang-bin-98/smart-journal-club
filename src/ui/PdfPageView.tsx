@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
-import type { BBox } from '../types';
+import type { BBox } from '../shared/schema';
 import { PDF_PREVIEW_EDGE, type PdfResource } from '../pdf';
 import { errorMessage } from './controls';
 import { position } from './editor/SlidePreview';

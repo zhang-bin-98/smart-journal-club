@@ -3,7 +3,8 @@ import { DeckSession } from '../src/deck';
 import { assembleDeck } from '../src/generation';
 import { validatePlan } from '../src/layout';
 import { captureVersion, commitRegeneration, createProject, deleteProject, loadProject, restorePrevious, saveRevision, saveStage, type ProjectData } from '../src/storage';
-import type { DeckPlan, Paper } from '../src/types';
+import type { DeckPlan } from '../src/modules/outline/outline.schema';
+import type { Paper } from '../src/modules/paper/paper.schema';
 
 const assert = (value: unknown, message: string) => { if (!value) throw new Error(message); };
 async function rejected(work: () => unknown | Promise<unknown>) { let failed = false; try { await work(); } catch { failed = true; } assert(failed, '应拒绝无效阶段'); }

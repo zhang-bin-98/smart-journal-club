@@ -1,6 +1,8 @@
 import { GlobalWorkerOptions, getDocument, OPS, type PDFDocumentProxy, type PDFDocumentLoadingTask, type RenderTask } from 'pdfjs-dist';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url';
-import { BBoxSchema, type BBox, type Element, type Paper } from './types';
+import { BBoxSchema, type BBox } from './shared/schema';
+import type { Element } from './modules/deck/deck.schema';
+import type { Paper } from './modules/paper/paper.schema';
 import { figureSource } from './sources';
 GlobalWorkerOptions.workerSrc = workerUrl;
 

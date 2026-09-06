@@ -1,5 +1,8 @@
 import { z } from 'zod';
-import { DeckPlanSchema, DeckSchema, SlideSchema, ProjectSchema, type Deck, type DeckPlan, type Paper, type Project } from './types';
+import { DeckSchema, SlideSchema, type Deck } from './modules/deck/deck.schema';
+import { DeckPlanSchema, type DeckPlan } from './modules/outline/outline.schema';
+import { ProjectSchema, type Project } from './modules/project/project.schema';
+import type { Paper } from './modules/paper/paper.schema';
 import { validateDeck, validatePlan } from './layout';
 import { requestJson, type ModelSettings } from './model';
 import { prompts, researchPrompt } from './prompts';

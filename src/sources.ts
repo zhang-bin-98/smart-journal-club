@@ -1,4 +1,5 @@
-import { PaperSchema, type Element, type Paper } from './types';
+import { PaperSchema, type Paper } from './modules/paper/paper.schema';
+import type { Element } from './modules/deck/deck.schema';
 
 export function figureSource(paper: Paper, element: Extract<Element, { type: 'figure' }>) {
   const figure = paper.figures.find(item => item.id === element.figureId);

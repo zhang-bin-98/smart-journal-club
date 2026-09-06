@@ -1,7 +1,10 @@
 import type { Context, Tool } from '@earendil-works/pi-ai';
 import { z } from 'zod';
 import { requestJson, requestModel, type ModelSettings } from './model';
-import { ApplyRevisionArgsSchema, DeckMutationSchema, RevisionScopeSchema, type ApplyRevisionArgs, type ChatMessage, type Deck, type Paper, type Project } from './types';
+import { ApplyRevisionArgsSchema, DeckMutationSchema, RevisionScopeSchema, type ApplyRevisionArgs, type Deck } from './modules/deck/deck.schema';
+import type { Paper } from './modules/paper/paper.schema';
+import type { Project } from './modules/project/project.schema';
+import type { ChatMessage } from './modules/assistant/assistant.schema';
 import { DeckSession } from './deck';
 import { prompts, researchPrompt } from './prompts';
 import { saveConversation } from './storage';

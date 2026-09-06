@@ -1,4 +1,7 @@
-import { DeckPlanSchema, DeckSchema, LayoutIds, type BBox, type Deck, type DeckPlan, type Element, type LayoutId, type Paper, type Slide } from './types';
+import { DeckSchema, LayoutIds, type Deck, type Element, type LayoutId, type Slide } from './modules/deck/deck.schema';
+import { DeckPlanSchema, type DeckPlan } from './modules/outline/outline.schema';
+import type { BBox } from './shared/schema';
+import type { Paper } from './modules/paper/paper.schema';
 import { figureSource, validatePaper } from './sources';
 export type Rect = BBox;
 export type TextMetrics = { fontSize: number; lineHeight: number; overflow: boolean };

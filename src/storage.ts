@@ -1,4 +1,8 @@
-import { DeckSchema, DeckPlanSchema, ProjectSchema, PaperSchema, RevisionRecordSchema, type ChatMessage, type Deck, type DeckPlan, type Paper, type PdfAsset, type Project } from './types';
+import { DeckSchema, RevisionRecordSchema, type Deck } from './modules/deck/deck.schema';
+import { DeckPlanSchema, type DeckPlan } from './modules/outline/outline.schema';
+import { ProjectSchema, type PdfAsset, type Project } from './modules/project/project.schema';
+import { PaperSchema, type Paper } from './modules/paper/paper.schema';
+import type { ChatMessage } from './modules/assistant/assistant.schema';
 import { validateDeck, validatePlan } from './layout';
 import { validatePaper } from './sources';
 import type { RevisionRecord, RevisionRequest } from './deck';

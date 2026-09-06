@@ -1,0 +1,20 @@
+import { z } from 'zod';
+import { BBoxSchema } from '../../shared/schema';
+
+export const SourceReferenceSchema = z.object({ id: z.string().min(1), kind: z.enum(['text', 'figure', 'panel', 'caption']), pageNumber: z.number().int().positive(), bbox: BBoxSchema.optional(), textQuote: z.string().optional() });
+export type SourceReference = z.infer<typeof SourceReferenceSchema>;
+export const FigurePanelSchema = z.object({ id: z.string().min(1), label: z.string().optional(), sourceId: z.string().min(1), description: z.string().optional() });
+export type FigurePanel = z.infer<typeof FigurePanelSchema>;
+export const FigureRefSchema = z.object({ id: z.string().min(1), label: z.string().optional(), caption: z.string().optional(), sourceId: z.string().min(1), description: z.string().optional(), panels: z.array(FigurePanelSchema) });
+export type FigureRef = z.infer<typeof FigureRefSchema>;
+export const ClaimSchema = z.strictObject({ id: z.string().min(1), text: z.string().min(1), strength: z.enum(['descriptive', 'associative', 'supportive', 'causal']), importance: z.enum(['primary', 'secondary']), evidenceIds: z.array(z.string().min(1)) });
+export type Claim = z.infer<typeof ClaimSchema>;
+export const EvidenceSchema = z.strictObject({ id: z.string().min(1), kind: z.string().min(1), summary: z.string().min(1), sourceIds: z.array(z.string().min(1)).min(1) });
+export type Evidence = z.infer<typeof EvidenceSchema>;
+export const StoryTopics = ['background', 'knowledgeGap', 'question', 'studyDesign', 'mainFindings', 'novelty', 'limitations', 'conclusion'] as const;
+export const StoryPointSchema = z.strictObject({ text: z.string().min(1), claimIds: z.array(z.string().min(1)), sourceIds: z.array(z.string().min(1)) });
+export const StorySchema = z.record(z.enum(StoryTopics), z.array(StoryPointSchema));
+export const StudyProfileSchema = z.strictObject({ type: z.string().min(1), designSummary: z.string().min(1), sourceIds: z.array(z.string().min(1)).min(1) });
+export const MetadataSchema = z.strictObject({ title: z.string().optional(), authors: z.array(z.string()).optional(), journal: z.string().optional(), year: z.number().int().optional(), doi: z.string().optional() });
+export const PaperSchema = z.strictObject({ schemaVersion: z.literal(1), id: z.string().min(1), metadata: MetadataSchema, pages: z.array(z.strictObject({ pageNumber: z.number().int().positive(), width: z.number().positive(), height: z.number().positive(), text: z.string() })), sources: z.array(SourceReferenceSchema), figures: z.array(FigureRefSchema), studyProfile: StudyProfileSchema.optional(), story: StorySchema.optional(), claims: z.array(ClaimSchema), evidences: z.array(EvidenceSchema) });
+export type Paper = z.infer<typeof PaperSchema>;

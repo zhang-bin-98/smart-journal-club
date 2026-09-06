@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { computeLayout, type Rect } from '../../layout';
-import type { Element, Paper, Slide } from '../../types';
+import type { Element, Slide } from '../../modules/deck/deck.schema';
+import type { Paper } from '../../modules/paper/paper.schema';
 import { sourceText } from '../../sources';
 
 export const position = (rect: Rect): CSSProperties => ({ left: `${rect.x * 100}%`, top: `${rect.y * 100}%`, width: `${rect.width * 100}%`, height: `${rect.height * 100}%` });

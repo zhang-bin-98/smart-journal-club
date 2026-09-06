@@ -3,7 +3,8 @@ import { fixtureDeck, fixturePaper } from '../src/fixtures';
 import { resolveAiTarget, runAiRevision, validateAiCandidate } from '../src/ai';
 import { DEFAULT_SETTINGS } from '../src/model';
 import { createProject, deleteProject, loadHistory, loadProject, saveConversation, saveRevision, saveStage } from '../src/storage';
-import { DeckSchema, type ApplyRevisionArgs, type ChatMessage, type Deck } from '../src/types';
+import { DeckSchema, type ApplyRevisionArgs, type Deck } from '../src/modules/deck/deck.schema';
+import type { ChatMessage } from '../src/modules/assistant/assistant.schema';
 import { fixedPlan } from './generation-contracts';
 
 const assert = (value: unknown, message: string) => { if (!value) throw new Error(message); };

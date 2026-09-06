@@ -1,6 +1,8 @@
 import { layoutCapacity, validateDeck } from './layout';
-import { ApplyRevisionArgsSchema, type ApplyRevisionArgs, type ChatMessage, type Deck, type Element, type Paper, type Slide, type SlideKind, type RevisionScope, type RevisionRecord, type RevisionRequest, type DeckMutation } from './types';
-export type { ApplyRevisionArgs, RevisionScope, RevisionRecord, RevisionRequest, DeckMutation } from './types';
+import { ApplyRevisionArgsSchema, type ApplyRevisionArgs, type Deck, type Element, type Slide, type SlideKind, type RevisionScope, type RevisionRecord, type RevisionRequest, type DeckMutation } from './modules/deck/deck.schema';
+import type { Paper } from './modules/paper/paper.schema';
+import type { ChatMessage } from './modules/assistant/assistant.schema';
+export type { ApplyRevisionArgs, RevisionScope, RevisionRecord, RevisionRequest, DeckMutation } from './modules/deck/deck.schema';
 export type DeckSnapshot = Pick<Deck, 'title' | 'language' | 'slides'>;
 export type RevisionOptions = { signal?: AbortSignal; isTaskActive?: () => boolean; messages?: ChatMessage[] };
 export type PersistRevision = (previous: Deck, next: Deck, record: RevisionRecord, options?: RevisionOptions) => Promise<void>;

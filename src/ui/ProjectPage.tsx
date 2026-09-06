@@ -7,7 +7,8 @@ import { Brand, Button, errorMessage, IconButton, inputClass, useOnline } from '
 import { Editor } from './editor/Editor';
 import { SourceDialog, type SourceSelection } from './SourceDialog';
 import type { ModelSettings } from '../model';
-import { Checkpoints, type Deck, type Project } from '../types';
+import { Checkpoints, type Project } from '../modules/project/project.schema';
+import type { Deck } from '../modules/deck/deck.schema';
 import { beginActivity, setDirty, type LeaveGuard, type RegisterLeaveGuard } from '../activity';
 import { generateProject, regenerateProject, GENERATION_STEPS } from '../generation';
 

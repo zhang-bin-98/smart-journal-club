@@ -1,7 +1,9 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { Bot, CircleStop, Send, Undo2 } from 'lucide-react';
 import type { ModelSettings } from '../../model';
-import type { ChatMessage, Paper, Project } from '../../types';
+import type { ChatMessage } from '../../modules/assistant/assistant.schema';
+import type { Paper } from '../../modules/paper/paper.schema';
+import type { Project } from '../../modules/project/project.schema';
 import type { DeckSession } from '../../deck';
 import { runAiRevision } from '../../ai';
 import { loadHistory } from '../../storage';

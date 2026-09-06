@@ -5,7 +5,7 @@ import { prompts } from '../src/prompts';
 import { parsePromptFiles } from '../src/prompt-config';
 import { createProject, deleteProject, loadProject, saveStage } from '../src/storage';
 import { DEFAULT_SETTINGS, requestJson } from '../src/model';
-import type { Paper } from '../src/types';
+import type { Paper } from '../src/modules/paper/paper.schema';
 
 const assert = (value: unknown, message: string) => { if (!value) throw new Error(message); };
 async function rejected(work: () => unknown | Promise<unknown>) { let failed = false; try { await work(); } catch { failed = true; } assert(failed, '应拒绝非法结果'); }

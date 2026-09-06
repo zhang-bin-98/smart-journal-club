@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { BBoxSchema, ClaimSchema, EvidenceSchema, MetadataSchema, StorySchema, StudyProfileSchema, type Paper } from './types';
+import { ClaimSchema, EvidenceSchema, MetadataSchema, StorySchema, StudyProfileSchema, type Paper } from './modules/paper/paper.schema';
+import { BBoxSchema } from './shared/schema';
 import { requestJson, type ModelSettings } from './model';
 import { prompts } from './prompts';
 import { validatePaper } from './sources';

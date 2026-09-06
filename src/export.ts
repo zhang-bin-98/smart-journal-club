@@ -1,6 +1,7 @@
 import pptxgen from 'pptxgenjs';
 import { computeLayout, validateDeck } from './layout';
-import type { Deck, Element, Paper } from './types';
+import type { Deck, Element } from './modules/deck/deck.schema';
+import type { Paper } from './modules/paper/paper.schema';
 import { figureSource, sourceText } from './sources';
 function contain(sourceWidth: number, sourceHeight: number, x: number, y: number, width: number, height: number) { const scale = Math.min(width / sourceWidth, height / sourceHeight); const w = sourceWidth * scale; const h = sourceHeight * scale; return { x: x + (width - w) / 2, y: y + (height - h) / 2, w, h }; }
 async function imageSize(dataUrl: string) {

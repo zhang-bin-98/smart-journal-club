@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { ArrowDown, ArrowLeft, ArrowUp, Bot, Crop, Download, FileText, List, MoreHorizontal, Plus, Quote, RefreshCw, Redo2, Settings, Trash2, Undo2, X } from 'lucide-react';
 import { createSlide, DeckSession, type DeckMutation, type RevisionScope } from '../../deck';
-import type { Deck, Element, Paper, Slide } from '../../types';
-import { LayoutIds } from '../../types';
+import { LayoutIds, type Deck, type Element, type Slide } from '../../modules/deck/deck.schema';
+import type { Paper } from '../../modules/paper/paper.schema';
 import { Brand, Button, errorMessage, IconButton } from '../controls';
 import { SlidePreview, type FigureImage, type TextEdit } from './SlidePreview';
 import { computeLayout } from '../../layout';
@@ -17,7 +17,7 @@ export function Editor({ session, paper, image, name, initialSlideId, onLeave, o
   aiSettings?: import('../../model').ModelSettings;
   aiPaper?: Paper;
   aiProjectId?: string;
-  aiPreferences?: import('../../types').Project['preferences'];
+  aiPreferences?: import('../../modules/project/project.schema').Project['preferences'];
   notice?: string; readOnly?: boolean; resourceAvailable?: boolean; registerLeaveGuard?: RegisterLeaveGuard;
   onRegenerate?: () => void; onRestore?: (deck: Deck) => Promise<void>; taskStatus?: string; onCancelTask?: () => void; externalError?: string;
   onSource?: (sourceId: string, element: Extract<Element, { type: 'figure' }> | undefined, slideId: string, crop: boolean, apply: (element: Extract<Element, { type: 'figure' }>) => Promise<void>, onDraft: () => void) => void;
