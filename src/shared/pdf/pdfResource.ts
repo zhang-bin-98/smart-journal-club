@@ -1,4 +1,11 @@
-import { GlobalWorkerOptions, getDocument, OPS, type PDFDocumentProxy, type PDFDocumentLoadingTask, type RenderTask } from 'pdfjs-dist';
+import {
+  GlobalWorkerOptions,
+  getDocument,
+  OPS,
+  type PDFDocumentProxy,
+  type PDFDocumentLoadingTask,
+  type RenderTask,
+} from 'pdfjs-dist';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url';
 import { BBoxSchema, type BBox } from '../schema';
 GlobalWorkerOptions.workerSrc = workerUrl;
@@ -25,20 +32,28 @@ export class PdfResource {
   constructor(private readonly blob: Blob) {}
   async getDocument() {
     if (this.disposed) throw new Error('项目已关闭');
-    if (!this.document) this.document = (async () => {
-      const data = await this.blob.arrayBuffer();
-      if (this.disposed) throw new Error('项目已关闭');
-      const assets = new URL(`${import.meta.env.BASE_URL}pdfjs/`, document.baseURI).href;
-      this.loading = getDocument({ data, cMapUrl: `${assets}cmaps/`, cMapPacked: true, standardFontDataUrl: `${assets}standard_fonts/`, wasmUrl: `${assets}wasm/` });
-      try {
-        const pdf = await this.loading.promise;
-        if (pdf.numPages > PDF_MAX_PAGES) throw new Error('PDF 超过 80 页，请选择正文版本');
-        return pdf;
-      } catch (error) {
-        if (error instanceof Error && error.name === 'PasswordException') throw new Error('加密 PDF 暂不支持，请更换可解析版本');
-        throw error;
-      }
-    })();
+    if (!this.document)
+      this.document = (async () => {
+        const data = await this.blob.arrayBuffer();
+        if (this.disposed) throw new Error('项目已关闭');
+        const assets = new URL(`${import.meta.env.BASE_URL}pdfjs/`, document.baseURI).href;
+        this.loading = getDocument({
+          data,
+          cMapUrl: `${assets}cmaps/`,
+          cMapPacked: true,
+          standardFontDataUrl: `${assets}standard_fonts/`,
+          wasmUrl: `${assets}wasm/`,
+        });
+        try {
+          const pdf = await this.loading.promise;
+          if (pdf.numPages > PDF_MAX_PAGES) throw new Error('PDF 超过 80 页，请选择正文版本');
+          return pdf;
+        } catch (error) {
+          if (error instanceof Error && error.name === 'PasswordException')
+            throw new Error('加密 PDF 暂不支持，请更换可解析版本');
+          throw error;
+        }
+      })();
     return this.document;
   }
   async pageTexts(signal: AbortSignal): Promise<PdfPageText[]> {
@@ -49,7 +64,15 @@ export class PdfResource {
       const page = await pdf.getPage(pageNumber);
       const viewport = page.getViewport({ scale: 1 });
       const content = await page.getTextContent();
-      pages.push({ pageNumber, width: viewport.width, height: viewport.height, text: content.items.map(item => 'str' in item ? item.str + (item.hasEOL ? '\n' : ' ') : '').join('').trim() });
+      pages.push({
+        pageNumber,
+        width: viewport.width,
+        height: viewport.height,
+        text: content.items
+          .map((item) => ('str' in item ? item.str + (item.hasEOL ? '\n' : ' ') : ''))
+          .join('')
+          .trim(),
+      });
       page.cleanup();
     }
     signal.throwIfAborted();
@@ -68,12 +91,19 @@ export class PdfResource {
     signal.throwIfAborted();
     const base = page.getViewport({ scale: 1 });
     const viewport = page.getViewport({ scale: edge / Math.max(base.width, base.height) });
-    canvas.width = Math.ceil(viewport.width); canvas.height = Math.ceil(viewport.height);
+    canvas.width = Math.ceil(viewport.width);
+    canvas.height = Math.ceil(viewport.height);
     const task = page.render({ canvas, viewport });
     const cancel = () => task.cancel();
-    this.renders.add(task); signal.addEventListener('abort', cancel, { once: true });
-    try { await task.promise; signal.throwIfAborted(); }
-    finally { this.renders.delete(task); signal.removeEventListener('abort', cancel); }
+    this.renders.add(task);
+    signal.addEventListener('abort', cancel, { once: true });
+    try {
+      await task.promise;
+      signal.throwIfAborted();
+    } finally {
+      this.renders.delete(task);
+      signal.removeEventListener('abort', cancel);
+    }
   }
   async imageRegions(pageNumber: number): Promise<BBox[]> {
     const pdf = await this.getDocument();
@@ -84,28 +114,43 @@ export class PdfResource {
     let matrix = [1, 0, 0, 1, 0, 0];
     const regions: BBox[] = [];
     const multiply = (left: number[], right: number[]) => [
-      left[0] * right[0] + left[2] * right[1], left[1] * right[0] + left[3] * right[1],
-      left[0] * right[2] + left[2] * right[3], left[1] * right[2] + left[3] * right[3],
-      left[0] * right[4] + left[2] * right[5] + left[4], left[1] * right[4] + left[3] * right[5] + left[5],
+      left[0] * right[0] + left[2] * right[1],
+      left[1] * right[0] + left[3] * right[1],
+      left[0] * right[2] + left[2] * right[3],
+      left[1] * right[2] + left[3] * right[3],
+      left[0] * right[4] + left[2] * right[5] + left[4],
+      left[1] * right[4] + left[3] * right[5] + left[5],
     ];
-    const point = (transform: number[], x: number, y: number) => [transform[0] * x + transform[2] * y + transform[4], transform[1] * x + transform[3] * y + transform[5]];
+    const point = (transform: number[], x: number, y: number) => [
+      transform[0] * x + transform[2] * y + transform[4],
+      transform[1] * x + transform[3] * y + transform[5],
+    ];
     for (let index = 0; index < operators.fnArray.length; index++) {
-      const fn = operators.fnArray[index]; const args = operators.argsArray[index] as unknown[] | null;
+      const fn = operators.fnArray[index];
+      const args = operators.argsArray[index] as unknown[] | null;
       if (fn === OPS.save) stack.push([...matrix]);
       else if (fn === OPS.restore) matrix = stack.pop() ?? matrix;
       else if (fn === OPS.transform && args?.length === 6) matrix = multiply(matrix, args as number[]);
       else if ((fn === OPS.paintImageXObject || fn === OPS.paintInlineImageXObject) && args && args.length >= 3) {
-        const width = Number(args[1]); const height = Number(args[2]);
+        const width = Number(args[1]);
+        const height = Number(args[2]);
         if (!Number.isFinite(width) || !Number.isFinite(height)) continue;
         // PDF.js applies the current transform to the image unit square; args[1/2] are source pixels.
-        const points = [[0, 0], [1, 0], [0, 1], [1, 1]].map(([x, y]) => {
-          const [pointX, pointY] = point(matrix, x, y); return viewport.convertToViewportPoint(pointX, pointY);
+        const points = [
+          [0, 0],
+          [1, 0],
+          [0, 1],
+          [1, 1],
+        ].map(([x, y]) => {
+          const [pointX, pointY] = point(matrix, x, y);
+          return viewport.convertToViewportPoint(pointX, pointY);
         });
-        const x = Math.max(0, Math.min(...points.map(item => item[0])) / viewport.width);
-        const y = Math.max(0, Math.min(...points.map(item => item[1])) / viewport.height);
-        const right = Math.min(1, Math.max(...points.map(item => item[0])) / viewport.width);
-        const bottom = Math.min(1, Math.max(...points.map(item => item[1])) / viewport.height);
-        if (right - x > .03 && bottom - y > .03) regions.push(BBoxSchema.parse({ x, y, width: right - x, height: bottom - y }));
+        const x = Math.max(0, Math.min(...points.map((item) => item[0])) / viewport.width);
+        const y = Math.max(0, Math.min(...points.map((item) => item[1])) / viewport.height);
+        const right = Math.min(1, Math.max(...points.map((item) => item[0])) / viewport.width);
+        const bottom = Math.min(1, Math.max(...points.map((item) => item[1])) / viewport.height);
+        if (right - x > 0.03 && bottom - y > 0.03)
+          regions.push(BBoxSchema.parse({ x, y, width: right - x, height: bottom - y }));
       }
     }
     page.cleanup();
@@ -117,26 +162,56 @@ export class PdfResource {
     if (!result) {
       result = (async () => {
         const canvas = document.createElement('canvas');
-        try { await this.render(source.pageNumber, canvas, edge, new AbortController().signal); return cropCanvas(canvas, box); }
-        finally { canvas.width = 0; canvas.height = 0; }
+        try {
+          await this.render(source.pageNumber, canvas, edge, new AbortController().signal);
+          return cropCanvas(canvas, box);
+        } finally {
+          canvas.width = 0;
+          canvas.height = 0;
+        }
       })();
       this.images.set(key, result);
-      void result.catch(() => { if (this.images.get(key) === result) this.images.delete(key); });
+      void result.catch(() => {
+        if (this.images.get(key) === result) this.images.delete(key);
+      });
       if (this.images.size > IMAGE_CACHE_SIZE) this.images.delete(this.images.keys().next().value!);
     }
     return result;
   }
-  clearImages() { this.images.clear(); }
+  clearImages() {
+    this.images.clear();
+  }
   async dispose() {
-    this.disposed = true; this.images.clear(); this.renders.forEach((task) => { task.cancel(); });
+    this.disposed = true;
+    this.images.clear();
+    this.renders.forEach((task) => {
+      task.cancel();
+    });
     await this.loading?.destroy();
   }
 }
 export function cropCanvas(source: HTMLCanvasElement, input: BBox) {
-  const box = BBoxSchema.parse(input); const out = document.createElement('canvas');
-  out.width = Math.max(1, Math.round(source.width * box.width)); out.height = Math.max(1, Math.round(source.height * box.height));
+  const box = BBoxSchema.parse(input);
+  const out = document.createElement('canvas');
+  out.width = Math.max(1, Math.round(source.width * box.width));
+  out.height = Math.max(1, Math.round(source.height * box.height));
   try {
-    out.getContext('2d')!.drawImage(source, source.width * box.x, source.height * box.y, source.width * box.width, source.height * box.height, 0, 0, out.width, out.height);
+    out
+      .getContext('2d')!
+      .drawImage(
+        source,
+        source.width * box.x,
+        source.height * box.y,
+        source.width * box.width,
+        source.height * box.height,
+        0,
+        0,
+        out.width,
+        out.height,
+      );
     return out.toDataURL('image/png');
-  } finally { out.width = 0; out.height = 0; }
+  } finally {
+    out.width = 0;
+    out.height = 0;
+  }
 }

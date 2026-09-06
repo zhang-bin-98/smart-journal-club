@@ -7,8 +7,16 @@ const placeholder = `data:image/svg+xml;base64,${btoa('<svg xmlns="http://www.w3
 const image = async () => placeholder;
 export default function FixturePage() {
   const [session] = useState(() => new DeckSession(fixtureDeck, fixturePaper));
-  return <Editor session={session} name="smartJC fixture" paper={fixturePaper} image={image} onExport={async deck => {
-    const { exportDeck, downloadDeck } = await import('../modules/deck/export');
-    downloadDeck(await exportDeck(deck, fixturePaper, image), 'smartJC-fixture');
-  }} />;
+  return (
+    <Editor
+      session={session}
+      name="smartJC fixture"
+      paper={fixturePaper}
+      image={image}
+      onExport={async (deck) => {
+        const { exportDeck, downloadDeck } = await import('../modules/deck/export');
+        downloadDeck(await exportDeck(deck, fixturePaper, image), 'smartJC-fixture');
+      }}
+    />
+  );
 }

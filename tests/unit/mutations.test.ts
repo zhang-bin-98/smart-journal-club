@@ -29,7 +29,9 @@ describe('applyMutation 基础行为', () => {
 
   it('移动到自身之后拒绝', () => {
     const deck = clone(fixtureDeck);
-    expect(() => apply(deck, { type: 'move-slide', slideId: 'slide-1', afterSlideId: 'slide-1' })).toThrow('不能移动到自身之后');
+    expect(() => apply(deck, { type: 'move-slide', slideId: 'slide-1', afterSlideId: 'slide-1' })).toThrow(
+      '不能移动到自身之后',
+    );
   });
 
   it('页移动按锚点重排', () => {

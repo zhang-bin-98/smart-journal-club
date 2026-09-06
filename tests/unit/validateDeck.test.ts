@@ -31,10 +31,18 @@ describe('布局容量', () => {
     expect(layoutCapacity({ ...slide('s'), layoutId: 'title', elements: [{ ...text }] })).toBe(true);
     expect(layoutCapacity({ ...slide('s'), layoutId: 'title', elements: [{ ...figure }] })).toBe(false);
     expect(
-      layoutCapacity({ ...slide('s'), layoutId: 'text-only', elements: [1, 2, 3, 4].map((n) => ({ ...text, id: `e${n}` })) }),
+      layoutCapacity({
+        ...slide('s'),
+        layoutId: 'text-only',
+        elements: [1, 2, 3, 4].map((n) => ({ ...text, id: `e${n}` })),
+      }),
     ).toBe(true);
     expect(
-      layoutCapacity({ ...slide('s'), layoutId: 'text-only', elements: [1, 2, 3, 4, 5].map((n) => ({ ...text, id: `e${n}` })) }),
+      layoutCapacity({
+        ...slide('s'),
+        layoutId: 'text-only',
+        elements: [1, 2, 3, 4, 5].map((n) => ({ ...text, id: `e${n}` })),
+      }),
     ).toBe(false);
     expect(layoutCapacity({ ...slide('s'), layoutId: 'figure-full', elements: [{ ...figure }] })).toBe(true);
   });
@@ -64,10 +72,7 @@ describe('Deck 校验', () => {
       revision: 0,
       title: 't',
       language: 'zh-CN',
-      slides: [
-        slide('s1'),
-        slide('s1', { claimIds: ['missing'], sourceIds: ['missing-source'] }),
-      ],
+      slides: [slide('s1'), slide('s1', { claimIds: ['missing'], sourceIds: ['missing-source'] })],
       createdAt: 0,
       updatedAt: 0,
     };
@@ -82,7 +87,15 @@ describe('v1 计划校验', () => {
   it('合法计划通过并原样返回', () => {
     const value = plan([
       { id: 'p1', kind: 'title', title: '标题页', layoutId: 'title', claimIds: [], sourceIds: [], figures: [] },
-      { id: 'p2', kind: 'result', title: '结果页', layoutId: 'figure-full', claimIds: [], sourceIds: [], figures: [{ figureId: 'fig-3' }] },
+      {
+        id: 'p2',
+        kind: 'result',
+        title: '结果页',
+        layoutId: 'figure-full',
+        claimIds: [],
+        sourceIds: [],
+        figures: [{ figureId: 'fig-3' }],
+      },
     ]);
     expect(validatePlan(value, fixturePaper)).toEqual(value);
   });
@@ -90,7 +103,17 @@ describe('v1 计划校验', () => {
   it('引用不存在图源的计划拒绝', () => {
     expect(() =>
       validatePlan(
-        plan([{ id: 'p1', kind: 'result', title: '结果页', layoutId: 'figure-full', claimIds: [], sourceIds: [], figures: [{ figureId: 'missing' }] }]),
+        plan([
+          {
+            id: 'p1',
+            kind: 'result',
+            title: '结果页',
+            layoutId: 'figure-full',
+            claimIds: [],
+            sourceIds: [],
+            figures: [{ figureId: 'missing' }],
+          },
+        ]),
         fixturePaper,
       ),
     ).toThrow('汇报计划无效');

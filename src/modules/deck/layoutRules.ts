@@ -1,12 +1,16 @@
 import type { Slide } from './deck.schema';
 
 export const layoutRules = {
-  title: '无图，最多一个副标题 text 元素', 'text-only': '无图，最多四个 text / bullet-list 元素',
-  'figure-full': '一个 figure，无正文元素', 'figure-text': '一个 figure，最多两个短 text / bullet-list 元素',
-  'two-figures': '两个 figure，无正文元素', 'panel-grid': '三个或四个 figure，无正文元素',
+  title: '无图，最多一个副标题 text 元素',
+  'text-only': '无图，最多四个 text / bullet-list 元素',
+  'figure-full': '一个 figure，无正文元素',
+  'figure-text': '一个 figure，最多两个短 text / bullet-list 元素',
+  'two-figures': '两个 figure，无正文元素',
+  'panel-grid': '三个或四个 figure，无正文元素',
 };
 export function layoutCapacity(slide: Slide) {
-  const figures = slide.elements.filter(element => element.type === 'figure').length; const content = slide.elements.filter(element => element.type !== 'citation').length;
+  const figures = slide.elements.filter((element) => element.type === 'figure').length;
+  const content = slide.elements.filter((element) => element.type !== 'citation').length;
   if (slide.layoutId === 'title') return figures === 0 && content <= 1;
   if (slide.layoutId === 'text-only') return figures === 0 && content <= 4;
   if (slide.layoutId === 'figure-full') return figures === 1 && content === 1;

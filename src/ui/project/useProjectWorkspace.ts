@@ -10,14 +10,27 @@ export function useProjectWorkspace(id: string) {
   const [opened, setOpened] = useState<OpenProject>();
   const [error, setError] = useState('');
   useEffect(() => {
-    const done = beginActivity(); const controller = new AbortController(); let resource: PdfResource | undefined;
-    setOpened(undefined); setError('');
-    loadProject(id).then(data => {
-      if (controller.signal.aborted) return;
-      if (data.asset) resource = new PdfResource(data.asset.blob);
-      setOpened({ data, resource, controller });
-    }, cause => { if (!controller.signal.aborted) setError(errorMessage(cause)); }).finally(done);
-    return () => { controller.abort(); void resource?.dispose().catch(() => {}); };
+    const done = beginActivity();
+    const controller = new AbortController();
+    let resource: PdfResource | undefined;
+    setOpened(undefined);
+    setError('');
+    loadProject(id)
+      .then(
+        (data) => {
+          if (controller.signal.aborted) return;
+          if (data.asset) resource = new PdfResource(data.asset.blob);
+          setOpened({ data, resource, controller });
+        },
+        (cause) => {
+          if (!controller.signal.aborted) setError(errorMessage(cause));
+        },
+      )
+      .finally(done);
+    return () => {
+      controller.abort();
+      void resource?.dispose().catch(() => {});
+    };
   }, [id]);
   return { opened, error };
 }

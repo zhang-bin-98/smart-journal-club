@@ -43,7 +43,9 @@ describe('DeckSession 内存会话语义', () => {
   it('scope 含不存在的页时拒绝', async () => {
     const current = session();
     const changes: ApplyRevisionArgs = { ...renameFirst('越界'), scope: { type: 'slides', slideIds: ['missing'] } };
-    await expect(current.commit(changes.scope, changes.mutations, '越界')).rejects.toThrow('修改范围含有重复或不存在的页');
+    await expect(current.commit(changes.scope, changes.mutations, '越界')).rejects.toThrow(
+      '修改范围含有重复或不存在的页',
+    );
   });
 
   it('局部请求不能修改整套语言', async () => {
@@ -56,7 +58,11 @@ describe('DeckSession 内存会话语义', () => {
   it('非法修改不改变 Current', async () => {
     const current = session();
     await expect(
-      current.commit({ type: 'deck' }, [{ type: 'add-slide', slide: fixtureDeck.slides[0], afterSlideId: null }], '重复 ID'),
+      current.commit(
+        { type: 'deck' },
+        [{ type: 'add-slide', slide: fixtureDeck.slides[0], afterSlideId: null }],
+        '重复 ID',
+      ),
     ).rejects.toThrow();
     expect(current.current.revision).toBe(0);
     expect(current.current.slides).toHaveLength(fixtureDeck.slides.length);

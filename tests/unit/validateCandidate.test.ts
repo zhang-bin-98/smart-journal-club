@@ -43,7 +43,11 @@ describe('AI 修改候选校验', () => {
   it('未绑定元素时 element 范围拒绝', async () => {
     await expect(
       validateAiCandidate(
-        args([{ type: 'delete-element', slideId: 'slide-2', elementId: 'f1' }], { type: 'element', slideId: 'slide-2', elementId: 'f1' }),
+        args([{ type: 'delete-element', slideId: 'slide-2', elementId: 'f1' }], {
+          type: 'element',
+          slideId: 'slide-2',
+          elementId: 'f1',
+        }),
         bound,
         clone(fixtureDeck),
         fixturePaper,

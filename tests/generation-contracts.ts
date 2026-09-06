@@ -3,23 +3,59 @@ import { DeckSession } from '../src/modules/deck/DeckSession';
 import { assembleDeck } from '../src/modules/generation/buildDeck';
 import { validatePlan } from '../src/modules/outline/validatePlan';
 import { captureVersion, commitRegeneration, restorePrevious, saveRevision } from '../src/modules/deck/deckRepository';
-import { createProject, deleteProject, loadProject, saveStage, type ProjectData } from '../src/modules/project/projectRepository';
+import {
+  createProject,
+  deleteProject,
+  loadProject,
+  saveStage,
+  type ProjectData,
+} from '../src/modules/project/projectRepository';
 import type { DeckPlan } from '../src/modules/outline/outline.schema';
 import type { Paper } from '../src/modules/paper/paper.schema';
 
-const assert = (value: unknown, message: string) => { if (!value) throw new Error(message); };
-async function rejected(work: () => unknown | Promise<unknown>) { let failed = false; try { await work(); } catch { failed = true; } assert(failed, '应拒绝无效阶段'); }
+const assert = (value: unknown, message: string) => {
+  if (!value) throw new Error(message);
+};
+async function rejected(work: () => unknown | Promise<unknown>) {
+  let failed = false;
+  try {
+    await work();
+  } catch {
+    failed = true;
+  }
+  assert(failed, '应拒绝无效阶段');
+}
 export function fixedPlan(paper: Paper): DeckPlan {
   const figure = paper.figures[0];
-  return { schemaVersion: 1, paperId: paper.id, title: fixtureDeck.title, language: fixtureDeck.language,
-    slides: fixtureDeck.slides.map(({ elements, ...slide }) => ({ ...slide, sourceIds: [figure.sourceId], claimIds: [], figures: elements.filter(element => element.type === 'figure').map(() => ({ figureId: figure.id })) })),
+  return {
+    schemaVersion: 1,
+    paperId: paper.id,
+    title: fixtureDeck.title,
+    language: fixtureDeck.language,
+    slides: fixtureDeck.slides.map(({ elements, ...slide }) => ({
+      ...slide,
+      sourceIds: [figure.sourceId],
+      claimIds: [],
+      figures: elements.filter((element) => element.type === 'figure').map(() => ({ figureId: figure.id })),
+    })),
   };
 }
 export function fixedSlides(plan: DeckPlan) {
-  return { slides: plan.slides.map((slide, index) => {
-    let figureIndex = 0;
-    return { id: slide.id, elements: fixtureDeck.slides[index].elements.map(element => element.type === 'figure' ? { ...element, ...slide.figures[figureIndex++] } : element.type === 'citation' ? { ...element, sourceIds: slide.sourceIds } : element) };
-  }) };
+  return {
+    slides: plan.slides.map((slide, index) => {
+      let figureIndex = 0;
+      return {
+        id: slide.id,
+        elements: fixtureDeck.slides[index].elements.map((element) =>
+          element.type === 'figure'
+            ? { ...element, ...slide.figures[figureIndex++] }
+            : element.type === 'citation'
+              ? { ...element, sourceIds: slide.sourceIds }
+              : element,
+        ),
+      };
+    }),
+  };
 }
 export async function runGenerationContracts() {
   const signal = new AbortController().signal;
@@ -28,10 +64,12 @@ export async function runGenerationContracts() {
   project = await saveStage(project, { checkpoint: 'pdf-parsed', paper }, signal);
   project = await saveStage(project, { checkpoint: 'figures-ready', paper }, signal);
   project = await saveStage(project, { checkpoint: 'paper-ready', paper, strategyId: 'general' }, signal);
-  const plan = fixedPlan(paper); const raw = fixedSlides(plan);
+  const plan = fixedPlan(paper);
+  const raw = fixedSlides(plan);
   await rejected(() => validatePlan({ ...plan, slides: [] }, paper));
   await rejected(() => validatePlan({ ...plan, paperId: 'other' }, paper));
-  const invalid = structuredClone(plan); invalid.slides[1].figures[0].panelId = 'missing';
+  const invalid = structuredClone(plan);
+  invalid.slides[1].figures[0].panelId = 'missing';
   await rejected(() => validatePlan(invalid, paper));
   await rejected(() => assembleDeck(plan, { slides: raw.slides.slice(1) }, paper));
   const beforePlan = project;
@@ -41,19 +79,43 @@ export async function runGenerationContracts() {
   const deck = assembleDeck(plan, raw, paper);
   assert(deck.slides[0].elements[0].id !== raw.slides[0].elements[0].id, '元素 ID 由应用创建');
   const originalAdd = IDBObjectStore.prototype.add;
-  IDBObjectStore.prototype.add = function (...args) { if (this.name === 'decks') throw new DOMException('fixed failure', 'QuotaExceededError'); return originalAdd.apply(this, args); };
-  try { await rejected(() => saveStage(project, { checkpoint: 'deck-ready', deck, strategyId: 'general' }, signal)); }
-  finally { IDBObjectStore.prototype.add = originalAdd; }
+  IDBObjectStore.prototype.add = function (...args) {
+    if (this.name === 'decks') throw new DOMException('fixed failure', 'QuotaExceededError');
+    return originalAdd.apply(this, args);
+  };
+  try {
+    await rejected(() => saveStage(project, { checkpoint: 'deck-ready', deck, strategyId: 'general' }, signal));
+  } finally {
+    IDBObjectStore.prototype.add = originalAdd;
+  }
   assert((await loadProject(project.id)).project.checkpoint === 'deck-plan-ready', '失败不能删除计划或推进阶段');
   const cancelled = new AbortController();
-  IDBObjectStore.prototype.add = function (...args) { const result = originalAdd.apply(this, args); if (this.name === 'decks') cancelled.abort(); return result; };
-  try { await rejected(() => saveStage(project, { checkpoint: 'deck-ready', deck, strategyId: 'general' }, cancelled.signal)); }
-  finally { IDBObjectStore.prototype.add = originalAdd; }
+  IDBObjectStore.prototype.add = function (...args) {
+    const result = originalAdd.apply(this, args);
+    if (this.name === 'decks') cancelled.abort();
+    return result;
+  };
+  try {
+    await rejected(() =>
+      saveStage(project, { checkpoint: 'deck-ready', deck, strategyId: 'general' }, cancelled.signal),
+    );
+  } finally {
+    IDBObjectStore.prototype.add = originalAdd;
+  }
   assert(!(await loadProject(project.id)).deck, '提交期间取消必须回滚整个阶段');
   const ready = await saveStage(project, { checkpoint: 'deck-ready', deck, strategyId: 'general' }, signal);
   const opened = await loadProject(project.id);
   assert(ready.currentDeckId === deck.id && opened.deck?.slides.length === 3 && !opened.plan, '完成后只保留 Current');
-  const remainingPlan = await new Promise(resolve => { const r = indexedDB.open('smartjc', 1); r.onsuccess = () => { const db = r.result; const tx = db.transaction('plans'); const q = tx.objectStore('plans').get(project.id); q.onsuccess = () => resolve(q.result); tx.oncomplete = () => db.close(); }; });
+  const remainingPlan = await new Promise((resolve) => {
+    const r = indexedDB.open('smartjc', 1);
+    r.onsuccess = () => {
+      const db = r.result;
+      const tx = db.transaction('plans');
+      const q = tx.objectStore('plans').get(project.id);
+      q.onsuccess = () => resolve(q.result);
+      tx.oncomplete = () => db.close();
+    };
+  });
   assert(!remainingPlan, '临时计划记录必须物理删除');
   await checkVersions(opened);
   await deleteProject(project.id);
@@ -64,75 +126,175 @@ async function storedDeckIds(projectId: string) {
   return new Promise<string[]>((resolve, reject) => {
     const open = indexedDB.open('smartjc', 1);
     open.onsuccess = () => {
-      const db = open.result; const tx = db.transaction(['projects', 'decks']);
+      const db = open.result;
+      const tx = db.transaction(['projects', 'decks']);
       const project = tx.objectStore('projects').get(projectId);
       project.onsuccess = () => {
         const all = tx.objectStore('decks').getAll();
-        all.onsuccess = () => resolve(all.result.filter(deck => deck.paperId === project.result.paperId).map(deck => deck.id).sort());
+        all.onsuccess = () =>
+          resolve(
+            all.result
+              .filter((deck) => deck.paperId === project.result.paperId)
+              .map((deck) => deck.id)
+              .sort(),
+          );
       };
-      tx.oncomplete = () => db.close(); tx.onabort = () => { db.close(); reject(tx.error); };
+      tx.oncomplete = () => db.close();
+      tx.onabort = () => {
+        db.close();
+        reject(tx.error);
+      };
     };
     open.onerror = () => reject(open.error);
   });
 }
 async function checkVersions(initial: ProjectData) {
-  const { paper } = initial; const original = initial.deck!; const signal = new AbortController().signal;
+  const { paper } = initial;
+  const original = initial.deck!;
+  const signal = new AbortController().signal;
   const captured = captureVersion(initial.project, original);
-  const nextDeck = () => { const plan = fixedPlan(paper); return assembleDeck(plan, fixedSlides(plan), paper); };
-  const preferences = { ...initial.project.preferences, instruction: '重新生成时采用新的汇报重点', strategyId: 'general' };
-  const failed = nextDeck(); const originalAdd = IDBObjectStore.prototype.add;
-  IDBObjectStore.prototype.add = function (...args) { if (this.name === 'decks') throw new DOMException('fixed version failure', 'QuotaExceededError'); return originalAdd.apply(this, args); };
-  try { await rejected(() => commitRegeneration(captured, failed, preferences, signal)); }
-  finally { IDBObjectStore.prototype.add = originalAdd; }
+  const nextDeck = () => {
+    const plan = fixedPlan(paper);
+    return assembleDeck(plan, fixedSlides(plan), paper);
+  };
+  const preferences = {
+    ...initial.project.preferences,
+    instruction: '重新生成时采用新的汇报重点',
+    strategyId: 'general',
+  };
+  const failed = nextDeck();
+  const originalAdd = IDBObjectStore.prototype.add;
+  IDBObjectStore.prototype.add = function (...args) {
+    if (this.name === 'decks') throw new DOMException('fixed version failure', 'QuotaExceededError');
+    return originalAdd.apply(this, args);
+  };
+  try {
+    await rejected(() => commitRegeneration(captured, failed, preferences, signal));
+  } finally {
+    IDBObjectStore.prototype.add = originalAdd;
+  }
   const cancelled = new AbortController();
-  IDBObjectStore.prototype.add = function (...args) { const result = originalAdd.apply(this, args); if (this.name === 'decks') cancelled.abort(); return result; };
-  try { await rejected(() => commitRegeneration(captured, failed, preferences, cancelled.signal)); }
-  finally { IDBObjectStore.prototype.add = originalAdd; }
+  IDBObjectStore.prototype.add = function (...args) {
+    const result = originalAdd.apply(this, args);
+    if (this.name === 'decks') cancelled.abort();
+    return result;
+  };
+  try {
+    await rejected(() => commitRegeneration(captured, failed, preferences, cancelled.signal));
+  } finally {
+    IDBObjectStore.prototype.add = originalAdd;
+  }
   await rejected(() => commitRegeneration(captured, failed, preferences, signal, () => false));
   let opened = await loadProject(initial.project.id);
-  assert(opened.project.currentDeckId === original.id && !opened.project.previousDeckId && JSON.stringify(opened.project.preferences) === JSON.stringify(initial.project.preferences), '失败或取消不得切换版本或写入新偏好');
+  assert(
+    opened.project.currentDeckId === original.id &&
+      !opened.project.previousDeckId &&
+      JSON.stringify(opened.project.preferences) === JSON.stringify(initial.project.preferences),
+    '失败或取消不得切换版本或写入新偏好',
+  );
   assert((await storedDeckIds(initial.project.id)).join() === original.id, '失败或取消不得留下新 Deck');
 
   const second = nextDeck();
   const regenerated = await commitRegeneration(captured, second, preferences, signal);
-  assert(regenerated.project.currentDeckId === second.id && regenerated.project.previousDeckId === original.id && regenerated.deck.revision === 0, '成功重生成才将旧 Current 留作 Previous');
+  assert(
+    regenerated.project.currentDeckId === second.id &&
+      regenerated.project.previousDeckId === original.id &&
+      regenerated.deck.revision === 0,
+    '成功重生成才将旧 Current 留作 Previous',
+  );
   opened = await loadProject(initial.project.id);
-  assert(opened.project.preferences.instruction === preferences.instruction && opened.project.preferences.strategyId === preferences.strategyId, '偏好随成功新版本保存并可重开');
+  assert(
+    opened.project.preferences.instruction === preferences.instruction &&
+      opened.project.preferences.strategyId === preferences.strategyId,
+    '偏好随成功新版本保存并可重开',
+  );
   assert(JSON.stringify(opened.paper) === JSON.stringify(paper), '整套重生成不得重写 Paper');
   const firstRestore = await restorePrevious(captureVersion(opened.project, opened.deck!), signal);
-  assert(firstRestore.deck.id === original.id && firstRestore.deck.revision === original.revision + 1 && firstRestore.project.previousDeckId === second.id, '恢复应交换两版并递增成为 Current 的版本号');
+  assert(
+    firstRestore.deck.id === original.id &&
+      firstRestore.deck.revision === original.revision + 1 &&
+      firstRestore.project.previousDeckId === second.id,
+    '恢复应交换两版并递增成为 Current 的版本号',
+  );
   const secondRestore = await restorePrevious(captureVersion(firstRestore.project, firstRestore.deck), signal);
-  assert(secondRestore.deck.id === second.id && secondRestore.deck.revision === 1 && secondRestore.project.previousDeckId === original.id, '再次恢复可以切回且继续递增对应版本号');
+  assert(
+    secondRestore.deck.id === second.id &&
+      secondRestore.deck.revision === 1 &&
+      secondRestore.project.previousDeckId === original.id,
+    '再次恢复可以切回且继续递增对应版本号',
+  );
 
   const third = nextDeck();
-  const replaced = await commitRegeneration(captureVersion(secondRestore.project, secondRestore.deck), third, preferences, signal);
-  assert((await storedDeckIds(initial.project.id)).join() === [second.id, third.id].sort().join(), '新版本成功后仅保留 Current 和最近 Previous，删除更旧 Deck');
+  const replaced = await commitRegeneration(
+    captureVersion(secondRestore.project, secondRestore.deck),
+    third,
+    preferences,
+    signal,
+  );
+  assert(
+    (await storedDeckIds(initial.project.id)).join() === [second.id, third.id].sort().join(),
+    '新版本成功后仅保留 Current 和最近 Previous，删除更旧 Deck',
+  );
   await rejected(() => commitRegeneration(captured, nextDeck(), preferences, signal));
   await rejected(() => restorePrevious(captured, signal));
   const beforeEdit = captureVersion(replaced.project, replaced.deck);
-  const session = new DeckSession(replaced.deck, paper, (previous, next, record, options) => saveRevision(initial.project.id, previous, next, record, options?.signal, options), initial.project.id);
-  await session.commit({ type: 'slides', slideIds: [third.slides[0].id] }, [{ type: 'update-slide', slideId: third.slides[0].id, changes: { title: '重生成后新的手工内容' } }], '新版本手工修改');
+  const session = new DeckSession(
+    replaced.deck,
+    paper,
+    (previous, next, record, options) =>
+      saveRevision(initial.project.id, previous, next, record, options?.signal, options),
+    initial.project.id,
+  );
+  await session.commit(
+    { type: 'slides', slideIds: [third.slides[0].id] },
+    [{ type: 'update-slide', slideId: third.slides[0].id, changes: { title: '重生成后新的手工内容' } }],
+    '新版本手工修改',
+  );
   await rejected(() => commitRegeneration(beforeEdit, nextDeck(), preferences, signal));
   await rejected(() => restorePrevious(beforeEdit, signal));
   opened = await loadProject(initial.project.id);
-  assert(opened.deck?.revision === 1 && opened.deck.slides[0].title === '重生成后新的手工内容' && opened.project.previousDeckId === second.id, '旧 Current 或 revision 的结果不得覆盖新编辑和 Previous');
+  assert(
+    opened.deck?.revision === 1 &&
+      opened.deck.slides[0].title === '重生成后新的手工内容' &&
+      opened.project.previousDeckId === second.id,
+    '旧 Current 或 revision 的结果不得覆盖新编辑和 Previous',
+  );
   const compatible = opened.deck!;
   await deckRecord(compatible.id, { ...compatible, schemaVersion: 2 });
   try {
-    const error = await loadProject(initial.project.id).then(() => '', cause => String(cause.message));
+    const error = await loadProject(initial.project.id).then(
+      () => '',
+      (cause) => String(cause.message),
+    );
     assert(error.includes('不兼容'), '未知 Schema 应明确提示不兼容');
-    await rejected(() => session.commit({ type: 'slides', slideIds: [third.slides[0].id] }, [{ type: 'update-slide', slideId: third.slides[0].id, changes: { title: '不能覆盖新版数据' } }], '未知 Schema 拒绝修改'));
+    await rejected(() =>
+      session.commit(
+        { type: 'slides', slideIds: [third.slides[0].id] },
+        [{ type: 'update-slide', slideId: third.slides[0].id, changes: { title: '不能覆盖新版数据' } }],
+        '未知 Schema 拒绝修改',
+      ),
+    );
     assert((await deckRecord(compatible.id)).schemaVersion === 2, '拒绝读取和修改不得重置未知版本数据');
-  } finally { await deckRecord(compatible.id, compatible); }
+  } finally {
+    await deckRecord(compatible.id, compatible);
+  }
 }
 async function deckRecord(id: string, next?: unknown): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
     const open = indexedDB.open('smartjc', 1);
     open.onsuccess = () => {
-      const db = open.result; const tx = db.transaction('decks', next ? 'readwrite' : 'readonly');
+      const db = open.result;
+      const tx = db.transaction('decks', next ? 'readwrite' : 'readonly');
       if (next) tx.objectStore('decks').put(next, id);
       const read = tx.objectStore('decks').get(id);
-      tx.oncomplete = () => { db.close(); resolve(read.result); }; tx.onabort = () => { db.close(); reject(tx.error); };
+      tx.oncomplete = () => {
+        db.close();
+        resolve(read.result);
+      };
+      tx.onabort = () => {
+        db.close();
+        reject(tx.error);
+      };
     };
     open.onerror = () => reject(open.error);
   });
