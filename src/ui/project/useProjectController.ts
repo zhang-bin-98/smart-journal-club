@@ -381,14 +381,16 @@ export function useProjectController(
       if (controller.signal.aborted) return false;
       if (latest.plan && outlineRef.current?.current.revision !== latest.plan.revision)
         outlineRef.current = new OutlineSession(latest.plan, latest.paper, latest.project.id, savePlanRevision);
+      // 同一版本的重读保留会话输入对象，避免导航重建 DeckSession 并丢失撤销栈。
+      const keepSession =
+        session &&
+        latest.deck?.id === session.current.id &&
+        latest.deck.revision === session.current.revision &&
+        JSON.stringify(latest.paper) === JSON.stringify(dataRef.current.paper);
       acceptData({
         ...latest,
-        deck:
-          latest.deck?.id === session?.current.id && latest.deck?.revision === session?.current.revision
-            ? session
-              ? structuredClone(session.current)
-              : latest.deck
-            : latest.deck,
+        deck: keepSession ? dataRef.current.deck : latest.deck,
+        paper: keepSession ? dataRef.current.paper : latest.paper,
       });
       return true;
     } catch (cause) {

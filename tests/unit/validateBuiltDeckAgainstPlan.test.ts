@@ -22,9 +22,13 @@ describe('build contract', () => {
     ['title', (deck: any) => (deck.title = 'other')],
     ['language', (deck: any) => (deck.language = 'en')],
     ['section id', (deck: any) => (deck.sections[0].id = 'other')],
+    ['section order', (deck: any) => deck.sections.reverse()],
+    ['section title', (deck: any) => (deck.sections[0].title = 'other')],
     ['section kind', (deck: any) => (deck.sections[0].kind = 'custom')],
     ['section purpose', (deck: any) => (deck.sections[0].purpose = 'other')],
+    ['section transition', (deck: any) => (deck.sections[0].transitionToNext = 'other')],
     ['slide id', (deck: any) => (deck.slides[0].id = 'other')],
+    ['slide order', (deck: any) => deck.slides.reverse()],
     ['slide section', (deck: any) => (deck.slides[0].sectionId = 'other')],
     ['slide kind', (deck: any) => (deck.slides[0].kind = 'custom')],
     ['slide layout', (deck: any) => (deck.slides[0].layoutId = 'text-only')],
@@ -39,6 +43,13 @@ describe('build contract', () => {
         (deck.slides
           .find((s: any) => s.elements.some((e: any) => e.type === 'figure'))
           .elements.find((e: any) => e.type === 'figure').figureId = 'other'),
+    ],
+    [
+      'panel',
+      (deck: any) =>
+        (deck.slides
+          .find((s: any) => s.elements.some((e: any) => e.type === 'figure'))
+          .elements.find((e: any) => e.type === 'figure').panelId = 'other'),
     ],
     [
       'crop override',

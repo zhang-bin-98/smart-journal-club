@@ -130,7 +130,24 @@ try {
                   ]
                 : [],
           };
-        if (stage === 'understand') return (await import('/tests/analysis-contracts.ts')).understanding(data.paper);
+        if (stage === 'understand') {
+          const result = (await import('/tests/analysis-contracts.ts')).understanding(data.paper);
+          const textSource = data.paper.sources.find((source) => source.kind === 'text');
+          result.claims.push({
+            id: 'text-claim',
+            text: '仅文字证据的次要结论',
+            strength: 'descriptive',
+            importance: 'secondary',
+            evidenceIds: ['text-evidence'],
+          });
+          result.evidences.push({
+            id: 'text-evidence',
+            kind: '文字',
+            summary: '仅依据原文段落',
+            sourceIds: [textSource.id],
+          });
+          return result;
+        }
         const fixed = await import('/tests/generation-contracts.ts');
         return stage === 'plan' ? fixed.fixedPlanningContent(data.paper) : fixed.fixedSlides(data.plan);
       },
@@ -544,6 +561,7 @@ try {
   assert.deepEqual(errors, []);
   console.log('PASS: PDF upload/parse/canvas/source/crop-isolation/save/reopen/rebuild/export/mobile');
   await page.setViewportSize({ width: 1440, height: 1000 });
+  const titleBeforeNavigation = await editingTitle.innerText();
   await editingTitle.fill('步骤导航前的手工修改');
   await page.getByRole('tab', { name: '2 · 学术大纲', exact: true }).click();
   const finalOutline = page.getByRole('region', { name: '当前文稿最终大纲', exact: true });
@@ -552,10 +570,34 @@ try {
   await page.screenshot({ path: join(output, 'final-outline-desktop.png'), fullPage: true });
   await page.getByRole('tab', { name: '1 · 论文理解', exact: true }).click();
   const understandingRegion = page.getByRole('region', { name: '论文理解', exact: true });
-  await understandingRegion.getByText('查看证据（1）', { exact: true }).click();
+  const textEvidence = understandingRegion.getByRole('article', { name: '结论 2', exact: true });
+  await textEvidence.getByText('查看证据（1）', { exact: true }).click();
+  await textEvidence.getByText('仅依据原文段落', { exact: true }).waitFor();
+  assert.equal(await textEvidence.getByRole('img').count(), 0);
+  assert.equal(await textEvidence.getByRole('button', { name: /^原文第/ }).count(), 1);
+  await understandingRegion
+    .getByRole('article', { name: '结论 1', exact: true })
+    .getByText('查看证据（1）', { exact: true })
+    .click();
   const evidenceImage = understandingRegion.getByRole('img', { name: '论文证据图', exact: true }).first();
   await evidenceImage.waitFor();
-  assert.equal(await evidenceImage.evaluate((img) => img.complete && img.naturalWidth > 0), true);
+  assert.equal(
+    await evidenceImage.evaluate(async (img) => {
+      await img.decode();
+      if (!img.src.startsWith('data:image/png;base64,') || img.naturalWidth < 100 || img.naturalHeight < 100)
+        return false;
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const context = canvas.getContext('2d');
+      context.drawImage(img, 0, 0);
+      const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+      const colors = new Set();
+      for (let i = 0; i < pixels.length; i += 4) colors.add(`${pixels[i]},${pixels[i + 1]},${pixels[i + 2]}`);
+      return colors.size > 32;
+    }),
+    true,
+  );
   await understandingRegion
     .getByRole('button', { name: /^原文第/ })
     .first()
@@ -569,8 +611,13 @@ try {
   await page.getByRole('tab', { name: '3 · 幻灯片', exact: true }).click();
   await editingTitle.waitFor({ state: 'visible' });
   assert.equal(await editingTitle.innerText(), '步骤导航前的手工修改');
-  await page.getByRole('button', { name: '撤销', exact: true }).click().catch(() => undefined);
-  await page.getByRole('status').filter({ hasText: '已保存' }).waitFor();
+  assert.equal(await page.getByRole('button', { name: '撤销', exact: true }).isEnabled(), true);
+  await page.getByRole('button', { name: '撤销', exact: true }).click();
+  await editingTitle.filter({ hasText: titleBeforeNavigation }).waitFor();
+  assert.equal(await editingTitle.innerText(), titleBeforeNavigation);
+  await page.getByRole('button', { name: '重做', exact: true }).click();
+  await editingTitle.filter({ hasText: '步骤导航前的手工修改' }).waitFor();
+  assert.equal(await editingTitle.innerText(), '步骤导航前的手工修改');
   await page.setViewportSize({ width: 1440, height: 1000 });
   console.log(
     'PASS: workspace navigation/flush draft/read-only current outline/evidence image/source/mobile/retained undo',
