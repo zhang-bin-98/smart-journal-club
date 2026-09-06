@@ -1,0 +1,15 @@
+# 仓库统一 LF 行尾：git 检出与 Biome 格式化输出保持一致，消除 Windows 上的行尾幻影修改。
+* text=auto eol=lf
+
+# 二进制资源不做任何转换。
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.wasm binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.pdf binary
