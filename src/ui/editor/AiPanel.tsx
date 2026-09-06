@@ -4,15 +4,15 @@ import type { ModelSettings } from '../../shared/llm/model';
 import type { ChatMessage } from '../../modules/assistant/assistant.schema';
 import type { Paper } from '../../modules/paper/paper.schema';
 import type { Project } from '../../modules/project/project.schema';
-import type { DeckSession } from '../../deck';
+import type { DeckSession } from '../../modules/deck/DeckSession';
 import { runAiRevision } from '../../modules/assistant/runtime/runAssistant';
 import { loadHistory } from '../../modules/assistant/conversationRepository';
 import { beginActivity, setDirty } from '../../activity';
 import { Button, errorMessage, inputClass, useOnline } from '../controls';
 
 export type CancelAi = (reason?: 'manual') => boolean;
-export function AiPanel({ session, paper, settings, projectId, preferences, selectedSlideId, selectedElementId, onChanged, beforeSend, beforeUndo, onBusyChange, registerCancel, disabled = false }: {
-  disabled?: boolean; session: DeckSession; paper: Paper; settings: ModelSettings; projectId?: string; preferences?: Project['preferences']; selectedSlideId?: string; selectedElementId?: string;
+export function AiPanel({ session, paper, settings, projectId, preferences, persistRevision, selectedSlideId, selectedElementId, onChanged, beforeSend, beforeUndo, onBusyChange, registerCancel, disabled = false }: {
+  disabled?: boolean; session: DeckSession; paper: Paper; settings: ModelSettings; projectId?: string; preferences?: Project['preferences']; persistRevision?: import('../../modules/assistant/revision/applyRevision').PersistAssistantRevision; selectedSlideId?: string; selectedElementId?: string;
   onChanged: () => void; beforeSend: () => Promise<void>; beforeUndo: () => Promise<void>; onBusyChange: (busy: boolean) => void; registerCancel: (cancel?: CancelAi) => void;
 }) {
   const [input, setInput] = useState('');
@@ -62,7 +62,7 @@ export function AiPanel({ session, paper, settings, projectId, preferences, sele
       if (!mounted.current || task.current !== controller || controller.signal.aborted) return;
       registerCancel(cancel); changeInput(''); setPendingMessage(request);
       const result = await runAiRevision({
-        settings, paper, deck: session.current, session, projectId, preferences, request, selectedSlideId, selectedElementId,
+        settings, paper, deck: session.current, session, projectId, preferences, request, selectedSlideId, selectedElementId, persistRevision,
         recentMessages: messages, signal: controller.signal, isTaskActive: () => mounted.current && task.current === controller,
       });
       if (!mounted.current) return;

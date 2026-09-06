@@ -113,7 +113,7 @@ export class PdfResource {
     return regions;
   }
   async image(paper: Paper, element: Extract<Element, { type: 'figure' }>, edge = PDF_PREVIEW_EDGE) {
-    const source = figureSource(paper, element); const box = BBoxSchema.parse(element.cropOverride ?? source.bbox);
+    const source = figureSource(paper, { figureId: element.figureId, panelId: element.panelId }); const box = BBoxSchema.parse(element.cropOverride ?? source.bbox);
     const key = JSON.stringify([source.id, source.pageNumber, box, edge]);
     let result = this.images.get(key);
     if (!result) {

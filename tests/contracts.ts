@@ -1,4 +1,4 @@
-import { DeckSession, type PersistRevision } from '../src/deck';
+import { DeckSession, type PersistRevision } from '../src/modules/deck/DeckSession';
 import { fixtureDeck, fixturePaper } from '../src/fixtures';
 import { createProject, deleteProject, listProjects, loadProject, saveStage, updateProject } from '../src/modules/project/projectRepository';
 import { getDeck, saveRevision } from '../src/modules/deck/deckRepository';

@@ -1,8 +1,8 @@
-import { DeckSchema, LayoutIds, type Deck, type Element, type LayoutId, type Slide } from './modules/deck/deck.schema';
+import { LayoutIds, type Deck, type Element, type LayoutId, type Slide } from './modules/deck/deck.schema';
 import { DeckPlanSchema, type DeckPlan } from './modules/outline/outline.schema';
 import type { BBox } from './shared/schema';
 import type { Paper } from './modules/paper/paper.schema';
-import { figureSource, validatePaper } from './sources';
+import { validateDeck } from './modules/deck/validateDeck';
 export type Rect = BBox;
 export type TextMetrics = { fontSize: number; lineHeight: number; overflow: boolean };
 export type ComputedLayout = { title: Rect; titleText: TextMetrics; message?: Rect; messageText: TextMetrics; sourceLabel: Rect; elements: { element: Element; rect: Rect; text: TextMetrics }[] };
@@ -47,33 +47,6 @@ export function computeLayout(slide: Slide): ComputedLayout {
   };
 }
 export function validateBBox(box: BBox) { return Number.isFinite(box.x) && Number.isFinite(box.y) && box.width > 0 && box.height > 0 && box.x >= 0 && box.y >= 0 && box.x + box.width <= 1 && box.y + box.height <= 1; }
-export function layoutCapacity(slide: Slide) {
-  const figures = slide.elements.filter(element => element.type === 'figure').length; const content = slide.elements.filter(element => element.type !== 'citation').length;
-  if (slide.layoutId === 'title') return figures === 0 && content <= 1;
-  if (slide.layoutId === 'text-only') return figures === 0 && content <= 4;
-  if (slide.layoutId === 'figure-full') return figures === 1 && content === 1;
-  if (slide.layoutId === 'figure-text') return figures === 1 && content >= 1 && content <= 3;
-  if (slide.layoutId === 'two-figures') return figures === 2 && content === 2;
-  return figures >= 3 && figures <= 4 && content === figures;
-}
-export function validateDeck(input: unknown, paper?: Paper) {
-  const parsed = DeckSchema.safeParse(input); if (!parsed.success) return parsed.error.issues.map(issue => issue.path.join('.') + ': ' + issue.message);
-  const deck = parsed.data; const ids = new Set<string>(); const errors: string[] = [];
-  if (paper) { try { validatePaper(paper); } catch (error) { errors.push(error instanceof Error ? error.message : String(error)); } }
-  if (paper && deck.paperId !== paper.id) errors.push('Deck 不属于当前 Paper');
-  deck.slides.forEach(slide => {
-    if (ids.has(slide.id)) errors.push('重复 slide id'); ids.add(slide.id);
-    if (!layoutCapacity(slide)) errors.push('布局无法容纳当前元素：' + slide.id);
-    slide.elements.forEach(element => {
-      if (ids.has(element.id)) errors.push('重复 element id'); ids.add(element.id);
-      if (paper && element.type === 'figure') { try { figureSource(paper, element); } catch (error) { errors.push(error instanceof Error ? error.message : String(error)); } }
-      if (paper && element.type === 'citation' && element.sourceIds.some(id => !paper.sources.some(source => source.id === id))) errors.push('来源不存在：' + element.id);
-    });
-    if (paper && slide.sourceIds.some(id => !paper.sources.some(source => source.id === id))) errors.push('页来源不存在：' + slide.id);
-    if (paper && slide.claimIds.some(id => !paper.claims.some(claim => claim.id === id))) errors.push('页结论不存在：' + slide.id);
-  });
-  return errors;
-}
 export function layoutIds(): readonly LayoutId[] { return LayoutIds; }
 export function validatePlan(input: unknown, paper: Paper): DeckPlan {
   const plan = DeckPlanSchema.parse(input);

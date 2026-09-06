@@ -1,5 +1,5 @@
 import { fixtureDeck, fixturePaper } from '../src/fixtures';
-import { DeckSession } from '../src/deck';
+import { DeckSession } from '../src/modules/deck/DeckSession';
 import { assembleDeck } from '../src/modules/generation/buildDeck';
 import { validatePlan } from '../src/layout';
 import { captureVersion, commitRegeneration, restorePrevious, saveRevision } from '../src/modules/deck/deckRepository';

@@ -5,15 +5,16 @@ import type { ApplyRevisionArgs, Deck } from '../../deck/deck.schema';
 import type { Paper } from '../../paper/paper.schema';
 import type { Project } from '../../project/project.schema';
 import type { ChatMessage } from '../assistant.schema';
-import type { DeckSession } from '../../../deck';
+import type { DeckSession } from '../../deck/DeckSession';
 import { prompts, researchPrompt } from '../../../prompts';
 import { saveConversation } from '../conversationRepository';
-import { layoutRules } from '../../generation/layoutRules';
+import { layoutRules } from '../../deck/layoutRules';
 import { modificationRequest, resolveAiTarget, type AiRecentMessage, type AiTarget } from '../target/resolveTarget';
 import { paperReadSchemas, paperReadDescriptions, paperReadTool } from '../tools/paperReadTools';
 import { deckReadSchemas, deckReadDescriptions, deckReadTool } from '../tools/deckReadTools';
 import { revisionToolSchema } from '../tools/revisionTool';
 import { validateAiCandidate } from '../revision/validateRevisionProposal';
+import { applyAssistantRevision, type PersistAssistantRevision } from '../revision/applyRevision';
 
 export type AiOutput = { mode: 'answer'; answer: string; summary?: string } | ({ mode: 'revision'; answer?: string } & ApplyRevisionArgs);
 export const AiIntentSchema = z.strictObject({ mode: z.enum(['answer', 'revision']), needsStrategy: z.boolean() });
@@ -30,8 +31,8 @@ function localContext(paper: Paper, deck: Deck, target: AiTarget) {
   return { deck: { id: deck.id, revision: deck.revision, title: deck.title, language: deck.language, slides }, paper: { metadata: paper.metadata, studyProfile: paper.studyProfile, claims, evidences, figures, sources: paper.sources.filter(source => sourceIds.has(source.id)) } };
 }
 function tool(name: string, description: string, schema: z.ZodType): Tool { return { name, description, parameters: z.toJSONSchema(schema) as Tool['parameters'] }; }
-export async function runAiRevision({ settings, paper, deck: inputDeck, session, request, selectedSlideId, selectedElementId, recentMessages = [], signal, projectId = '', requestId = crypto.randomUUID(), isTaskActive, preferences }: {
-  settings: ModelSettings; paper: Paper; deck: Deck; session: DeckSession; request: string; selectedSlideId?: string; selectedElementId?: string; recentMessages?: AiRecentMessage[]; signal: AbortSignal; projectId?: string; requestId?: string; isTaskActive?: () => boolean; preferences?: Project['preferences'];
+export async function runAiRevision({ settings, paper, deck: inputDeck, session, request, selectedSlideId, selectedElementId, recentMessages = [], signal, projectId = '', requestId = crypto.randomUUID(), isTaskActive, preferences, persistRevision }: {
+  settings: ModelSettings; paper: Paper; deck: Deck; session: DeckSession; request: string; selectedSlideId?: string; selectedElementId?: string; recentMessages?: AiRecentMessage[]; signal: AbortSignal; projectId?: string; requestId?: string; isTaskActive?: () => boolean; preferences?: Project['preferences']; persistRevision?: PersistAssistantRevision;
 }) {
   const deck = structuredClone(inputDeck); const baseRevision = deck.revision;
   const assertActive = () => { signal.throwIfAborted(); if (isTaskActive && !isTaskActive()) throw new Error('修改请求已失效'); if (session.current.id !== deck.id || session.current.revision !== baseRevision) throw new Error('当前幻灯片已变化，请基于最新内容重试。'); };
@@ -92,7 +93,7 @@ export async function runAiRevision({ settings, paper, deck: inputDeck, session,
     }
     assertActive();
     const text = answer || '已完成修改。'; const messages = createMessages(text, { summary: candidate.args.summary, affectedSlideIds: candidate.affectedSlideIds });
-    const committed = await session.applyRevision({ requestId, projectId, deckId: deck.id, baseRevision }, candidate.args, { signal, isTaskActive, messages });
+    const committed = await applyAssistantRevision({ session, request: { requestId, projectId, deckId: deck.id, baseRevision }, args: candidate.args, messages, signal, isTaskActive, persistRevision });
     return { output: { mode: 'revision' as const, answer: text, ...candidate.args }, committed: true as const, deck: committed, messages, affectedSlideIds: candidate.affectedSlideIds };
   }
   throw new Error('本次请求读取次数过多，尚未保存修改，请缩小问题范围后重试。');

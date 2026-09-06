@@ -1,5 +1,6 @@
 import pptxgen from 'pptxgenjs';
-import { computeLayout, validateDeck } from './layout';
+import { computeLayout } from './layout';
+import { validateDeck } from './modules/deck/validateDeck';
 import type { Deck, Element } from './modules/deck/deck.schema';
 import type { Paper } from './modules/paper/paper.schema';
 import { figureSource, sourceText } from './sources';
@@ -28,7 +29,7 @@ export async function exportDeck(deck: Deck, paper: Paper, getImage: (element: E
         try { data = await getImage(element); } catch { throw new Error(`第 ${deck.slides.indexOf(slide) + 1} 页图源缺失，导出已停止`); }
         const size = await imageSize(data); signal?.throwIfAborted();
         out.addImage({ data, ...contain(size.width, size.height, opts.x, opts.y, opts.w, opts.h) });
-        sourceIds.add(figureSource(paper, element).id);
+        sourceIds.add(figureSource(paper, { figureId: element.figureId, panelId: element.panelId }).id);
       } else if (element.type === 'text') out.addText(element.text, { ...opts, breakLine: false });
       else if (element.type === 'bullet-list') out.addText(element.items.map(item => ({ text: item, options: { bullet: { indent: 12 }, breakLine: true } })), opts);
       else { element.sourceIds.forEach(id => sourceIds.add(id)); out.addText(sourceText(paper, element.sourceIds), { ...opts, fontSize: 8, color: '526575' }); }

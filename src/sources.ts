@@ -1,10 +1,11 @@
 import { PaperSchema, type Paper } from './modules/paper/paper.schema';
-import type { Element } from './modules/deck/deck.schema';
 
-export function figureSource(paper: Paper, element: Extract<Element, { type: 'figure' }>) {
-  const figure = paper.figures.find(item => item.id === element.figureId);
+/** 论文图源定位：Deck 侧先把 Figure 元素转换为本结构，Paper 来源解析不感知 Deck 元素。 */
+export type FigureSourceLocator = { figureId: string; panelId?: string };
+export function figureSource(paper: Paper, locator: FigureSourceLocator) {
+  const figure = paper.figures.find(item => item.id === locator.figureId);
   if (!figure) throw new Error('Figure 不存在');
-  const sourceId = element.panelId ? figure.panels.find(panel => panel.id === element.panelId)?.sourceId : figure.sourceId;
+  const sourceId = locator.panelId ? figure.panels.find(panel => panel.id === locator.panelId)?.sourceId : figure.sourceId;
   const source = paper.sources.find(item => item.id === sourceId);
   if (!source?.bbox) throw new Error('图源缺失，无法查看或导出');
   return source;

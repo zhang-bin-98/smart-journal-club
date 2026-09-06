@@ -1,4 +1,5 @@
-import { DeckSession, type PersistRevision, type RevisionRequest } from '../src/deck';
+import { DeckSession, type PersistRevision } from '../src/modules/deck/DeckSession';
+import type { RevisionRequest } from '../src/modules/deck/deck.schema';
 import { fixtureDeck, fixturePaper } from '../src/fixtures';
 import { resolveAiTarget } from '../src/modules/assistant/target/resolveTarget';
 import { validateAiCandidate } from '../src/modules/assistant/revision/validateRevisionProposal';
@@ -42,13 +43,14 @@ export async function runAiContracts() {
   const { project, paper, deck } = await createFixture();
   try {
     const persist: PersistRevision = (previous, next, record, options) => saveRevision(project.id, previous, next, record, options?.signal, options);
+    const messagesPersist = (messages: ChatMessage[]): PersistRevision => (previous, next, record, options) => saveRevision(project.id, previous, next, record, options?.signal, { isTaskActive: options?.isTaskActive, messages });
     const session = new DeckSession(deck, paper, persist, project.id);
     const request = capture(project.id, deck);
     const messages: ChatMessage[] = [
       { id: crypto.randomUUID(), projectId: project.id, deckId: deck.id, baseRevision: deck.revision, role: 'user', text: '精简前两页标题', createdAt: Date.now() },
       { id: crypto.randomUUID(), projectId: project.id, deckId: deck.id, baseRevision: deck.revision, role: 'assistant', text: '已精简两页标题。', summary: batch.summary, revision: 1, affectedSlideIds: ['slide-1', 'slide-2'], createdAt: Date.now() + 1 },
     ];
-    await session.applyRevision(request, batch, { messages });
+    await session.applyRevision(request, batch, { persist: messagesPersist(messages) });
     assert(session.current.revision === 1 && session.current.slides[0].title === '第一处 AI 修改' && session.current.slides[1].title === '第二处 AI 修改', '多页修改必须一次提交');
     assert((await loadHistory(project.id)).length === 2, '用户消息和摘要须随修改持久化');
     await rejected(() => session.applyRevision({ ...capture(project.id, session.current), requestId: request.requestId }, batch), '重复 requestId 即使使用新 revision 也必须拒绝');
@@ -64,7 +66,7 @@ export async function runAiContracts() {
       if (this.name === 'history' && 'role' in args[0]) throw new DOMException('fixed summary failure', 'QuotaExceededError');
       return originalAdd.apply(this, args);
     };
-    try { await rejected(() => session.applyRevision(capture(project.id, session.current), batch, { messages: nextMessages }), '摘要写入失败必须回滚整批修改'); }
+    try { await rejected(() => session.applyRevision(capture(project.id, session.current), batch, { persist: messagesPersist(nextMessages) }), '摘要写入失败必须回滚整批修改'); }
     finally { IDBObjectStore.prototype.add = originalAdd; }
     assert(JSON.stringify(session.current) === stable && JSON.stringify((await loadProject(project.id)).deck) === stable, '摘要失败不得留下内存或数据库半提交');
     assert((await loadHistory(project.id)).length === historyCount, '摘要失败不得留下部分对话');
@@ -73,7 +75,7 @@ export async function runAiContracts() {
     IDBObjectStore.prototype.put = function (...args) {
       const result = originalPut.apply(this, args); if (this.name === 'decks') controller.abort(); return result;
     };
-    try { await rejected(() => session.applyRevision(capture(project.id, session.current), batch, { signal: controller.signal, messages: nextMessages }), '事务写入期间取消必须回滚'); }
+    try { await rejected(() => session.applyRevision(capture(project.id, session.current), batch, { signal: controller.signal, persist: messagesPersist(nextMessages) }), '事务写入期间取消必须回滚'); }
     finally { IDBObjectStore.prototype.put = originalPut; }
     let active = true;
     IDBObjectStore.prototype.put = function (...args) {

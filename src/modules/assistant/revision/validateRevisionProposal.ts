@@ -1,6 +1,6 @@
 import { ApplyRevisionArgsSchema, type ApplyRevisionArgs, type Deck } from '../../deck/deck.schema';
 import type { Paper } from '../../paper/paper.schema';
-import { DeckSession } from '../../../deck';
+import { DeckSession } from '../../deck/DeckSession';
 import type { AiTarget } from '../target/resolveTarget';
 
 export async function validateAiCandidate(raw: unknown, target: AiTarget, deck: Deck, paper: Paper) {

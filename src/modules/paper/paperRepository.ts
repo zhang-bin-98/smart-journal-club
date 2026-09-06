@@ -3,7 +3,7 @@ import { PaperSchema, type Paper } from './paper.schema';
 import { projectIn } from '../project/projectRepository';
 import type { Project } from '../project/project.schema';
 
-export async function readProjectScoped<T>(projectId: string, reader: (tx: IDBTransaction, project: Project, paper: Paper) => Promise<T>) {
+async function readProjectScoped<T>(projectId: string, reader: (tx: IDBTransaction, project: Project, paper: Paper) => Promise<T>) {
   return transaction(['projects', 'papers', 'decks'], 'readonly', async tx => {
     const project = await projectIn(tx, projectId);
     const paper = stored(PaperSchema, await get(tx, 'papers', project.paperId), '论文');

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { ArrowDown, ArrowLeft, ArrowUp, Bot, Crop, Download, FileText, List, MoreHorizontal, Plus, Quote, RefreshCw, Redo2, Settings, Trash2, Undo2, X } from 'lucide-react';
-import { createSlide, DeckSession, type DeckMutation, type RevisionScope } from '../../deck';
+import { createSlide } from '../../modules/deck/mutations';
+import { DeckSession } from '../../modules/deck/DeckSession';
+import type { DeckMutation, RevisionScope } from '../../modules/deck/deck.schema';
 import { LayoutIds, type Deck, type Element, type Slide } from '../../modules/deck/deck.schema';
 import type { Paper } from '../../modules/paper/paper.schema';
 import { Brand, Button, errorMessage, IconButton } from '../controls';
@@ -10,7 +12,7 @@ import { AiPanel, type CancelAi } from './AiPanel';
 import { beginActivity, setDirty, type LeaveGuard, type RegisterLeaveGuard } from '../../activity';
 
 const layoutNames = ['标题', '文字', '单图', '图文', '双图', 'Panel 网格'];
-export function Editor({ session, paper, image, name, initialSlideId, onLeave, onExport, onSelection, onSource, onSettings, notice, aiSettings, aiPaper, aiProjectId, aiPreferences, readOnly = false, resourceAvailable = true, registerLeaveGuard, onRegenerate, onRestore, taskStatus, onCancelTask, externalError }: {
+export function Editor({ session, paper, image, name, initialSlideId, onLeave, onExport, onSelection, onSource, onSettings, notice, aiSettings, aiPaper, aiProjectId, aiPreferences, aiPersistRevision, readOnly = false, resourceAvailable = true, registerLeaveGuard, onRegenerate, onRestore, taskStatus, onCancelTask, externalError }: {
   session: DeckSession; paper: Paper; image: FigureImage; name: string; initialSlideId?: string;
   onLeave?: () => void; onExport: (deck: Deck) => Promise<void>; onSelection?: (id?: string) => Promise<void>;
   onSettings?: () => void;
@@ -18,6 +20,7 @@ export function Editor({ session, paper, image, name, initialSlideId, onLeave, o
   aiPaper?: Paper;
   aiProjectId?: string;
   aiPreferences?: import('../../modules/project/project.schema').Project['preferences'];
+  aiPersistRevision?: import('../../modules/assistant/revision/applyRevision').PersistAssistantRevision;
   notice?: string; readOnly?: boolean; resourceAvailable?: boolean; registerLeaveGuard?: RegisterLeaveGuard;
   onRegenerate?: () => void; onRestore?: (deck: Deck) => Promise<void>; taskStatus?: string; onCancelTask?: () => void; externalError?: string;
   onSource?: (sourceId: string, element: Extract<Element, { type: 'figure' }> | undefined, slideId: string, crop: boolean, apply: (element: Extract<Element, { type: 'figure' }>) => Promise<void>, onDraft: () => void) => void;
@@ -204,7 +207,7 @@ export function Editor({ session, paper, image, name, initialSlideId, onLeave, o
           <IconButton label="下移本页" disabled={!slide || deck.slides.indexOf(slide) === deck.slides.length - 1 || readOnly} onClick={() => void run(() => move(slide!.id, deck.slides[deck.slides.indexOf(slide!) + 1].id))}><ArrowDown size={15} /></IconButton>
         </div></div>
       </section>
-      {aiSettings && <ResponsivePanel label="AI 助手" side="right" open={aiOpen} onClose={() => setAiOpen(false)}><AiPanel disabled={readOnly} session={session} paper={aiPaper ?? paper} settings={aiSettings} projectId={aiProjectId} preferences={aiPreferences} selectedSlideId={slide?.id} selectedElementId={selectedElement} onChanged={changed} beforeSend={flush} beforeUndo={flush} onBusyChange={aiBusyChanged} registerCancel={registerAiCancel} /></ResponsivePanel>}
+      {aiSettings && <ResponsivePanel label="AI 助手" side="right" open={aiOpen} onClose={() => setAiOpen(false)}><AiPanel disabled={readOnly} session={session} paper={aiPaper ?? paper} settings={aiSettings} projectId={aiProjectId} preferences={aiPreferences} persistRevision={aiPersistRevision} selectedSlideId={slide?.id} selectedElementId={selectedElement} onChanged={changed} beforeSend={flush} beforeUndo={flush} onBusyChange={aiBusyChanged} registerCancel={registerAiCancel} /></ResponsivePanel>}
       {!aiSettings && <aside className="hidden min-w-0 border-l border-line bg-panel p-4 xl:block"><h2 className="text-sm font-semibold">{deck.title}</h2><p className="mt-3 text-xs text-muted">{deck.slides.length} 页 · {deck.language}</p><p className="mt-5 border-t border-line pt-3 text-xs leading-relaxed wrap-anywhere text-muted">{paper.metadata.title}</p></aside>}
     </div>
   </main>;

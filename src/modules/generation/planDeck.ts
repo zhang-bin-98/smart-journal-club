@@ -4,7 +4,7 @@ import type { Paper } from '../paper/paper.schema';
 import { validatePlan } from '../../layout';
 import { requestJson, type ModelSettings } from '../../shared/llm/model';
 import { prompts, researchPrompt } from '../../prompts';
-import { layoutRules } from './layoutRules';
+import { layoutRules } from '../deck/layoutRules';
 
 export const paperContext = (paper: Paper) => ({ ...paper, pages: undefined });
 export function assignPlanIds(raw: DeckPlan, paper: Paper) {

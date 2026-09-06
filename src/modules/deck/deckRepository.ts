@@ -4,9 +4,8 @@ import type { ChatMessage } from '../assistant/assistant.schema';
 import { PaperSchema, type Paper } from '../paper/paper.schema';
 import { ProjectSchema, type PdfAsset, type Project } from '../project/project.schema';
 import { projectIn } from '../project/projectRepository';
-import { readProjectScoped } from '../paper/paperRepository';
 import { assertMessage, trimHistory } from '../../shared/persistence/historyStore';
-import { validateDeck } from '../../layout';
+import { validateDeck } from './validateDeck';
 import { validatePaper } from '../../sources';
 import { prompts } from '../../prompts';
 
@@ -104,7 +103,9 @@ export function captureRevision(projectId: string, deck: Deck): RevisionReadCont
   return { requestId: crypto.randomUUID(), projectId, deckId: deck.id, baseRevision: deck.revision };
 }
 export function getDeck(projectId: string) {
-  return readProjectScoped(projectId, async (tx, project, paper) => {
+  return transaction(['projects', 'papers', 'decks'], 'readonly', async tx => {
+    const project = await projectIn(tx, projectId);
+    const paper = stored(PaperSchema, await get(tx, 'papers', project.paperId), '论文');
     if (!project.currentDeckId) throw new Error('项目尚未生成幻灯片');
     const deck = DeckSchema.parse(await get(tx, 'decks', project.currentDeckId));
     const errors = validateDeck(deck, paper); if (errors.length) throw new Error(errors.join('；'));

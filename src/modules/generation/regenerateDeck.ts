@@ -8,7 +8,7 @@ import type { ProjectData } from '../project/projectRepository';
 import { GENERATION_STEPS } from './runGeneration';
 import { assignPlanIds, paperContext } from './planDeck';
 import { generateDeck } from './buildDeck';
-import { layoutRules } from './layoutRules';
+import { layoutRules } from '../deck/layoutRules';
 
 export const RegenerationPlanSchema = z.strictObject({ strategyId: z.enum(prompts.strategies.map(strategy => strategy.id) as [string, ...string[]]), plan: DeckPlanSchema });
 /** 重生成只在内存重新规划和制作；复用既有 Paper，并在全部成功后一次切换版本。 */

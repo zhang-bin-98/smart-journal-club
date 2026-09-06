@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Check, Circle, FileText, LoaderCircle, Play, Settings, X } from 'lucide-react';
-import { DeckSession } from '../deck';
+import { DeckSession } from '../modules/deck/DeckSession';
 import { PdfResource, PDF_EXPORT_EDGE } from '../pdf';
 import { captureVersion, restorePrevious, saveRevision } from '../modules/deck/deckRepository';
 import { loadProject, updateProject, type ProjectData } from '../modules/project/projectRepository';
@@ -52,7 +52,8 @@ function ProjectContent({ opened, onLeave, settings, onSettings, registerLeaveGu
   const preferenceKey = `preferences-${data.project.id}`;
   const dialogKey = `project-dialog-${data.project.id}`;
   const parseTask = useRef<AbortController | undefined>(undefined);
-  const session = useMemo(() => data.deck ? new DeckSession(data.deck, data.paper, (previous, next, record, options) => saveRevision(data.project.id, previous, next, record, options?.signal ? AbortSignal.any([options.signal, controller.signal]) : controller.signal, { isTaskActive: options?.isTaskActive, messages: options?.messages }), data.project.id) : undefined, [data.deck, data.paper, data.project.id, controller]);
+  const persistRevision: import('../modules/assistant/revision/applyRevision').PersistAssistantRevision = (previous, next, record, options, messages) => saveRevision(data.project.id, previous, next, record, options?.signal ? AbortSignal.any([options.signal, controller.signal]) : controller.signal, { isTaskActive: options?.isTaskActive, messages });
+  const session = useMemo(() => data.deck ? new DeckSession(data.deck, data.paper, (previous, next, record, options) => persistRevision(previous, next, record, options), data.project.id) : undefined, [data.deck, data.paper, data.project.id, controller]);
   const image = useMemo(() => async (element: Parameters<PdfResource['image']>[1]) => {
     if (!resource) throw new Error('原 PDF 缺失'); return resource.image(data.paper, element);
   }, [resource, data.paper]);
@@ -112,7 +113,7 @@ function ProjectContent({ opened, onLeave, settings, onSettings, registerLeaveGu
     finally { done(); if (parseTask.current === task) { parseTask.current = undefined; if (!controller.signal.aborted) { setBusy(false); setOperationKind(undefined); } } }
   }
   const completed = Checkpoints.indexOf(data.project.checkpoint);
-  const content = session ? <Editor key={session.current.id} session={session} readOnly={busy} resourceAvailable={!!resource} registerLeaveGuard={registerEditorLeave} onRegenerate={() => openRegeneration(true)} onRestore={data.project.previousDeckId ? restore : undefined} taskStatus={busy ? (operationKind === 'restore' ? '正在恢复上一版…' : `正在重生成：${stage || '规划汇报结构'}…`) : undefined} onCancelTask={operationKind === 'regenerate' ? () => parseTask.current?.abort() : undefined} externalError={error} paper={data.paper} image={image} name={data.project.name} initialSlideId={data.project.lastOpenedSlideId} onLeave={onLeave} onSettings={onSettings} aiSettings={settings} aiProjectId={data.project.id} aiPreferences={data.project.preferences}
+  const content = session ? <Editor key={session.current.id} session={session} readOnly={busy} resourceAvailable={!!resource} registerLeaveGuard={registerEditorLeave} onRegenerate={() => openRegeneration(true)} onRestore={data.project.previousDeckId ? restore : undefined} taskStatus={busy ? (operationKind === 'restore' ? '正在恢复上一版…' : `正在重生成：${stage || '规划汇报结构'}…`) : undefined} onCancelTask={operationKind === 'regenerate' ? () => parseTask.current?.abort() : undefined} externalError={error} paper={data.paper} image={image} name={data.project.name} initialSlideId={data.project.lastOpenedSlideId} onLeave={onLeave} onSettings={onSettings} aiSettings={settings} aiProjectId={data.project.id} aiPreferences={data.project.preferences} aiPersistRevision={persistRevision}
     notice={warning || '请核对主要结论、图例和裁图边缘；自动识别的图源可能需要调整。'}
     onSelection={async id => { await updateProject(data.project.id, { lastOpenedSlideId: id }); }}
     onSource={(sourceId, element, _slideId, crop, apply, onDraft) => openSource({ sourceId, element, crop, apply, onDraft })}

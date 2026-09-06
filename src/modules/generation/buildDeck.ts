@@ -3,10 +3,11 @@ import { DeckSchema, SlideSchema, type Deck } from '../deck/deck.schema';
 import type { DeckPlan } from '../outline/outline.schema';
 import type { Project } from '../project/project.schema';
 import type { Paper } from '../paper/paper.schema';
-import { validateDeck, validatePlan } from '../../layout';
+import { validatePlan } from '../../layout';
+import { validateDeck } from '../deck/validateDeck';
 import { requestJson, type ModelSettings } from '../../shared/llm/model';
 import { prompts, researchPrompt } from '../../prompts';
-import { layoutRules } from './layoutRules';
+import { layoutRules } from '../deck/layoutRules';
 import { paperContext } from './planDeck';
 
 export const GenerationOutputSchema = z.strictObject({ slides: z.array(SlideSchema.pick({ id: true, elements: true })).min(1) });

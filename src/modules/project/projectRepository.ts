@@ -3,7 +3,8 @@ import { ProjectSchema, type PdfAsset, type Project } from './project.schema';
 import { PaperSchema, type Paper } from '../paper/paper.schema';
 import { DeckSchema, RevisionRecordSchema, type Deck, type RevisionRecord } from '../deck/deck.schema';
 import { DeckPlanSchema, type DeckPlan } from '../outline/outline.schema';
-import { validateDeck, validatePlan } from '../../layout';
+import { validatePlan } from '../../layout';
+import { validateDeck } from '../deck/validateDeck';
 import { validatePaper } from '../../sources';
 import { prompts } from '../../prompts';
 
