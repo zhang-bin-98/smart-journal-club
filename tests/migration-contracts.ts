@@ -256,5 +256,83 @@ export async function runMigrationContracts() {
       await deleteProject('migration-plan');
     }
   }
-  return 'PASS: lazy migration current/previous/mixed/atomic failure recovery/future version zero write/plan replan fallback/plan migration/idempotent reopen';
+  // 已有两版文稿时，废弃损坏的旧临时计划不能回退文稿阶段。
+  {
+    const paper = { ...structuredClone(fixturePaper), id: 'paper-migration-stable-replan' };
+    const current = { ...structuredClone(legacyDeckV1('stable-replan-current')), paperId: paper.id };
+    const previous = { ...structuredClone(legacyDeckV1('stable-replan-previous')), paperId: paper.id };
+    const plan = { ...structuredClone(legacyDeckPlanV1()), paperId: paper.id };
+    plan.slides[1].figures[0].figureId = 'missing';
+    const project = legacyProject({
+      id: 'migration-stable-replan',
+      paperId: paper.id,
+      pdfAssetId: 'asset-stable-replan',
+      checkpoint: 'deck-ready',
+      currentDeckId: current.id,
+      previousDeckId: previous.id,
+    });
+    await seed({ project, paper, decks: [current, previous], plan });
+    try {
+      const originalPut = IDBObjectStore.prototype.put;
+      IDBObjectStore.prototype.put = function (...args) {
+        if (this.name === 'decks' && args[1] === previous.id)
+          throw new DOMException('fixed migration failure', 'QuotaExceededError');
+        return originalPut.apply(this, args);
+      };
+      try {
+        assert((await captureError(() => loadProject(project.id))).includes('空间不足'), '迁移保存失败应明确提示');
+      } finally {
+        IDBObjectStore.prototype.put = originalPut;
+      }
+      assert(JSON.stringify(await readRecord('projects', project.id)) === JSON.stringify(project), '失败不得改变项目');
+      assert(JSON.stringify(await readRecord('plans', project.id)) === JSON.stringify(plan), '失败不得提前删除旧计划');
+      assert((await readDeck(current.id))?.schemaVersion === 1, '失败不得部分迁移 Current');
+      const opened = await loadProject(project.id);
+      assert(
+        opened.project.checkpoint === 'deck-ready' &&
+          opened.project.currentDeckId === project.currentDeckId &&
+          opened.project.previousDeckId === project.previousDeckId &&
+          opened.project.paperId === project.paperId,
+        '成功后仍保留 deck-ready、偏好及两个指针',
+      );
+      assert(opened.deck?.id === current.id && opened.deck.revision === current.revision, 'Current 身份与版本保持');
+      assert((await readDeck(previous.id))?.revision === previous.revision, 'Previous 版本保持');
+      assert(!opened.plan && !opened.planRecord && !(await readRecord('plans', project.id)), '仅删除旧临时计划');
+      assert(JSON.stringify(await readRecord('papers', paper.id)) === JSON.stringify(paper), 'Paper 不变');
+      const asset = await readRecord<{ blob: Blob }>('assets', project.pdfAssetId);
+      assert((await asset?.blob.text()) === '%PDF-legacy', 'PDF 内容不变');
+      const snapshot = JSON.stringify(opened);
+      assert(JSON.stringify(await loadProject(project.id)) === snapshot, '重复打开恢复结果保持一致');
+    } finally {
+      await deleteProject(project.id);
+    }
+  }
+  // Previous 指针存在但数据缺失时，拒绝迁移并保留 Current 原始记录。
+  {
+    const paper = { ...structuredClone(fixturePaper), id: 'paper-missing-previous' };
+    const current = { ...structuredClone(legacyDeckV1('missing-previous-current')), paperId: paper.id };
+    const project = legacyProject({
+      id: 'migration-missing-previous',
+      paperId: paper.id,
+      pdfAssetId: 'asset-missing-previous',
+      checkpoint: 'deck-ready',
+      currentDeckId: current.id,
+      previousDeckId: 'missing-previous',
+    });
+    await seed({ project, paper, decks: [current] });
+    try {
+      assert(
+        (await captureError(() => loadProject(project.id))).includes('上一版幻灯片数据缺失'),
+        '不能忽略失效 Previous 指针',
+      );
+      assert(
+        JSON.stringify(await readRecord('projects', project.id)) === JSON.stringify(project),
+        '缺失失败不修改项目',
+      );
+      assert((await readDeck(current.id))?.schemaVersion === 1, '缺失失败不提前迁移 Current');
+    } finally {
+      await deleteProject(project.id);
+    }
+  }
+  return 'PASS: lazy migration current/previous/mixed/atomic failure recovery/future version zero write/plan replan fallback/plan migration/idempotent reopen/stable deck replan rollback/missing previous zero write';
 }

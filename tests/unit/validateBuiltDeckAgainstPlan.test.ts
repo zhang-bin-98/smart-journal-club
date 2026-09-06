@@ -1,3 +1,4 @@
+/* biome-ignore-all lint/suspicious/noExplicitAny: mutation table intentionally edits individual contract fields */
 import { describe, expect, it } from 'vitest';
 import { narrativePaper, narrativePlan } from '../narrative-fixture';
 import { assembleDeck } from '../../src/modules/generation/buildDeck';
@@ -6,10 +7,9 @@ import { fixedSlides } from '../generation-contracts';
 
 function built() {
   const plan = narrativePlan();
-  plan.status = 'confirmed';
-  plan.confirmedAt = 1;
+  const confirmed = { ...plan, status: 'confirmed' as const, confirmedAt: 1 };
   const paper = narrativePaper();
-  return { plan, deck: assembleDeck(plan, fixedSlides(plan), paper) };
+  return { plan: confirmed, deck: assembleDeck(confirmed, fixedSlides(confirmed), paper) };
 }
 
 describe('build contract', () => {

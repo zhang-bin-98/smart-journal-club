@@ -100,6 +100,8 @@ export function loadProject(id: string): Promise<ProjectData> {
     if (project.currentDeckId && currentRaw === undefined)
       throw new Error('幻灯片数据缺失，请保留项目并检查本地存储。');
     const previousRaw = project.previousDeckId ? await get(tx, 'decks', project.previousDeckId) : undefined;
+    if (project.previousDeckId && previousRaw === undefined)
+      throw new OutlineError('missing-previous', '上一版幻灯片数据缺失，请保留项目并检查本地存储。');
     const deck = currentRaw === undefined ? undefined : migrateDeckV1(currentRaw);
     const previous = previousRaw === undefined ? undefined : migrateDeckV1(previousRaw);
     if (project.checkpoint === 'deck-ready' && !deck) throw new Error('已保存的幻灯片缺失');
@@ -158,8 +160,10 @@ export function loadProject(id: string): Promise<ProjectData> {
     let opened = project;
     if (discardLegacyPlan) {
       tx.objectStore('plans').delete(id);
-      opened = ProjectSchema.parse({ ...project, checkpoint: 'paper-ready' });
-      tx.objectStore('projects').put(opened, id);
+      if (!deck) {
+        opened = ProjectSchema.parse({ ...project, checkpoint: 'paper-ready' });
+        tx.objectStore('projects').put(opened, id);
+      }
     } else if (plan && wrapPlan) {
       tx.objectStore('plans').put(planRecord(opened, plan), id);
     }
