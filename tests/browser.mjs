@@ -129,7 +129,7 @@ try {
           };
         if (stage === 'understand') return (await import('/tests/analysis-contracts.ts')).understanding(data.paper);
         const fixed = await import('/tests/generation-contracts.ts');
-        return stage === 'plan' ? fixed.fixedOutline(data.paper) : fixed.fixedSlides(data.plan);
+        return stage === 'plan' ? fixed.fixedPlanningContent(data.paper) : fixed.fixedSlides(data.plan);
       },
       { stage, data },
     );
@@ -401,7 +401,7 @@ try {
   );
   await page.unroute('https://api.deepseek.com/chat/completions');
   console.log('PASS: AI send/explicit target/summary top undo/manual draft cancels staged candidate/history reopen');
-  let beforeRegeneration = await page.evaluate(
+  const beforeRegeneration = await page.evaluate(
     async (id) => (await import('/src/modules/project/projectRepository.ts')).loadProject(id),
     id,
   );
@@ -426,7 +426,7 @@ try {
     const result = await page.evaluate(
       async ({ stage, data }) => {
         const fixed = await import('/tests/generation-contracts.ts');
-        return stage === 'plan' ? fixed.fixedOutline(data.paper) : fixed.fixedSlides(data.plan);
+        return stage === 'plan' ? fixed.fixedPlanningContent(data.paper) : fixed.fixedSlides(data.plan);
       },
       { stage, data },
     );
@@ -470,6 +470,7 @@ try {
   assert.deepEqual(versionData.project.preferences, beforeRegeneration.project.preferences);
   assert.equal(versionData.plan.status, 'confirmed');
   await page.reload();
+  await page.getByRole('button', { name: '当前文稿', exact: true }).waitFor();
   await page.screenshot({ path: join(output, 'outline-candidate-desktop.png'), fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: join(output, 'outline-candidate-mobile.png'), fullPage: true });
@@ -487,14 +488,7 @@ try {
   await page.getByRole('button', { name: '放弃候选', exact: true }).click();
   holdRegeneration = false;
   await beginRegeneration();
-  await page.waitForFunction(
-    async ({ id, previous }) =>
-      ((await (await import('/src/modules/project/projectRepository.ts')).loadProject(id)).project.currentDeckId ??
-        '') !== '' &&
-      (await (await import('/src/modules/project/projectRepository.ts')).loadProject(id)).project.currentDeckId !==
-        previous,
-    { id, previous: candidateBase.deck.id },
-  );
+  await editingTitle.waitFor({ state: 'visible' });
   await page.getByRole('button', { name: '取消重生成', exact: true }).waitFor({ state: 'hidden' });
   versionData = await page.evaluate(
     async (id) => (await import('/src/modules/project/projectRepository.ts')).loadProject(id),
