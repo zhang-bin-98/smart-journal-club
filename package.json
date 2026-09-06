@@ -17,6 +17,7 @@
     "check:pwa": "node tests/pwa.mjs"
   },
   "dependencies": {
+    "@earendil-works/pi-agent-core": "^0.85.1",
     "@earendil-works/pi-ai": "^0.85.1",
     "@tailwindcss/vite": "^4.3.3",
     "lucide-react": "^1.41.0",
