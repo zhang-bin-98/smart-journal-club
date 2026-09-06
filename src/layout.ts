@@ -75,7 +75,7 @@ export function layoutIds(): readonly LayoutId[] { return LayoutIds; }
 export function validatePlan(input: unknown, paper: Paper): DeckPlan {
   const plan = DeckPlanSchema.parse(input);
   const candidate: Deck = { ...plan, id: 'plan-validation', revision: 0, createdAt: 0, updatedAt: 0,
-    slides: plan.slides.map(slide => ({ ...slide, elements: slide.figures.map(figure => ({ ...figure, id: crypto.randomUUID(), type: 'figure' as const })) })),
+    slides: plan.slides.map(({ figures, ...slide }) => ({ ...slide, elements: figures.map(figure => ({ ...figure, id: crypto.randomUUID(), type: 'figure' as const })) })),
   };
   const errors = validateDeck(candidate, paper);
   if (errors.length) throw new Error('汇报计划无效：' + errors.join('；'));

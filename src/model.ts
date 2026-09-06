@@ -23,13 +23,24 @@ function failure(stage: string, status?: number) {
 export async function requestModel(settings: ModelSettings, context: Context, signal: AbortSignal, stage: string, json = false, maxTokens = 16384, outputTool?: string) {
   if (!settings.apiKey.trim()) throw new ModelError(stage, 'missing-key', '请先在模型设置中配置 API Key。');
   signal.throwIfAborted(); let status: number | undefined;
+  // DeepSeek 函数名不支持点号；只转换本轮已声明工具，应用内仍使用逻辑名称。
+  const toolNames = new Map((context.tools ?? []).map(tool => [tool.name, tool.name.replaceAll('.', '__')]));
+  const logicalNames = new Map([...toolNames].map(([logical, wire]) => [wire, logical]));
+  if (logicalNames.size !== toolNames.size) throw new ModelError(stage, 'tool-name', '工具名称存在冲突，本次请求未执行。');
+  const wireName = (name: string) => toolNames.get(name) ?? name;
+  const wireContext: Context = {
+    ...context,
+    systemPrompt: [...toolNames].reduce((prompt, [logical, wire]) => prompt?.split(logical).join(wire), context.systemPrompt),
+    tools: context.tools?.map(tool => ({ ...tool, name: wireName(tool.name) })),
+    messages: context.messages.map(message => message.role === 'toolResult' ? { ...message, toolName: wireName(message.toolName) } : message.role === 'assistant' ? { ...message, content: message.content.map(block => block.type === 'toolCall' ? { ...block, name: wireName(block.name) } : block) } : message),
+  };
   const timeout = AbortSignal.timeout(180000);
   const requestSignal = AbortSignal.any([signal, timeout]);
   try {
     const { stream } = await import('@earendil-works/pi-ai/api/openai-completions');
-    const response = await stream(model, context, {
+    const response = await stream(model, wireContext, {
       apiKey: settings.apiKey, signal: requestSignal, temperature: .2, maxTokens, maxRetries: 0, timeoutMs: 180000,
-      ...(outputTool ? { toolChoice: { type: 'function' as const, function: { name: outputTool } } } : {}),
+      ...(outputTool ? { toolChoice: { type: 'function' as const, function: { name: wireName(outputTool) } } } : {}),
       onResponse: response => { status = response.status; },
       onPayload: payload => {
         const body = { ...(payload as Record<string, unknown>), ...(json ? { response_format: { type: 'json_object' } } : {}) };
@@ -44,7 +55,7 @@ export async function requestModel(settings: ModelSettings, context: Context, si
       throw failure(stage, code ? Number(code) : status);
     }
     if (response.stopReason === 'length') throw new ModelError(stage, 'truncated', '模型输出未完成，当前阶段没有保存，请重试当前步骤。');
-    return response;
+    return { ...response, content: response.content.map(block => block.type === 'toolCall' ? { ...block, name: logicalNames.get(block.name) ?? block.name } : block) };
   } catch (cause) {
     signal.throwIfAborted();
     if (timeout.aborted) throw new ModelError(stage, 'timeout', '模型响应超时，已停止本次请求。完整阶段仍保留，请稍后重试。');

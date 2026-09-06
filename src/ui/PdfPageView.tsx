@@ -4,8 +4,8 @@ import { PDF_PREVIEW_EDGE, type PdfResource } from '../pdf';
 import { errorMessage } from './controls';
 import { position } from './editor/SlidePreview';
 
-export function PdfPageView({ resource, pageNumber, width, height, original, selected, onBox }: {
-  resource: PdfResource; pageNumber: number; width: number; height: number; original?: BBox; selected?: BBox; onBox?: (box: BBox) => void;
+export function PdfPageView({ resource, pageNumber, width, height, original, selected, onBox, onDraft }: {
+  resource: PdfResource; pageNumber: number; width: number; height: number; original?: BBox; selected?: BBox; onBox?: (box: BBox) => void; onDraft?: () => void;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const start = useRef<{ x: number; y: number } | undefined>(undefined);
@@ -31,7 +31,7 @@ export function PdfPageView({ resource, pageNumber, width, height, original, sel
     {error && <p role="alert" className="py-4 text-sm text-red-700">{error}</p>}
     <div data-pdf-page className={`relative w-full bg-white ${onBox && ready ? 'cursor-crosshair touch-none' : ''}`} style={{ aspectRatio: width / height }}
       onPointerDown={event => { if (!onBox || !ready || event.button !== 0) return; event.preventDefault(); start.current = point(event); event.currentTarget.setPointerCapture(event.pointerId); }}
-      onPointerMove={event => { if (start.current) setDrag(boxAt(event)); }}
+      onPointerMove={event => { if (start.current) { const box = boxAt(event); if (box.width > .002 && box.height > .002) onDraft?.(); setDrag(box); } }}
       onPointerUp={event => { if (!start.current) return; const box = boxAt(event); start.current = undefined; setDrag(undefined); if (box.width > .002 && box.height > .002) onBox?.(box); }}
       onPointerCancel={() => { start.current = undefined; setDrag(undefined); }}>
       <canvas ref={canvas} className="block size-full" />

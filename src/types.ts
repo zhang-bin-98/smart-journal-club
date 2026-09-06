@@ -82,3 +82,19 @@ export const ApplyRevisionArgsSchema = z.strictObject({
   summary: z.string().trim().min(1),
 });
 export type ApplyRevisionArgs = z.infer<typeof ApplyRevisionArgsSchema>;
+
+export const RevisionRequestSchema = z.strictObject({ requestId: z.string().min(1), projectId: z.string().min(1), deckId: z.string().min(1), baseRevision: z.number().int().nonnegative() });
+export type RevisionRequest = z.infer<typeof RevisionRequestSchema>;
+export const RevisionRecordSchema = z.strictObject({
+  id: z.string().min(1), projectId: z.string().min(1), deckId: z.string().min(1),
+  baseRevision: z.number().int().nonnegative(), committedRevision: z.number().int().positive(),
+  scope: RevisionScopeSchema, affectedSlideIds: z.array(z.string()), summary: z.string().min(1), createdAt: z.number().int().nonnegative(),
+});
+export type RevisionRecord = z.infer<typeof RevisionRecordSchema>;
+
+// 可见对话与修改记录共用 history store；不保存工具消息、Key 或撤销快照。
+export type ChatMessage = {
+  id: string; projectId: string; role: 'user' | 'assistant'; text: string; createdAt: number;
+  deckId: string; baseRevision: number; revision?: number; summary?: string;
+  affectedSlideIds?: string[]; targetSlideIds?: string[]; targetElementId?: string;
+};

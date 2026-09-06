@@ -15,6 +15,7 @@ try {
   console.log(await page.evaluate(async () => (await import('/tests/contracts.ts')).runContracts()));
   console.log(await page.evaluate(async () => (await import('/tests/analysis-contracts.ts')).runAnalysisContracts()));
   console.log(await page.evaluate(async () => (await import('/tests/generation-contracts.ts')).runGenerationContracts()));
+  console.log(await page.evaluate(async () => (await import('/tests/ai-contracts.ts')).runAiContracts()));
   let modelCase = 'success';
   await page.route('https://api.deepseek.com/chat/completions', async route => {
     if (modelCase === 'authentication') { await route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ error: { message: 'invalid key', type: 'authentication_error' } }) }); return; }
@@ -141,10 +142,86 @@ try {
   await page.locator('[data-slide-preview="current"] img').waitFor();
   assert.equal(await page.locator('[data-slide-id][aria-current="page"]').getAttribute('data-slide-id'), resultId);
   assert.ok((await page.locator('[data-slide-preview="current"] img').getAttribute('src')).startsWith('data:image/png;base64,'));
+  await page.unroute('https://api.deepseek.com/chat/completions');
+  let aiMode = 'first'; let heldAiRoute; let markAiHeld;
+  const aiHeld = new Promise(resolve => { markAiHeld = resolve; });
+  const aiEvent = (delta, reason) => {
+    const chunk = (value, finish_reason) => `data: ${JSON.stringify({ id: 'fixed-ai-ui', object: 'chat.completion.chunk', choices: [{ index: 0, delta: value, finish_reason }] })}\n\n`;
+    return chunk({ role: 'assistant', ...delta }, null) + chunk({}, reason) + 'data: [DONE]\n\n';
+  };
+  await page.route('https://api.deepseek.com/chat/completions', async route => {
+    const request = route.request().postDataJSON();
+    const classify = request.tools.some(tool => tool.function.name === 'submit_result');
+    const afterTool = request.messages.some(message => message.role === 'tool');
+    if (afterTool && aiMode === 'held') { heldAiRoute = route; markAiHeld(); return; }
+    const args = classify ? { result: { mode: 'revision', needsStrategy: false } } : {
+      scope: { type: 'slides', slideIds: [generated.slides[0].id] }, summary: aiMode === 'first' ? '精简第一页标题' : '再次调整第一页标题',
+      mutations: [{ type: 'update-slide', slideId: generated.slides[0].id, changes: { title: aiMode === 'first' ? 'AI 固定标题' : 'AI 再次修改标题' } }],
+    };
+    const body = afterTool ? aiEvent({ content: '已完成指定页标题修改。' }, 'stop') : aiEvent({ tool_calls: [{ index: 0, id: 'call-ai-' + aiMode, type: 'function', function: { name: classify ? 'submit_result' : 'deck__apply_revision', arguments: JSON.stringify(args) } }] }, 'tool_calls');
+    await route.fulfill({ status: 200, contentType: 'text/event-stream', body });
+  });
+  const aiInput = page.getByRole('textbox', { name: 'AI 输入', exact: true });
+  const beforeAi = await page.evaluate(async id => (await (await import('/src/storage.ts')).loadProject(id)).deck, id);
+  await aiInput.fill('第 1 页标题短一点');
+  await page.getByRole('button', { name: '发送', exact: true }).click();
+  await page.getByText('修改摘要：精简第一页标题', { exact: true }).waitFor();
+  const firstSummaryUndo = page.getByRole('button', { name: '撤销本次修改', exact: true }).first();
+  assert.equal(await firstSummaryUndo.isDisabled(), false);
+  const afterAi = await page.evaluate(async id => (await (await import('/src/storage.ts')).loadProject(id)).deck, id);
+  assert.equal(afterAi.slides[0].title, 'AI 固定标题');
+  assert.equal(afterAi.slides[1].title, beforeAi.slides[1].title);
+  assert.equal(afterAi.revision, beforeAi.revision + 1);
+  await firstSummaryUndo.click();
+  await page.getByRole('button', { name: '重做', exact: true }).waitFor({ state: 'visible' });
+  await page.waitForFunction(async ({ id, revision }) => (await (await import('/src/storage.ts')).loadProject(id)).deck.revision === revision, { id, revision: afterAi.revision + 1 });
+  assert.equal((await page.evaluate(async id => (await (await import('/src/storage.ts')).loadProject(id)).deck, id)).slides[0].title, beforeAi.slides[0].title);
+  assert.equal(await firstSummaryUndo.isDisabled(), true);
+  aiMode = 'second';
+  await aiInput.fill('第 1 页标题再精简一些');
+  await page.getByRole('button', { name: '发送', exact: true }).click();
+  await page.getByText('修改摘要：再次调整第一页标题', { exact: true }).waitFor();
+  assert.equal(await page.getByRole('button', { name: '撤销本次修改', exact: true }).last().isDisabled(), false);
+  await editingTitle.fill('AI 之后的手工修改');
+  await aiInput.click();
+  await page.getByRole('status').filter({ hasText: '已保存' }).waitFor();
+  assert.equal(await page.getByRole('button', { name: '撤销本次修改', exact: true }).last().isDisabled(), true);
+  const beforeCancelledAi = await page.evaluate(async id => (await (await import('/src/storage.ts')).loadProject(id)).deck, id);
+  aiMode = 'held';
+  await aiInput.fill('第 1 页标题继续精简');
+  await page.getByRole('button', { name: '发送', exact: true }).click();
+  await aiHeld;
+  assert.equal(await aiInput.isDisabled(), true);
+  assert.equal(await page.getByRole('button', { name: '模型设置', exact: true }).isDisabled(), true);
+  await page.locator(`[data-slide-id="${generated.slides[2].id}"]`).click();
+  assert.equal(await aiInput.isDisabled(), true);
+  await editingTitle.fill('手工草稿优先');
+  await page.getByText('已转为手工编辑', { exact: true }).waitFor();
+  assert.equal(await aiInput.isDisabled(), false);
+  assert.equal((await page.evaluate(async id => (await (await import('/src/storage.ts')).loadProject(id)).deck, id)).revision, beforeCancelledAi.revision);
+  await heldAiRoute.abort().catch(() => {});
+  await aiInput.click();
+  await page.getByRole('status').filter({ hasText: '已保存' }).waitFor();
+  const afterCancelledAi = await page.evaluate(async id => (await (await import('/src/storage.ts')).loadProject(id)).deck, id);
+  assert.equal(afterCancelledAi.slides[0].title, beforeCancelledAi.slides[0].title);
+  assert.equal(afterCancelledAi.slides[2].title, '手工草稿优先');
+  assert.equal(afterCancelledAi.revision, beforeCancelledAi.revision + 1);
+  await page.reload();
+  await page.getByText('修改摘要：精简第一页标题', { exact: true }).waitFor();
+  await page.getByText('修改摘要：再次调整第一页标题', { exact: true }).waitFor();
+  assert.equal(await page.getByRole('button', { name: '撤销本次修改', exact: true }).evaluateAll(buttons => buttons.every(button => button.disabled)), true);
+  assert.equal((await page.evaluate(async id => (await import('/src/storage.ts')).loadHistory(id), id)).length, 4);
+  await page.unroute('https://api.deepseek.com/chat/completions');
+  console.log('PASS: AI send/explicit target/summary top undo/manual draft cancels staged candidate/history reopen');
   const download = page.waitForEvent('download'); await page.getByRole('button', { name: '导出 PPTX', exact: true }).click();
   await (await download).saveAs(join(output, 'paper.pptx'));
   await page.screenshot({ path: join(output, 'editor-desktop.png'), fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole('button', { name: 'AI 助手', exact: true }).click();
+  await page.getByRole('dialog', { name: 'AI 助手', exact: true }).waitFor();
+  assert.equal(await aiInput.isVisible(), true);
+  await page.getByRole('button', { name: '关闭AI 助手', exact: true }).click();
+  await page.getByRole('dialog', { name: 'AI 助手', exact: true }).waitFor({ state: 'hidden' });
   await page.screenshot({ path: join(output, 'editor-mobile.png'), fullPage: true });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   assert.deepEqual(errors, []);

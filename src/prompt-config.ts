@@ -19,6 +19,6 @@ export function parsePromptFiles(files: Record<string, string>) {
     else if (path.endsWith('/common.md')) common = text.trim();
     else throw new Error(`未知提示词文件：${path}`);
   }
-  if (!common || !['figures', 'understand', 'plan', 'generate'].every(stage => stages[stage]) || !strategies.some(item => item.id === 'general')) throw new Error('缺少必要提示词或 general 策略');
+  if (!common || !['figures', 'understand', 'plan', 'generate', 'ai'].every(stage => stages[stage]) || !strategies.some(item => item.id === 'general')) throw new Error('缺少必要提示词或 general 策略');
   return { common, stages, strategies };
 }

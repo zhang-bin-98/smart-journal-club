@@ -38,7 +38,7 @@ function ProjectContent({ opened, onLeave, settings, onSettings }: { opened: Ope
   const [stage, setStage] = useState('');
   const [warning, setWarning] = useState('');
   const parseTask = useRef<AbortController | undefined>(undefined);
-  const session = useMemo(() => data.deck ? new DeckSession(data.deck, data.paper, (previous, next, record) => saveRevision(data.project.id, previous, next, record, controller.signal)) : undefined, [data.deck, data.paper, data.project.id, controller]);
+  const session = useMemo(() => data.deck ? new DeckSession(data.deck, data.paper, (previous, next, record, options) => saveRevision(data.project.id, previous, next, record, options?.signal ? AbortSignal.any([options.signal, controller.signal]) : controller.signal, { isTaskActive: options?.isTaskActive, messages: options?.messages }), data.project.id) : undefined, [data.deck, data.paper, data.project.id, controller]);
   const image = useMemo(() => async (element: Parameters<PdfResource['image']>[1]) => {
     if (!resource) throw new Error('原 PDF 缺失'); return resource.image(data.paper, element);
   }, [resource, data.paper]);
@@ -60,10 +60,10 @@ function ProjectContent({ opened, onLeave, settings, onSettings }: { opened: Ope
     finally { controller.signal.removeEventListener('abort', cancel); parseTask.current = undefined; if (!controller.signal.aborted) setBusy(false); }
   }
   const completed = Checkpoints.indexOf(data.project.checkpoint);
-  const content = session ? <Editor session={session} paper={data.paper} image={image} name={data.project.name} initialSlideId={data.project.lastOpenedSlideId} onLeave={onLeave} onSettings={onSettings}
+  const content = session ? <Editor session={session} paper={data.paper} image={image} name={data.project.name} initialSlideId={data.project.lastOpenedSlideId} onLeave={onLeave} onSettings={onSettings} aiSettings={settings} aiProjectId={data.project.id} aiPreferences={data.project.preferences}
     notice={warning || '请核对主要结论、图例和裁图边缘；自动识别的图源可能需要调整。'}
     onSelection={async id => { await updateProject(data.project.id, { lastOpenedSlideId: id }); }}
-    onSource={(sourceId, element, _slideId, crop, apply) => setSource({ sourceId, element, crop, apply })}
+    onSource={(sourceId, element, _slideId, crop, apply, onDraft) => setSource({ sourceId, element, crop, apply, onDraft })}
     onExport={async deck => {
       if (!resource && deck.slides.some(slide => slide.elements.some(element => element.type === 'figure'))) throw new Error('原 PDF 缺失，无法导出图源');
       const { exportDeck, downloadDeck } = await import('../export');

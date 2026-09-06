@@ -9,7 +9,7 @@ import { saveStage, type ProjectData } from './storage';
 
 export const GENERATION_STEPS = ['解析论文', '分析 Figure / Panel', '理解研究内容', '规划汇报结构', '制作幻灯片'] as const;
 export const GenerationOutputSchema = z.strictObject({ slides: z.array(SlideSchema.pick({ id: true, elements: true })).min(1) });
-const layoutRules = {
+export const layoutRules = {
   title: '无图，最多一个副标题 text 元素', 'text-only': '无图，最多四个 text / bullet-list 元素',
   'figure-full': '一个 figure，无正文元素', 'figure-text': '一个 figure，最多两个短 text / bullet-list 元素',
   'two-figures': '两个 figure，无正文元素', 'panel-grid': '三个或四个 figure，无正文元素',

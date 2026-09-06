@@ -1,4 +1,4 @@
-import { DeckSchema, ProjectSchema, PaperSchema, type Deck, type DeckPlan, type Paper, type PdfAsset, type Project } from './types';
+import { DeckSchema, ProjectSchema, PaperSchema, RevisionRecordSchema, type ChatMessage, type Deck, type DeckPlan, type Paper, type PdfAsset, type Project } from './types';
 import { validateDeck, validatePlan } from './layout';
 import { validatePaper } from './sources';
 import type { RevisionRecord, RevisionRequest } from './deck';
@@ -135,7 +135,7 @@ export function saveStage(captured: StageCapture, output: StageOutput, signal: A
     return next;
   }, signal);
 }
-export function saveRevision(projectId: string, previous: Deck, next: Deck, record: RevisionRecord, signal?: AbortSignal, guard?: { isTaskActive?: () => boolean }) {
+export function saveRevision(projectId: string, previous: Deck, next: Deck, record: RevisionRecord, signal?: AbortSignal, guard?: { isTaskActive?: () => boolean; messages?: ChatMessage[] }) {
   return transaction(['projects', 'papers', 'decks', 'history'], 'readwrite', async tx => {
     const project = await projectIn(tx, projectId);
     const current = project.currentDeckId && await get<Deck>(tx, 'decks', project.currentDeckId);
@@ -149,12 +149,51 @@ export function saveRevision(projectId: string, previous: Deck, next: Deck, reco
     if (guard?.isTaskActive && !guard.isTaskActive()) throw new Error('修改请求已失效');
     tx.objectStore('decks').put(next, next.id);
     tx.objectStore('projects').put({ ...project, updatedAt: next.updatedAt, lastOpenedSlideId: next.slides.some(slide => slide.id === project.lastOpenedSlideId) ? project.lastOpenedSlideId : next.slides[0]?.id }, projectId);
-    tx.objectStore('history').add({ ...record, projectId }, record.id);
-    const history = (await request(tx.objectStore('history').getAll()) as RevisionRecord[]).filter(item => item.projectId === projectId).sort((a, b) => b.createdAt - a.createdAt);
-    history.slice(100).forEach(item => tx.objectStore('history').delete(item.id));
+    tx.objectStore('history').add(RevisionRecordSchema.parse({ ...record, projectId }), record.id);
+    for (const message of guard?.messages ?? []) {
+      assertMessage(message, projectId, previous);
+      if (message.revision !== undefined && message.revision !== next.revision) throw new Error('对话修改版本不匹配');
+      tx.objectStore('history').add(message, message.id);
+    }
+    await trimHistory(tx, projectId);
+    signal?.throwIfAborted();
+    if (guard?.isTaskActive && !guard.isTaskActive()) throw new Error('修改请求已失效');
   }, signal);
 }
 
+type HistoryEntry = RevisionRecord | ChatMessage;
+function isMessage(item: HistoryEntry): item is ChatMessage { return 'role' in item; }
+function assertMessage(message: ChatMessage, projectId: string, deck: Deck) {
+  if (!message.id || message.projectId !== projectId || message.deckId !== deck.id || message.baseRevision !== deck.revision || !['user', 'assistant'].includes(message.role) || !message.text.trim() || !Number.isFinite(message.createdAt)) throw new Error('对话目标或内容无效');
+}
+async function trimHistory(tx: IDBTransaction, projectId: string) {
+  const history = (await request(tx.objectStore('history').getAll()) as HistoryEntry[]).filter(item => item.projectId === projectId).sort((a, b) => b.createdAt - a.createdAt);
+  // 请求标识单独保留，避免普通对话挤掉最近的修改去重记录。
+  for (const items of [history.filter(isMessage), history.filter(item => !isMessage(item))]) items.slice(100).forEach(item => tx.objectStore('history').delete(item.id));
+}
+export function loadHistory(projectId: string): Promise<ChatMessage[]> {
+  return transaction(['projects', 'history'], 'readonly', async tx => {
+    await projectIn(tx, projectId);
+    return (await request(tx.objectStore('history').getAll()) as HistoryEntry[]).filter(isMessage).filter(item => item.projectId === projectId).sort((a, b) => a.createdAt - b.createdAt).slice(-100);
+  });
+}
+export function saveConversation(projectId: string, messages: ChatMessage[], signal?: AbortSignal, isTaskActive?: () => boolean) {
+  return transaction(['projects', 'decks', 'history'], 'readwrite', async tx => {
+    const project = await projectIn(tx, projectId);
+    const deck = project.currentDeckId && await get<Deck>(tx, 'decks', project.currentDeckId);
+    if (!deck) throw new Error('当前文稿已变化，请重新打开项目');
+    for (const message of messages) {
+      assertMessage(message, projectId, deck);
+      if (message.revision !== undefined) throw new Error('修改摘要必须随修改一起保存');
+    }
+    signal?.throwIfAborted();
+    if (isTaskActive && !isTaskActive()) throw new Error('对话请求已失效');
+    for (const message of messages) tx.objectStore('history').add(message, message.id);
+    await trimHistory(tx, projectId);
+    signal?.throwIfAborted();
+    if (isTaskActive && !isTaskActive()) throw new Error('对话请求已失效');
+  }, signal);
+}
 export type RevisionReadContext = RevisionRequest;
 export function captureRevision(projectId: string, deck: Deck): RevisionReadContext {
   return { requestId: crypto.randomUUID(), projectId, deckId: deck.id, baseRevision: deck.revision };

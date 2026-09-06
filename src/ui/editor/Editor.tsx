@@ -1,19 +1,24 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowDown, ArrowLeft, ArrowUp, Crop, Download, FileText, List, Plus, Quote, Redo2, Settings, Trash2, Undo2 } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { ArrowDown, ArrowLeft, ArrowUp, Bot, Crop, Download, FileText, List, Plus, Quote, Redo2, Settings, Trash2, Undo2, X } from 'lucide-react';
 import { createSlide, DeckSession, type DeckMutation, type RevisionScope } from '../../deck';
 import type { Deck, Element, Paper, Slide } from '../../types';
 import { LayoutIds } from '../../types';
 import { Brand, Button, errorMessage, IconButton } from '../controls';
 import { SlidePreview, type FigureImage, type TextEdit } from './SlidePreview';
 import { computeLayout } from '../../layout';
+import { AiPanel, type CancelAi } from './AiPanel';
 
 const layoutNames = ['标题', '文字', '单图', '图文', '双图', 'Panel 网格'];
-export function Editor({ session, paper, image, name, initialSlideId, onLeave, onExport, onSelection, onSource, onSettings, notice }: {
+export function Editor({ session, paper, image, name, initialSlideId, onLeave, onExport, onSelection, onSource, onSettings, notice, aiSettings, aiPaper, aiProjectId, aiPreferences }: {
   session: DeckSession; paper: Paper; image: FigureImage; name: string; initialSlideId?: string;
   onLeave?: () => void; onExport: (deck: Deck) => Promise<void>; onSelection?: (id?: string) => Promise<void>;
   onSettings?: () => void;
+  aiSettings?: import('../../model').ModelSettings;
+  aiPaper?: Paper;
+  aiProjectId?: string;
+  aiPreferences?: import('../../types').Project['preferences'];
   notice?: string;
-  onSource?: (sourceId: string, element: Extract<Element, { type: 'figure' }> | undefined, slideId: string, crop: boolean, apply: (element: Extract<Element, { type: 'figure' }>) => Promise<void>) => void;
+  onSource?: (sourceId: string, element: Extract<Element, { type: 'figure' }> | undefined, slideId: string, crop: boolean, apply: (element: Extract<Element, { type: 'figure' }>) => Promise<void>, onDraft: () => void) => void;
 }) {
   const [, refresh] = useState(0);
   const [selectedId, setSelectedId] = useState<string | undefined>(initialSlideId ?? session.current.slides[0]?.id);
@@ -21,9 +26,17 @@ export function Editor({ session, paper, image, name, initialSlideId, onLeave, o
   const [status, setStatus] = useState('已保存');
   const [error, setError] = useState('');
   const [exporting, setExporting] = useState(false);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [manualNotice, setManualNotice] = useState('');
+  const [navigationOpen, setNavigationOpen] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
   const draft = useRef<TextEdit | null>(null);
   const pending = useRef<Promise<void> | null>(null);
   const active = useRef(true);
+  const aiCancel = useRef<CancelAi | undefined>(undefined);
+  const registerAiCancel = useCallback((cancel?: CancelAi) => { aiCancel.current = cancel; }, []);
+  const aiBusyChanged = useCallback((busy: boolean) => { setAiBusy(busy); if (busy) setManualNotice(''); }, []);
+  const manualEdit = useCallback(() => { if (aiCancel.current?.('manual')) setManualNotice('已转为手工编辑'); }, []);
   const deck = session.current;
   const slide = deck.slides.find(item => item.id === selectedId) ?? deck.slides[0];
   const element = slide?.elements.find(item => item.id === selectedElement);
@@ -37,6 +50,7 @@ export function Editor({ session, paper, image, name, initialSlideId, onLeave, o
   }, []);
   const changed = useCallback(() => { if (active.current) refresh(value => value + 1); }, []);
   async function commit(scope: RevisionScope, mutations: DeckMutation[], summary: string) {
+    manualEdit();
     await session.commit(scope, mutations, summary);
     changed();
   }
@@ -72,14 +86,17 @@ export function Editor({ session, paper, image, name, initialSlideId, onLeave, o
     try { await flush(); await action(); setError(''); changed(); }
     catch (cause) { setError(errorMessage(cause)); }
   }
-  async function select(id?: string) { await onSelection?.(id); setSelectedId(id); setSelectedElement(undefined); }
+  async function select(id?: string) { await onSelection?.(id); setSelectedId(id); setSelectedElement(undefined); setNavigationOpen(false); }
   function source(sourceId?: string, crop = false) {
     if (!slide || !sourceId) return;
     const selectedFigure = element?.type === 'figure' ? paper.figures.find(item => item.id === element.figureId) : undefined;
     const selectedSourceId = element?.type === 'figure' && element.panelId ? selectedFigure?.panels.find(panel => panel.id === element.panelId)?.sourceId : selectedFigure?.sourceId;
     void run(() => onSource?.(sourceId, element?.type === 'figure' && selectedSourceId === sourceId ? element : undefined, slide.id, crop, async next => {
-      await commit({ type: 'element', slideId: slide.id, elementId: next.id }, [{ type: 'replace-element', slideId: slide.id, element: next }], '调整当前元素裁图');
-    }));
+      const current = session.current.slides.find(item => item.id === slide.id)?.elements.find(item => item.id === next.id);
+      if (current?.type !== 'figure' || current.figureId !== next.figureId || current.panelId !== next.panelId) throw new Error('图源已变化，请重新打开来源后裁图');
+      const cropped = { ...current }; if (next.cropOverride) cropped.cropOverride = next.cropOverride; else delete cropped.cropOverride;
+      await commit({ type: 'element', slideId: slide.id, elementId: next.id }, [{ type: 'replace-element', slideId: slide.id, element: cropped }], '调整当前元素裁图');
+    }, manualEdit));
   }
   async function addSlide() {
     const next = createSlide(crypto.randomUUID(), deck.slides.length + 1);
@@ -91,6 +108,7 @@ export function Editor({ session, paper, image, name, initialSlideId, onLeave, o
     await commit({ type: 'deck' }, [{ type: 'move-slide', slideId: id, afterSlideId }], '调整页顺序');
   }
   async function history(direction: 'undo' | 'redo') {
+    manualEdit();
     const index = slide ? session.current.slides.indexOf(slide) : 0;
     await session[direction]();
     const slides = session.current.slides;
@@ -114,12 +132,15 @@ export function Editor({ session, paper, image, name, initialSlideId, onLeave, o
         setExporting(true);
         try { await onExport(structuredClone(session.current)); } finally { if (active.current) setExporting(false); }
       })}><Download size={15} />{exporting ? '正在导出…' : '导出 PPTX'}</Button>
-      {onSettings && <IconButton label="模型设置" disabled={exporting} onClick={() => void run(onSettings)}><Settings size={17} /></IconButton>}
+      {onSettings && <IconButton label="模型设置" disabled={exporting || aiBusy} onClick={() => void run(onSettings)}><Settings size={17} /></IconButton>}
     </header>
+    {manualNotice && <p role="status" className="border-b border-line py-2 text-xs text-muted">{manualNotice}</p>}
     {notice && <p className="border-b border-line py-2 text-xs text-muted">{notice}</p>}
     {error && <div role="alert" className="flex items-center gap-3 border-b border-red-200 py-3 text-sm text-red-700"><span className="flex-1">{error}</span>{draft.current && <Button onClick={() => void run(async () => {})}>重试保存</Button>}</div>}
-    <div className="mt-4 grid min-h-[680px] grid-cols-1 border border-line bg-white lg:grid-cols-[190px_minmax(0,1fr)_210px] xl:grid-cols-[210px_minmax(0,1fr)_230px]">
-      <aside className="min-w-0 border-b border-line bg-panel p-3 lg:border-r lg:border-b-0">
+    <div className="mt-3 flex gap-2 xl:hidden"><span className="md:hidden"><Button onClick={() => setNavigationOpen(true)}><List size={15} />幻灯片列表</Button></span>{aiSettings && <Button onClick={() => setAiOpen(true)}><Bot size={15} />AI 助手{aiBusy ? ' · 正在调整…' : ''}</Button>}</div>
+    <div className="mt-4 grid min-h-[680px] grid-cols-1 border border-line bg-white md:grid-cols-[170px_minmax(0,1fr)] lg:grid-cols-[190px_minmax(0,1fr)] xl:grid-cols-[190px_minmax(0,1fr)_300px]">
+      <ResponsivePanel label="幻灯片列表" side="left" open={navigationOpen} onClose={() => setNavigationOpen(false)}>
+      <div className="min-w-0 p-3">
         <div className="flex items-center justify-between"><h2 className="text-sm font-semibold">幻灯片</h2><IconButton label="新增页" onClick={() => void run(addSlide)}><Plus size={16} /></IconButton></div>
         <div className="mt-3 grid max-h-[72vh] gap-2 overflow-auto lg:grid-cols-1">
           {deck.slides.map((item, index) => <div key={item.id} role="button" tabIndex={0} draggable data-slide-id={item.id} aria-label={`第 ${index + 1} 页 ${item.title}`} aria-current={item.id === slide?.id ? 'page' : undefined}
@@ -131,7 +152,8 @@ export function Editor({ session, paper, image, name, initialSlideId, onLeave, o
             <div className="mt-1 flex gap-2 text-xs"><span className="text-accent">{String(index + 1).padStart(2, '0')}</span><span className="truncate">{item.title || '无标题'}</span></div>
           </div>)}
         </div>
-      </aside>
+      </div>
+      </ResponsivePanel>
       <section className="min-w-0 p-3 sm:p-5">
         <div className="flex items-center justify-between gap-3"><h2 className="truncate text-sm font-semibold">{slide?.title || '还没有幻灯片'}</h2>
           <IconButton label="删除本页" disabled={!slide} onClick={() => void run(async () => {
@@ -141,7 +163,7 @@ export function Editor({ session, paper, image, name, initialSlideId, onLeave, o
           })}><Trash2 size={15} /></IconButton></div>
         <div className="mt-4 grid min-h-[240px] place-items-center bg-canvas p-2 sm:min-h-[440px] sm:p-4">
           {slide ? <SlidePreview key={slide.id} slide={slide} paper={paper} image={image} selectedElement={selectedElement} onSelect={setSelectedElement} onSource={id => source(id)} editing={{
-            onDraft: value => { draft.current = value; setStatus(value.value === value.original ? '已保存' : '未保存'); },
+            onDraft: value => { if (value.value !== value.original) manualEdit(); draft.current = value; setStatus(value.value === value.original ? '已保存' : '未保存'); },
             onBlur: () => { void flush().catch(cause => setError(errorMessage(cause))); }, onSave: saveText, hasDraft: key => draft.current?.key === key,
           }} /> : <Button onClick={() => void run(addSlide)}><Plus size={16} />新增页</Button>}
         </div>
@@ -162,7 +184,45 @@ export function Editor({ session, paper, image, name, initialSlideId, onLeave, o
           <IconButton label="下移本页" disabled={!slide || deck.slides.indexOf(slide) === deck.slides.length - 1} onClick={() => void run(() => move(slide!.id, deck.slides[deck.slides.indexOf(slide!) + 1].id))}><ArrowDown size={15} /></IconButton>
         </div></div>
       </section>
-      <aside className="min-w-0 border-t border-line bg-panel p-4 lg:border-t-0 lg:border-l"><h2 className="text-sm font-semibold">{deck.title}</h2><p className="mt-3 text-xs text-muted">{deck.slides.length} 页 · {deck.language}</p><p className="mt-5 border-t border-line pt-3 text-xs leading-relaxed wrap-anywhere text-muted">{paper.metadata.title}</p></aside>
+      {aiSettings && <ResponsivePanel label="AI 助手" side="right" open={aiOpen} onClose={() => setAiOpen(false)}><AiPanel session={session} paper={aiPaper ?? paper} settings={aiSettings} projectId={aiProjectId} preferences={aiPreferences} selectedSlideId={slide?.id} selectedElementId={selectedElement} onChanged={changed} beforeSend={flush} beforeUndo={flush} onBusyChange={aiBusyChanged} registerCancel={registerAiCancel} /></ResponsivePanel>}
+      {!aiSettings && <aside className="hidden min-w-0 border-l border-line bg-panel p-4 xl:block"><h2 className="text-sm font-semibold">{deck.title}</h2><p className="mt-3 text-xs text-muted">{deck.slides.length} 页 · {deck.language}</p><p className="mt-5 border-t border-line pt-3 text-xs leading-relaxed wrap-anywhere text-muted">{paper.metadata.title}</p></aside>}
     </div>
   </main>;
+}
+
+function ResponsivePanel({ label, side, open, onClose, children }: { label: string; side: 'left' | 'right'; open: boolean; onClose: () => void; children: ReactNode }) {
+  const panel = useRef<HTMLElement>(null);
+  const close = useRef(onClose); close.current = onClose;
+  useEffect(() => {
+    if (!open) return;
+    const desktop = window.matchMedia(side === 'left' ? '(min-width: 768px)' : '(min-width: 1280px)');
+    if (desktop.matches) { close.current(); return; }
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : undefined;
+    const checkWidth = () => { if (desktop.matches) close.current(); };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    panel.current?.focus(); desktop.addEventListener('change', checkWidth);
+    return () => { desktop.removeEventListener('change', checkWidth); document.body.style.overflow = previousOverflow; previous?.focus(); };
+  }, [open, side]);
+  const desktopClass = side === 'left' ? 'md:static md:z-auto md:flex md:h-auto md:w-auto md:border-r md:shadow-none' : 'xl:static xl:z-auto xl:flex xl:h-[max(680px,calc(100dvh-200px))] xl:max-h-[900px] xl:w-auto xl:border-l xl:shadow-none';
+  const mobileClass = side === 'left' ? 'left-0 w-[min(300px,90vw)]' : 'right-0 w-[min(380px,94vw)]';
+  return <>
+    {open && <button type="button" tabIndex={-1} aria-label="关闭侧栏遮罩" onClick={onClose} className={`fixed inset-0 z-40 bg-black/35 ${side === 'left' ? 'md:hidden' : 'xl:hidden'}`} />}
+    <aside ref={panel} aria-label={label} role={open ? 'dialog' : undefined} aria-modal={open || undefined} tabIndex={-1}
+      className={`${open ? 'fixed inset-y-0 z-50 flex h-dvh shadow-xl' : 'hidden'} ${mobileClass} min-h-0 min-w-0 flex-col border-line bg-panel outline-none ${desktopClass}`}
+      onKeyDown={event => {
+        if (!open) return;
+        if (event.key === 'Escape') { event.preventDefault(); onClose(); }
+        if (event.key === 'Tab') {
+          const controls = Array.from(panel.current?.querySelectorAll<HTMLElement>('button:not([disabled]), textarea:not([disabled]), [tabindex="0"]') ?? []).filter(node => node.tabIndex >= 0 && node.getClientRects().length > 0);
+          const first = controls[0], last = controls.at(-1);
+          if (!first) { event.preventDefault(); return; }
+          if (event.shiftKey && (document.activeElement === first || document.activeElement === panel.current)) { event.preventDefault(); last?.focus(); }
+          else if (!event.shiftKey && (document.activeElement === last || document.activeElement === panel.current)) { event.preventDefault(); first.focus(); }
+        }
+      }}>
+      {open && <div className={`flex shrink-0 items-center justify-between border-b border-line px-3 py-2 ${side === 'left' ? 'md:hidden' : 'xl:hidden'}`}><span className="text-sm font-semibold">{label}</span><IconButton label={`关闭${label}`} onClick={onClose}><X size={16} /></IconButton></div>}
+      {children}
+    </aside>
+  </>;
 }

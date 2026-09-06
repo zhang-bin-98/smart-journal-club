@@ -1,10 +1,9 @@
 import { layoutCapacity, validateDeck } from './layout';
-import { ApplyRevisionArgsSchema, type ApplyRevisionArgs, type Deck, type Element, type Paper, type Slide, type SlideKind, type RevisionScope, type DeckMutation } from './types';
-export type { ApplyRevisionArgs, RevisionScope, DeckMutation } from './types';
+import { ApplyRevisionArgsSchema, type ApplyRevisionArgs, type ChatMessage, type Deck, type Element, type Paper, type Slide, type SlideKind, type RevisionScope, type RevisionRecord, type RevisionRequest, type DeckMutation } from './types';
+export type { ApplyRevisionArgs, RevisionScope, RevisionRecord, RevisionRequest, DeckMutation } from './types';
 export type DeckSnapshot = Pick<Deck, 'title' | 'language' | 'slides'>;
-export type RevisionRecord = { id: string; projectId: string; deckId: string; baseRevision: number; committedRevision: number; scope: RevisionScope; affectedSlideIds: string[]; summary: string; createdAt: number };
-export type PersistRevision = (previous: Deck, next: Deck, record: RevisionRecord, options?: { signal?: AbortSignal; isTaskActive?: () => boolean }) => Promise<void>;
-export type RevisionRequest = { requestId: string; projectId: string; deckId: string; baseRevision: number };
+export type RevisionOptions = { signal?: AbortSignal; isTaskActive?: () => boolean; messages?: ChatMessage[] };
+export type PersistRevision = (previous: Deck, next: Deck, record: RevisionRecord, options?: RevisionOptions) => Promise<void>;
 const clone = <T>(value: T): T => structuredClone(value);
 const snapshot = (deck: Deck): DeckSnapshot => clone({ title: deck.title, language: deck.language, slides: deck.slides });
 function findSlide(deck: Deck, id: string) { const slide = deck.slides.find(item => item.id === id); if (!slide) throw new Error('找不到幻灯片：' + id); return slide; }
@@ -40,17 +39,19 @@ function applyMutation(deck: Deck, mutation: DeckMutation): { affected: string[]
   }
   if (index < 0) throw new Error('删除目标不存在');
   slide.elements.splice(index, 1);
-  if (!layoutCapacity(slide)) { slide.layoutId = fallbackLayout(slide); return { affected: [slide.id] }; }
+  if (!layoutCapacity(slide)) slide.layoutId = fallbackLayout(slide);
   return { affected: [slide.id], element: { slideId: slide.id, elementId: mutation.elementId } };
 }
 export class DeckSession {
   current: Deck; private undoStack: DeckSnapshot[] = []; private redoStack: DeckSnapshot[] = [];
   private saving = false;
+  private committedRequests = new Set<string>();
   constructor(initial: Deck, private readonly paper: Paper, private readonly persist?: PersistRevision, private readonly projectId = '') { this.current = clone(initial); this.assertValid(this.current); }
   get canUndo() { return this.undoStack.length > 0; } get canRedo() { return this.redoStack.length > 0; }
   private assertValid(deck: Deck) { const errors = validateDeck(deck, this.paper); if (errors.length) throw new Error(errors.join('；')); }
-  private async save(next: Deck, scope: RevisionScope, summary: string, affectedSlideIds: string[], requestId: string = crypto.randomUUID(), options?: { signal?: AbortSignal; isTaskActive?: () => boolean; request?: RevisionRequest }) {
+  private async save(next: Deck, scope: RevisionScope, summary: string, affectedSlideIds: string[], requestId: string = crypto.randomUUID(), options?: RevisionOptions & { request?: RevisionRequest }) {
     if (this.saving) throw new Error('正在保存，请稍后重试');
+    if (this.committedRequests.has(requestId)) throw new Error('本次修改已经提交');
     this.assertValid(next);
     next.revision = this.current.revision + 1; next.updatedAt = Date.now();
     options?.signal?.throwIfAborted();
@@ -58,25 +59,32 @@ export class DeckSession {
     if (options?.request && (options.request.requestId !== requestId || options.request.deckId !== next.id || options.request.baseRevision !== this.current.revision || (options.request.projectId && this.projectId && options.request.projectId !== this.projectId))) throw new Error('修改请求目标或版本已变化');
     const record: RevisionRecord = { id: requestId, projectId: this.projectId, deckId: next.id, baseRevision: this.current.revision, committedRevision: next.revision, scope, affectedSlideIds, summary, createdAt: next.updatedAt };
     this.saving = true;
-    try { await this.persist?.(clone(this.current), clone(next), record, options); this.current = next; }
+    try { await this.persist?.(clone(this.current), clone(next), record, options); this.current = next; this.committedRequests.add(requestId); if (this.committedRequests.size > 100) this.committedRequests.delete(this.committedRequests.values().next().value!); }
     finally { this.saving = false; }
   }
-  async commit(scope: RevisionScope, mutations: DeckMutation[], summary: string, requestId?: string, options?: { signal?: AbortSignal; isTaskActive?: () => boolean; request?: RevisionRequest }): Promise<Deck> {
+  async commit(scope: RevisionScope, mutations: DeckMutation[], summary: string, requestId?: string, options?: RevisionOptions & { request?: RevisionRequest }): Promise<Deck> {
     const args = ApplyRevisionArgsSchema.parse({ scope, mutations, summary });
     scope = args.scope; mutations = args.mutations; summary = args.summary;
-    const effectiveRequestId = requestId;
-    const effectiveOptions = options;
+    if (scope.type === 'slides') {
+      const known = new Set([...this.current.slides.map(slide => slide.id), ...mutations.flatMap(mutation => mutation.type === 'add-slide' ? [mutation.slide.id] : [])]);
+      if (new Set(scope.slideIds).size !== scope.slideIds.length || scope.slideIds.some(id => !known.has(id))) throw new Error('修改范围含有重复或不存在的页');
+      for (const mutation of mutations) {
+        if ((mutation.type === 'add-slide' || mutation.type === 'move-slide') && mutation.afterSlideId !== null && !scope.slideIds.includes(mutation.afterSlideId)) throw new Error('插入位置超出请求范围');
+      }
+    } else if (scope.type === 'element') {
+      if (!findSlide(this.current, scope.slideId).elements.some(element => element.id === scope.elementId)) throw new Error('修改元素不存在');
+    }
     const previous = snapshot(this.current); const next = clone(this.current); const affected = new Set<string>();
     for (const mutation of mutations) {
       if (mutation.type === 'set-language' && scope.type !== 'deck') throw new Error('语言修改必须使用 deck 范围');
       const result = applyMutation(next, mutation); ensureScope(scope, result.affected, result.element); result.affected.forEach(id => affected.add(id));
     }
-    await this.save(next, scope, summary, [...affected], effectiveRequestId, effectiveOptions);
+    await this.save(next, scope, summary, [...affected], requestId, options);
     this.undoStack.push(previous); if (this.undoStack.length > 20) this.undoStack.shift(); this.redoStack = [];
     return clone(this.current);
   }
   /** 应用已绑定目标与基准版本的 AI 修改候选。 */
-  applyRevision(request: RevisionRequest, args: ApplyRevisionArgs, options?: { signal?: AbortSignal; isTaskActive?: () => boolean }) {
+  applyRevision(request: RevisionRequest, args: ApplyRevisionArgs, options?: RevisionOptions) {
     return this.commit(args.scope, args.mutations, args.summary, request.requestId, { ...options, request });
   }
   async undo() {
