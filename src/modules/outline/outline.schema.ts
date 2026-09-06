@@ -45,3 +45,19 @@ export const DeckPlanSchema = z.discriminatedUnion('status', [
   z.strictObject({ ...DeckPlanShape, status: z.literal('confirmed'), confirmedAt: z.number().int().nonnegative() }),
 ]);
 export type DeckPlan = z.infer<typeof DeckPlanSchema>;
+
+export const PlanRecordSchema = z.strictObject({
+  recordVersion: z.literal(1),
+  projectId: z.string().min(1),
+  mode: z.enum(['initial', 'regeneration']),
+  plan: DeckPlanSchema,
+  base: z
+    .strictObject({
+      currentDeckId: z.string().min(1).optional(),
+      currentRevision: z.number().int().nonnegative().optional(),
+    })
+    .optional(),
+  preferences: z.record(z.string(), z.unknown()),
+  updatedAt: z.number().int().nonnegative(),
+});
+export type PlanRecord = z.infer<typeof PlanRecordSchema>;
