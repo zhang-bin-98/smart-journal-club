@@ -1,6 +1,6 @@
-import type { BBox } from './shared/schema';
-import type { Deck } from './modules/deck/deck.schema';
-import type { Paper } from './modules/paper/paper.schema';
+import type { BBox } from '../src/shared/schema';
+import type { Deck } from '../src/modules/deck/deck.schema';
+import type { Paper } from '../src/modules/paper/paper.schema';
 export const fixtureSource = { id: 'source-fig-3', kind: 'figure' as const, pageNumber: 1, bbox: { x: .12, y: .2, width: .76, height: .58 } satisfies BBox };
 export const fixturePaper: Paper = { schemaVersion: 1, id: 'paper-fixture', metadata: { title: 'smartJC fixture paper' }, pages: [{ pageNumber: 1, width: 800, height: 600, text: 'Fixture source page' }], sources: [fixtureSource], figures: [{ id: 'fig-3', label: 'Figure 3', sourceId: fixtureSource.id, panels: [{ id: 'fig-3-panel-a', label: 'A', sourceId: fixtureSource.id }] }], claims: [], evidences: [] };
 const now = Date.now();

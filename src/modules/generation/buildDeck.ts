@@ -3,10 +3,10 @@ import { DeckSchema, SlideSchema, type Deck } from '../deck/deck.schema';
 import type { DeckPlan } from '../outline/outline.schema';
 import type { Project } from '../project/project.schema';
 import type { Paper } from '../paper/paper.schema';
-import { validatePlan } from '../../layout';
+import { validatePlan } from '../outline/validatePlan';
 import { validateDeck } from '../deck/validateDeck';
 import { requestJson, type ModelSettings } from '../../shared/llm/model';
-import { prompts, researchPrompt } from '../../prompts';
+import { prompts, researchPrompt } from '../../shared/llm/prompts';
 import { layoutRules } from '../deck/layoutRules';
 import { paperContext } from './planDeck';
 

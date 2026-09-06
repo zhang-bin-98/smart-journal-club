@@ -1,7 +1,8 @@
-import { researchPrompt } from '../../prompts';
+import { researchPrompt } from '../../shared/llm/prompts';
 import type { ModelSettings } from '../../shared/llm/model';
 import { analyzeFigures, understandPaper } from '../paper/analysis';
-import type { PdfResource } from '../../pdf';
+import { parsePaper } from '../paper/parsePaper';
+import type { PdfResource } from '../../shared/pdf/pdfResource';
 import { saveStage, type ProjectData } from '../project/projectRepository';
 import { planDeck } from './planDeck';
 import { generateDeck } from './buildDeck';
@@ -18,7 +19,7 @@ export async function generateProject(initial: ProjectData, resource: PdfResourc
     switch (captured.checkpoint) {
       case 'project-created': {
         onStage(GENERATION_STEPS[0]);
-        const paper = await resource.parse(data.paper, signal);
+        const paper = await parsePaper(resource, data.paper, signal);
         const project = await saveStage(captured, { checkpoint: 'pdf-parsed', paper }, signal);
         data = { ...data, project, paper }; break;
       }

@@ -30,7 +30,7 @@ export function HomePage({ openProject, onSettings, registerLeaveGuard }: { open
     if (files.length !== 1) { setError('每个项目只接受一份 PDF'); return; }
     uploading.current = true; const done = beginActivity(); setSaving(true); setError('');
     try {
-      const { checkPdfFile } = await import('../pdf'); await checkPdfFile(files[0]);
+      const { checkPdfFile } = await import('../shared/pdf/pdfResource'); await checkPdfFile(files[0]);
       const project = await createProject(files[0]);
       void navigator.storage?.persist?.().catch(() => false);
       uploading.current = false; openProject(project.id);

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Check, Circle, FileText, LoaderCircle, Play, Settings, X } from 'lucide-react';
 import { DeckSession } from '../modules/deck/DeckSession';
-import { PdfResource, PDF_EXPORT_EDGE } from '../pdf';
+import { PdfResource, PDF_EXPORT_EDGE } from '../shared/pdf/pdfResource';
 import { captureVersion, restorePrevious, saveRevision } from '../modules/deck/deckRepository';
 import { loadProject, updateProject, type ProjectData } from '../modules/project/projectRepository';
 import { Brand, Button, errorMessage, IconButton, inputClass, useOnline } from './controls';
@@ -9,7 +9,8 @@ import { Editor } from './editor/Editor';
 import { SourceDialog, type SourceSelection } from './SourceDialog';
 import type { ModelSettings } from '../shared/llm/model';
 import { Checkpoints, type Project } from '../modules/project/project.schema';
-import type { Deck } from '../modules/deck/deck.schema';
+import type { Deck, Element } from '../modules/deck/deck.schema';
+import { figureImage } from '../modules/paper/sources';
 import { beginActivity, setDirty, type LeaveGuard, type RegisterLeaveGuard } from '../activity';
 import { GENERATION_STEPS, generateProject } from '../modules/generation/runGeneration';
 import { regenerateProject } from '../modules/generation/regenerateDeck';
@@ -54,8 +55,8 @@ function ProjectContent({ opened, onLeave, settings, onSettings, registerLeaveGu
   const parseTask = useRef<AbortController | undefined>(undefined);
   const persistRevision: import('../modules/assistant/revision/applyRevision').PersistAssistantRevision = (previous, next, record, options, messages) => saveRevision(data.project.id, previous, next, record, options?.signal ? AbortSignal.any([options.signal, controller.signal]) : controller.signal, { isTaskActive: options?.isTaskActive, messages });
   const session = useMemo(() => data.deck ? new DeckSession(data.deck, data.paper, (previous, next, record, options) => persistRevision(previous, next, record, options), data.project.id) : undefined, [data.deck, data.paper, data.project.id, controller]);
-  const image = useMemo(() => async (element: Parameters<PdfResource['image']>[1]) => {
-    if (!resource) throw new Error('原 PDF 缺失'); return resource.image(data.paper, element);
+  const image = useMemo(() => async (element: Extract<Element, { type: 'figure' }>) => {
+    if (!resource) throw new Error('原 PDF 缺失'); return figureImage(resource, data.paper, element, element.cropOverride);
   }, [resource, data.paper]);
   const leave = useRef<LeaveGuard>(async () => {});
   leave.current = async () => {
@@ -119,8 +120,8 @@ function ProjectContent({ opened, onLeave, settings, onSettings, registerLeaveGu
     onSource={(sourceId, element, _slideId, crop, apply, onDraft) => openSource({ sourceId, element, crop, apply, onDraft })}
     onExport={async deck => {
       if (!resource && deck.slides.some(slide => slide.elements.some(element => element.type === 'figure'))) throw new Error('原 PDF 缺失，无法导出图源');
-      const { exportDeck, downloadDeck } = await import('../export');
-      const blob = await exportDeck(deck, data.paper, element => resource!.image(data.paper, element, PDF_EXPORT_EDGE), controller.signal);
+      const { exportDeck, downloadDeck } = await import('../modules/deck/export');
+      const blob = await exportDeck(deck, data.paper, element => figureImage(resource!, data.paper, element, element.cropOverride, PDF_EXPORT_EDGE), controller.signal);
       await loadProject(data.project.id); controller.signal.throwIfAborted();
       downloadDeck(blob, data.project.name);
     }} /> : <main className="mx-auto max-w-[1080px] px-5 py-6">

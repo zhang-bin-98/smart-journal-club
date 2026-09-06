@@ -1,7 +1,7 @@
-import { fixtureDeck, fixturePaper } from '../src/fixtures';
+import { fixtureDeck, fixturePaper } from './fixtures';
 import { DeckSession } from '../src/modules/deck/DeckSession';
 import { assembleDeck } from '../src/modules/generation/buildDeck';
-import { validatePlan } from '../src/layout';
+import { validatePlan } from '../src/modules/outline/validatePlan';
 import { captureVersion, commitRegeneration, restorePrevious, saveRevision } from '../src/modules/deck/deckRepository';
 import { createProject, deleteProject, loadProject, saveStage, type ProjectData } from '../src/modules/project/projectRepository';
 import type { DeckPlan } from '../src/modules/outline/outline.schema';

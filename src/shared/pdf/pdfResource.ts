@@ -1,9 +1,6 @@
 import { GlobalWorkerOptions, getDocument, OPS, type PDFDocumentProxy, type PDFDocumentLoadingTask, type RenderTask } from 'pdfjs-dist';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url';
-import { BBoxSchema, type BBox } from './shared/schema';
-import type { Element } from './modules/deck/deck.schema';
-import type { Paper } from './modules/paper/paper.schema';
-import { figureSource } from './sources';
+import { BBoxSchema, type BBox } from '../schema';
 GlobalWorkerOptions.workerSrc = workerUrl;
 
 export const PDF_MAX_BYTES = 25 * 1024 * 1024;
@@ -18,6 +15,7 @@ export async function checkPdfFile(file: File) {
   const header = new TextDecoder('ascii').decode(await file.slice(0, 1024).arrayBuffer());
   if (!header.includes('%PDF-')) throw new Error('文件不是有效 PDF，请重新选择');
 }
+export type PdfPageText = { pageNumber: number; width: number; height: number; text: string };
 export class PdfResource {
   private loading?: PDFDocumentLoadingTask;
   private document?: Promise<PDFDocumentProxy>;
@@ -43,9 +41,9 @@ export class PdfResource {
     })();
     return this.document;
   }
-  async parse(paper: Paper, signal: AbortSignal): Promise<Paper> {
+  async pageTexts(signal: AbortSignal): Promise<PdfPageText[]> {
     const pdf = await this.getDocument();
-    const pages: Paper['pages'] = [];
+    const pages: PdfPageText[] = [];
     for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
       signal.throwIfAborted();
       const page = await pdf.getPage(pageNumber);
@@ -55,12 +53,13 @@ export class PdfResource {
       page.cleanup();
     }
     signal.throwIfAborted();
-    if (pages.reduce((total, page) => total + page.text.length, 0) < 100) throw new Error('未提取到足够文字，扫描件暂不支持，请更换可解析版本');
+    return pages;
+  }
+  async documentTitle() {
+    const pdf = await this.getDocument();
     const metadata = await pdf.getMetadata();
     const title = (metadata.info as { Title?: unknown }).Title;
-    return { ...paper, metadata: { ...paper.metadata, ...(typeof title === 'string' && title.trim() ? { title: title.trim() } : {}) }, pages,
-      sources: pages.filter(page => page.text).map(page => ({ id: crypto.randomUUID(), kind: 'text', pageNumber: page.pageNumber, textQuote: page.text.slice(0, 240) })),
-    };
+    return typeof title === 'string' && title.trim() ? title.trim() : undefined;
   }
   async render(pageNumber: number, canvas: HTMLCanvasElement, edge: number, signal: AbortSignal) {
     signal.throwIfAborted();
@@ -112,8 +111,7 @@ export class PdfResource {
     page.cleanup();
     return regions;
   }
-  async image(paper: Paper, element: Extract<Element, { type: 'figure' }>, edge = PDF_PREVIEW_EDGE) {
-    const source = figureSource(paper, { figureId: element.figureId, panelId: element.panelId }); const box = BBoxSchema.parse(element.cropOverride ?? source.bbox);
+  async image(source: { id: string; pageNumber: number }, box: BBox, edge = PDF_PREVIEW_EDGE) {
     const key = JSON.stringify([source.id, source.pageNumber, box, edge]);
     let result = this.images.get(key);
     if (!result) {

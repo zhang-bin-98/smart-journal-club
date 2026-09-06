@@ -1,8 +1,6 @@
-import { LayoutIds, type Deck, type Element, type LayoutId, type Slide } from './modules/deck/deck.schema';
-import { DeckPlanSchema, type DeckPlan } from './modules/outline/outline.schema';
-import type { BBox } from './shared/schema';
-import type { Paper } from './modules/paper/paper.schema';
-import { validateDeck } from './modules/deck/validateDeck';
+import { LayoutIds, type Element, type LayoutId, type Slide } from '../deck.schema';
+import type { BBox } from '../../../shared/schema';
+
 export type Rect = BBox;
 export type TextMetrics = { fontSize: number; lineHeight: number; overflow: boolean };
 export type ComputedLayout = { title: Rect; titleText: TextMetrics; message?: Rect; messageText: TextMetrics; sourceLabel: Rect; elements: { element: Element; rect: Rect; text: TextMetrics }[] };
@@ -46,14 +44,4 @@ export function computeLayout(slide: Slide): ComputedLayout {
     elements: elements.map(item => ({ ...item, text: textMetrics(item.element.type === 'text' ? item.element.text : item.element.type === 'bullet-list' ? item.element.items.join('\n') : '', item.rect, item.element.type === 'citation' ? 8 : 18, item.element.type === 'citation' ? 8 : 16) })),
   };
 }
-export function validateBBox(box: BBox) { return Number.isFinite(box.x) && Number.isFinite(box.y) && box.width > 0 && box.height > 0 && box.x >= 0 && box.y >= 0 && box.x + box.width <= 1 && box.y + box.height <= 1; }
 export function layoutIds(): readonly LayoutId[] { return LayoutIds; }
-export function validatePlan(input: unknown, paper: Paper): DeckPlan {
-  const plan = DeckPlanSchema.parse(input);
-  const candidate: Deck = { ...plan, id: 'plan-validation', revision: 0, createdAt: 0, updatedAt: 0,
-    slides: plan.slides.map(({ figures, ...slide }) => ({ ...slide, elements: figures.map(figure => ({ ...figure, id: crypto.randomUUID(), type: 'figure' as const })) })),
-  };
-  const errors = validateDeck(candidate, paper);
-  if (errors.length) throw new Error('汇报计划无效：' + errors.join('；'));
-  return plan;
-}

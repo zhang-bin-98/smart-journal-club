@@ -6,8 +6,8 @@ import { ProjectSchema, type PdfAsset, type Project } from '../project/project.s
 import { projectIn } from '../project/projectRepository';
 import { assertMessage, trimHistory } from '../../shared/persistence/historyStore';
 import { validateDeck } from './validateDeck';
-import { validatePaper } from '../../sources';
-import { prompts } from '../../prompts';
+import { validatePaper } from '../paper/sources';
+import { prompts } from '../../shared/llm/prompts';
 
 export type VersionCapture = { projectId: string; paperId: string; pdfAssetId: string; currentDeckId: string; baseRevision: number; previousDeckId?: string };
 export function captureVersion(project: Project, deck: Deck): VersionCapture {

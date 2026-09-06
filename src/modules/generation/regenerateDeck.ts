@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { DeckPlanSchema } from '../outline/outline.schema';
 import { ProjectSchema, type Project } from '../project/project.schema';
 import { requestJson, type ModelSettings } from '../../shared/llm/model';
-import { prompts, researchPrompt } from '../../prompts';
+import { prompts, researchPrompt } from '../../shared/llm/prompts';
 import { captureVersion, commitRegeneration } from '../deck/deckRepository';
 import type { ProjectData } from '../project/projectRepository';
 import { GENERATION_STEPS } from './runGeneration';

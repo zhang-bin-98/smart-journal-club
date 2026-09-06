@@ -1,4 +1,6 @@
-import { PaperSchema, type Paper } from './modules/paper/paper.schema';
+import { PaperSchema, type Paper } from './paper.schema';
+import { BBoxSchema, type BBox } from '../../shared/schema';
+import type { PdfResource } from '../../shared/pdf/pdfResource';
 
 /** 论文图源定位：Deck 侧先把 Figure 元素转换为本结构，Paper 来源解析不感知 Deck 元素。 */
 export type FigureSourceLocator = { figureId: string; panelId?: string };
@@ -9,6 +11,11 @@ export function figureSource(paper: Paper, locator: FigureSourceLocator) {
   const source = paper.sources.find(item => item.id === sourceId);
   if (!source?.bbox) throw new Error('图源缺失，无法查看或导出');
   return source;
+}
+/** Deck Figure 元素 → 定位/覆盖框 → PDF 裁图的薄适配；渲染本身由 shared/pdf 承担。 */
+export function figureImage(resource: PdfResource, paper: Paper, locator: FigureSourceLocator, cropOverride?: BBox, edge?: number) {
+  const source = figureSource(paper, locator);
+  return resource.image(source, BBoxSchema.parse(cropOverride ?? source.bbox), edge);
 }
 
 export function validatePaper(input: unknown, ready = false): Paper {

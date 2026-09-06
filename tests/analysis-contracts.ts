@@ -1,8 +1,8 @@
 import { z } from 'zod';
-import { fixturePaper } from '../src/fixtures';
+import { fixturePaper } from './fixtures';
 import { mapUnderstanding, UnderstandingSchema } from '../src/modules/paper/analysis';
-import { prompts } from '../src/prompts';
-import { parsePromptFiles } from '../src/prompt-config';
+import { prompts } from '../src/shared/llm/prompts';
+import { parsePromptFiles } from '../src/shared/llm/prompt-config';
 import { createProject, deleteProject, loadProject, saveStage } from '../src/modules/project/projectRepository';
 import { DEFAULT_SETTINGS, requestJson } from '../src/shared/llm/model';
 import type { Paper } from '../src/modules/paper/paper.schema';

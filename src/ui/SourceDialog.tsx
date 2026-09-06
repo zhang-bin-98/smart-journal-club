@@ -3,7 +3,7 @@ import { Crop, RotateCcw, X } from 'lucide-react';
 import type { BBox } from '../shared/schema';
 import type { Element } from '../modules/deck/deck.schema';
 import type { Paper } from '../modules/paper/paper.schema';
-import type { PdfResource } from '../pdf';
+import type { PdfResource } from '../shared/pdf/pdfResource';
 import { Button, errorMessage, IconButton } from './controls';
 import { PdfPageView } from './PdfPageView';
 import { beginActivity } from '../activity';

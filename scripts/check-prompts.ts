@@ -1,5 +1,5 @@
 import { readdir, readFile } from 'node:fs/promises';
-import { parsePromptFiles } from '../src/prompt-config.ts';
+import { parsePromptFiles } from '../src/shared/llm/prompt-config.ts';
 const files: Record<string, string> = { 'prompts/common.md': await readFile('prompts/common.md', 'utf8') };
 for (const directory of ['research', 'stages']) for (const name of await readdir(`prompts/${directory}`)) {
   if (name.endsWith('.md')) { const path = `prompts/${directory}/${name}`; files[path] = await readFile(path, 'utf8'); }

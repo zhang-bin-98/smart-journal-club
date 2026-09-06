@@ -7,7 +7,7 @@ import { LayoutIds, type Deck, type Element, type Slide } from '../../modules/de
 import type { Paper } from '../../modules/paper/paper.schema';
 import { Brand, Button, errorMessage, IconButton } from '../controls';
 import { SlidePreview, type FigureImage, type TextEdit } from './SlidePreview';
-import { computeLayout } from '../../layout';
+import { computeLayout } from '../../modules/deck/layout/computeLayout';
 import { AiPanel, type CancelAi } from './AiPanel';
 import { beginActivity, setDirty, type LeaveGuard, type RegisterLeaveGuard } from '../../activity';
 

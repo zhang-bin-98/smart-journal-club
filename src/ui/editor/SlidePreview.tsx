@@ -1,8 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
-import { computeLayout, type Rect } from '../../layout';
+import { computeLayout, type Rect } from '../../modules/deck/layout/computeLayout';
 import type { Element, Slide } from '../../modules/deck/deck.schema';
 import type { Paper } from '../../modules/paper/paper.schema';
-import { sourceText } from '../../sources';
+import { sourceText } from '../../modules/paper/sources';
 
 export const position = (rect: Rect): CSSProperties => ({ left: `${rect.x * 100}%`, top: `${rect.y * 100}%`, width: `${rect.width * 100}%`, height: `${rect.height * 100}%` });
 export type FigureImage = (element: Extract<Element, { type: 'figure' }>) => Promise<string>;

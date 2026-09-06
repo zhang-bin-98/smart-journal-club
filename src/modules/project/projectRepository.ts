@@ -3,10 +3,10 @@ import { ProjectSchema, type PdfAsset, type Project } from './project.schema';
 import { PaperSchema, type Paper } from '../paper/paper.schema';
 import { DeckSchema, RevisionRecordSchema, type Deck, type RevisionRecord } from '../deck/deck.schema';
 import { DeckPlanSchema, type DeckPlan } from '../outline/outline.schema';
-import { validatePlan } from '../../layout';
+import { validatePlan } from '../outline/validatePlan';
 import { validateDeck } from '../deck/validateDeck';
-import { validatePaper } from '../../sources';
-import { prompts } from '../../prompts';
+import { validatePaper } from '../paper/sources';
+import { prompts } from '../../shared/llm/prompts';
 
 export async function projectIn(tx: IDBTransaction, id: string) {
   const value = await get<Project>(tx, 'projects', id);

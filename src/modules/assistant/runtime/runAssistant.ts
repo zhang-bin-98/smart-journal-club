@@ -6,7 +6,7 @@ import type { Paper } from '../../paper/paper.schema';
 import type { Project } from '../../project/project.schema';
 import type { ChatMessage } from '../assistant.schema';
 import type { DeckSession } from '../../deck/DeckSession';
-import { prompts, researchPrompt } from '../../../prompts';
+import { prompts, researchPrompt } from '../../../shared/llm/prompts';
 import { saveConversation } from '../conversationRepository';
 import { layoutRules } from '../../deck/layoutRules';
 import { modificationRequest, resolveAiTarget, type AiRecentMessage, type AiTarget } from '../target/resolveTarget';

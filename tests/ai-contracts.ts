@@ -1,6 +1,6 @@
 import { DeckSession, type PersistRevision } from '../src/modules/deck/DeckSession';
 import type { RevisionRequest } from '../src/modules/deck/deck.schema';
-import { fixtureDeck, fixturePaper } from '../src/fixtures';
+import { fixtureDeck, fixturePaper } from './fixtures';
 import { resolveAiTarget } from '../src/modules/assistant/target/resolveTarget';
 import { validateAiCandidate } from '../src/modules/assistant/revision/validateRevisionProposal';
 import { runAiRevision } from '../src/modules/assistant/runtime/runAssistant';

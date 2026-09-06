@@ -1,9 +1,9 @@
 import pptxgen from 'pptxgenjs';
-import { computeLayout } from './layout';
-import { validateDeck } from './modules/deck/validateDeck';
-import type { Deck, Element } from './modules/deck/deck.schema';
-import type { Paper } from './modules/paper/paper.schema';
-import { figureSource, sourceText } from './sources';
+import { computeLayout } from './layout/computeLayout';
+import { validateDeck } from './validateDeck';
+import type { Deck, Element } from './deck.schema';
+import type { Paper } from '../paper/paper.schema';
+import { figureSource, sourceText } from '../paper/sources';
 function contain(sourceWidth: number, sourceHeight: number, x: number, y: number, width: number, height: number) { const scale = Math.min(width / sourceWidth, height / sourceHeight); const w = sourceWidth * scale; const h = sourceHeight * scale; return { x: x + (width - w) / 2, y: y + (height - h) / 2, w, h }; }
 async function imageSize(dataUrl: string) {
   return new Promise<{ width: number; height: number }>((resolve, reject) => {

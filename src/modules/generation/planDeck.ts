@@ -1,9 +1,9 @@
 import { DeckPlanSchema, type DeckPlan } from '../outline/outline.schema';
 import type { Project } from '../project/project.schema';
 import type { Paper } from '../paper/paper.schema';
-import { validatePlan } from '../../layout';
+import { validatePlan } from '../outline/validatePlan';
 import { requestJson, type ModelSettings } from '../../shared/llm/model';
-import { prompts, researchPrompt } from '../../prompts';
+import { prompts, researchPrompt } from '../../shared/llm/prompts';
 import { layoutRules } from '../deck/layoutRules';
 
 export const paperContext = (paper: Paper) => ({ ...paper, pages: undefined });

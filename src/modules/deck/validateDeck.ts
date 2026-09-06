@@ -1,7 +1,7 @@
 import { DeckSchema } from './deck.schema';
 import type { Paper } from '../paper/paper.schema';
 import { layoutCapacity } from './layoutRules';
-import { figureSource, validatePaper } from '../../sources';
+import { figureSource, validatePaper } from '../paper/sources';
 
 export function validateDeck(input: unknown, paper?: Paper) {
   const parsed = DeckSchema.safeParse(input); if (!parsed.success) return parsed.error.issues.map(issue => issue.path.join('.') + ': ' + issue.message);
