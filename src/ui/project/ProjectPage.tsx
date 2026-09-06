@@ -64,6 +64,7 @@ function ProjectContent({
 }) {
   const online = useOnline();
   const controller = useProjectController(opened, settings, online, registerLeaveGuard);
+  const [currentView, setCurrentView] = useState(false);
   const {
     data,
     instruction,
@@ -83,6 +84,7 @@ function ProjectContent({
     generate,
     confirmOutline,
     discardOutline,
+    refreshOutline,
     outlineIssues,
     restore,
     cancelTask,
@@ -92,11 +94,11 @@ function ProjectContent({
   } = controller;
   const completed = Checkpoints.indexOf(data.project.checkpoint);
   const content =
-    session && !data.plan ? (
+    session && (!data.plan || currentView) ? (
       <Editor
         key={session.current.id}
         session={session}
-        readOnly={busy}
+        readOnly={busy && operationKind === 'restore'}
         resourceAvailable={!!resource}
         registerLeaveGuard={registerEditorLeave}
         onRegenerate={() => openRegeneration(true)}
@@ -142,6 +144,7 @@ function ProjectContent({
         canGenerate={!!settings.apiKey.trim() && online && !!resource}
         stale={!!data.candidateStale}
         onDiscard={data.planRecord?.mode === 'regeneration' ? discardOutline : undefined}
+        onCurrent={session ? () => setCurrentView(true) : undefined}
       />
     ) : (
       <main className="mx-auto max-w-[1080px] px-5 py-6">
@@ -290,6 +293,20 @@ function ProjectContent({
     );
   return (
     <>
+      {session && data.plan && currentView && (
+        <div className="flex items-center justify-end gap-3 border-b border-line px-5 py-2 text-sm">
+          <span>候选大纲已保存</span>
+          <Button
+            onClick={() => {
+              void refreshOutline().then((ready) => {
+                if (ready) setCurrentView(false);
+              });
+            }}
+          >
+            查看候选大纲
+          </Button>
+        </div>
+      )}
       {content}
       {source && (
         <SourceDialog
@@ -306,6 +323,7 @@ function ProjectContent({
           disabled={!online || !settings.apiKey.trim()}
           onClose={() => openRegeneration(false)}
           onStart={(value) => {
+            setCurrentView(false);
             void generate(value);
           }}
         />
@@ -326,6 +344,7 @@ function OutlineSummary({
   canGenerate,
   stale,
   onDiscard,
+  onCurrent,
 }: {
   plan: import('../../modules/outline/outline.schema').DeckPlan;
   busy: boolean;
@@ -338,6 +357,7 @@ function OutlineSummary({
   canGenerate: boolean;
   stale: boolean;
   onDiscard?: () => Promise<void>;
+  onCurrent?: () => void;
 }) {
   const [warningsAccepted, setWarningsAccepted] = useState(false);
   const confirmed = plan.status === 'confirmed';
@@ -349,6 +369,7 @@ function OutlineSummary({
         </IconButton>
         <Brand />
         <h1 className="min-w-0 flex-1 truncate text-sm">学术大纲</h1>
+        {onCurrent && <Button onClick={onCurrent}>当前文稿</Button>}
       </header>
       <section className="mx-auto max-w-[760px] py-10">
         <h2 className="text-lg font-semibold">{plan.title}</h2>

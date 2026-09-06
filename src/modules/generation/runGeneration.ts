@@ -3,7 +3,7 @@ import type { ModelSettings } from '../../shared/llm/model';
 import { analyzeFigures, understandPaper } from '../paper/analysis';
 import { parsePaper } from '../paper/parsePaper';
 import type { PdfResource } from '../../shared/pdf/pdfResource';
-import { saveStage, type ProjectData } from '../project/projectRepository';
+import { loadProject, saveStage, type ProjectData } from '../project/projectRepository';
 import { planDeck } from './planDeck';
 import { generateDeck } from './buildDeck';
 import { captureGenerationBase, saveCandidate, commitCandidate } from './candidateRepository';
@@ -94,6 +94,16 @@ export async function buildPresentation(
     throw new Error('请先确认有效的汇报计划');
   if (initial.candidateStale) throw new Error('候选已过期，请放弃后重新规划');
   if (initial.plan.status !== 'confirmed') throw new Error('未确认的汇报计划不能生成幻灯片');
+  const latest = await loadProject(initial.project.id);
+  if (
+    !latest.plan ||
+    latest.plan.id !== initial.plan.id ||
+    latest.plan.revision !== initial.plan.revision ||
+    latest.plan.status !== 'confirmed' ||
+    latest.candidateStale
+  )
+    throw new Error('大纲版本或候选基准已变化，请重新打开项目');
+  signal.throwIfAborted();
   onStage(GENERATION_STEPS[4]);
   const preferences = initial.planRecord?.preferences ?? initial.project.preferences;
   const { strategy } = researchPrompt(preferences.strategyId);

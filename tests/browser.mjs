@@ -401,7 +401,7 @@ try {
   );
   await page.unroute('https://api.deepseek.com/chat/completions');
   console.log('PASS: AI send/explicit target/summary top undo/manual draft cancels staged candidate/history reopen');
-  const beforeRegeneration = await page.evaluate(
+  let beforeRegeneration = await page.evaluate(
     async (id) => (await import('/src/modules/project/projectRepository.ts')).loadProject(id),
     id,
   );
@@ -426,9 +426,7 @@ try {
     const result = await page.evaluate(
       async ({ stage, data }) => {
         const fixed = await import('/tests/generation-contracts.ts');
-        return stage === 'plan'
-          ? { strategyId: 'general', plan: fixed.fixedPlan(data.paper) }
-          : fixed.fixedSlides(data.plan);
+        return stage === 'plan' ? fixed.fixedOutline(data.paper) : fixed.fixedSlides(data.plan);
       },
       { stage, data },
     );
@@ -455,15 +453,14 @@ try {
     await page.getByRole('button', { name: '重新生成整套 PPT', exact: true }).click();
     await page.getByRole('textbox', { name: '重生成要求', exact: true }).fill('重新生成三页，重点保留研究结果');
     await page.getByRole('button', { name: '开始重生成', exact: true }).click();
+    await page.getByRole('button', { name: '确认大纲', exact: true }).click();
+    await page.getByRole('button', { name: '确认大纲', exact: true }).waitFor({ state: 'hidden' });
+    await page.getByRole('button', { name: '生成幻灯片', exact: true }).click();
   }
   await beginRegeneration();
   await regenerationHeld;
-  assert.equal(
-    await page.locator('[data-slide-preview=current] [data-edit-key=title]').getAttribute('contenteditable'),
-    'false',
-  );
-  await page.getByRole('button', { name: '取消重生成', exact: true }).click();
-  await page.getByRole('button', { name: '取消重生成', exact: true }).waitFor({ state: 'hidden' });
+  await page.getByRole('button', { name: '取消', exact: true }).click();
+  await page.getByRole('button', { name: '取消', exact: true }).waitFor({ state: 'hidden' });
   await heldRegenerationRoute.abort().catch(() => {});
   let versionData = await page.evaluate(
     async (id) => (await import('/src/modules/project/projectRepository.ts')).loadProject(id),
@@ -471,13 +468,32 @@ try {
   );
   assert.equal(versionData.deck.id, beforeRegeneration.deck.id);
   assert.deepEqual(versionData.project.preferences, beforeRegeneration.project.preferences);
+  assert.equal(versionData.plan.status, 'confirmed');
+  await page.reload();
+  await page.screenshot({ path: join(output, 'outline-candidate-desktop.png'), fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: join(output, 'outline-candidate-mobile.png'), fullPage: true });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.getByRole('button', { name: '当前文稿', exact: true }).click();
+  await editingTitle.fill('候选期间仍可编辑 Current');
+  await page.getByRole('button', { name: '查看候选大纲', exact: true }).click();
+  await page.getByText('候选大纲已过期', { exact: true }).waitFor();
+  assert.equal(await page.getByRole('button', { name: '生成幻灯片', exact: true }).isDisabled(), true);
+  const candidateBase = await page.evaluate(
+    async (id) => (await import('/src/modules/project/projectRepository.ts')).loadProject(id),
+    id,
+  );
+  await page.getByRole('button', { name: '放弃候选', exact: true }).click();
   holdRegeneration = false;
   await beginRegeneration();
   await page.waitForFunction(
     async ({ id, previous }) =>
+      ((await (await import('/src/modules/project/projectRepository.ts')).loadProject(id)).project.currentDeckId ??
+        '') !== '' &&
       (await (await import('/src/modules/project/projectRepository.ts')).loadProject(id)).project.currentDeckId !==
-      previous,
-    { id, previous: beforeRegeneration.deck.id },
+        previous,
+    { id, previous: candidateBase.deck.id },
   );
   await page.getByRole('button', { name: '取消重生成', exact: true }).waitFor({ state: 'hidden' });
   versionData = await page.evaluate(
@@ -485,7 +501,7 @@ try {
     id,
   );
   assert.deepEqual(regenerationCalls, ['plan', 'generate', 'plan', 'generate']);
-  assert.equal(versionData.project.previousDeckId, beforeRegeneration.deck.id);
+  assert.equal(versionData.project.previousDeckId, candidateBase.deck.id);
   assert.equal(versionData.project.preferences.instruction, '重新生成三页，重点保留研究结果');
   assert.equal(await page.getByRole('button', { name: '撤销', exact: true }).isDisabled(), true);
   assert.equal(await page.getByRole('button', { name: '重做', exact: true }).isDisabled(), true);
@@ -496,7 +512,7 @@ try {
     async ({ id, previous }) =>
       (await (await import('/src/modules/project/projectRepository.ts')).loadProject(id)).project.currentDeckId ===
       previous,
-    { id, previous: beforeRegeneration.deck.id },
+    { id, previous: candidateBase.deck.id },
   );
   await page.getByRole('status').filter({ hasText: '已保存' }).waitFor();
   assert.equal(await page.getByRole('button', { name: '撤销', exact: true }).isDisabled(), true);
@@ -509,9 +525,9 @@ try {
     async (id) => (await import('/src/modules/project/projectRepository.ts')).loadProject(id),
     id,
   );
-  assert.equal(restoredVersion.deck.revision, beforeRegeneration.deck.revision + 1);
+  assert.equal(restoredVersion.deck.revision, candidateBase.deck.revision + 1);
   assert.equal(restoredVersion.project.previousDeckId, versionData.deck.id);
-  assert.deepEqual(restoredVersion.deck.slides, beforeRegeneration.deck.slides);
+  assert.deepEqual(restoredVersion.deck.slides, candidateBase.deck.slides);
   await page.unroute('https://api.deepseek.com/chat/completions');
   console.log(
     'PASS: regenerate only plan/generate/cancel preserves current/success preferences/restore/reopen/clear undo',

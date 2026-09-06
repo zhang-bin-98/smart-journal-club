@@ -115,8 +115,8 @@ export async function runGenerationContracts() {
   await rejected(() => saveStage(beforePlan, { checkpoint: 'deck-plan-ready', plan }, signal));
   const outline = new OutlineSession(plan, paper, project.id, savePlanRevision);
   plan = await outline.confirm(outline.capture());
-  const binding = { planId: plan.id, planRevision: plan.revision };
-  const deck = assembleDeck(plan, raw, paper);
+  let binding = { planId: plan.id, planRevision: plan.revision };
+  let deck = assembleDeck(plan, raw, paper);
   assert(deck.slides[0].elements[0].id !== raw.slides[0].elements[0].id, '元素 ID 由应用创建');
   const originalAdd = IDBObjectStore.prototype.add;
   IDBObjectStore.prototype.add = function (...args) {
@@ -145,6 +145,18 @@ export async function runGenerationContracts() {
     IDBObjectStore.prototype.add = originalAdd;
   }
   assert(!(await loadProject(project.id)).deck, '提交期间取消必须回滚整个阶段');
+  await outline.commit({
+    ...outline.capture(),
+    mutations: [{ type: 'update-section', sectionId: plan.sections[0].id, patch: { title: '临时章节' } }],
+  });
+  await outline.undo();
+  plan = await outline.confirm(outline.capture());
+  await rejected(() =>
+    saveStage(project, { checkpoint: 'deck-ready', deck, strategyId: 'general', ...binding }, signal),
+  );
+  assert((await loadProject(project.id)).plan?.revision === plan.revision, '旧构建不得消费再次确认后的计划');
+  binding = { planId: plan.id, planRevision: plan.revision };
+  deck = assembleDeck(plan, raw, paper);
   const ready = await saveStage(project, { checkpoint: 'deck-ready', deck, strategyId: 'general', ...binding }, signal);
   const opened = await loadProject(project.id);
   assert(

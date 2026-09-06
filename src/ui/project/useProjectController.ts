@@ -283,6 +283,23 @@ export function useProjectController(
       setError(errorMessage(cause));
     }
   }
+  async function refreshOutline() {
+    try {
+      await editorLeave.current?.();
+      const latest = await loadProject(dataRef.current.project.id);
+      if (controller.signal.aborted) return false;
+      if (latest.plan && outlineRef.current?.current.revision !== latest.plan.revision)
+        outlineRef.current = new OutlineSession(latest.plan, latest.paper, latest.project.id, savePlanRevision);
+      acceptData({
+        ...latest,
+        deck: latest.deck?.id === dataRef.current.deck?.id ? dataRef.current.deck : latest.deck,
+      });
+      return true;
+    } catch (cause) {
+      setError(errorMessage(cause));
+      return false;
+    }
+  }
   async function exportPresentation(deck: Deck) {
     if (!resource && deck.slides.some((slide) => slide.elements.some((element) => element.type === 'figure')))
       throw new Error('原 PDF 缺失，无法导出图源');
@@ -316,6 +333,7 @@ export function useProjectController(
     generate,
     confirmOutline,
     discardOutline,
+    refreshOutline,
     outlineIssues,
     restore,
     cancelTask,
