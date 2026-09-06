@@ -7,7 +7,7 @@ import { loadProject, updateProject, type ProjectData } from '../modules/project
 import { Brand, Button, errorMessage, IconButton, inputClass, useOnline } from './controls';
 import { Editor } from './editor/Editor';
 import { SourceDialog, type SourceSelection } from './SourceDialog';
-import type { ModelSettings } from '../model';
+import type { ModelSettings } from '../shared/llm/model';
 import { Checkpoints, type Project } from '../modules/project/project.schema';
 import type { Deck } from '../modules/deck/deck.schema';
 import { beginActivity, setDirty, type LeaveGuard, type RegisterLeaveGuard } from '../activity';

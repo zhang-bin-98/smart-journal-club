@@ -1,7 +1,9 @@
 import { DeckSession, type PersistRevision, type RevisionRequest } from '../src/deck';
 import { fixtureDeck, fixturePaper } from '../src/fixtures';
-import { resolveAiTarget, runAiRevision, validateAiCandidate } from '../src/ai';
-import { DEFAULT_SETTINGS } from '../src/model';
+import { resolveAiTarget } from '../src/modules/assistant/target/resolveTarget';
+import { validateAiCandidate } from '../src/modules/assistant/revision/validateRevisionProposal';
+import { runAiRevision } from '../src/modules/assistant/runtime/runAssistant';
+import { DEFAULT_SETTINGS } from '../src/shared/llm/model';
 import { createProject, deleteProject, loadProject, saveStage } from '../src/modules/project/projectRepository';
 import { saveRevision } from '../src/modules/deck/deckRepository';
 import { loadHistory, saveConversation } from '../src/modules/assistant/conversationRepository';

@@ -4,7 +4,7 @@ import { mapUnderstanding, UnderstandingSchema } from '../src/analysis';
 import { prompts } from '../src/prompts';
 import { parsePromptFiles } from '../src/prompt-config';
 import { createProject, deleteProject, loadProject, saveStage } from '../src/modules/project/projectRepository';
-import { DEFAULT_SETTINGS, requestJson } from '../src/model';
+import { DEFAULT_SETTINGS, requestJson } from '../src/shared/llm/model';
 import type { Paper } from '../src/modules/paper/paper.schema';
 
 const assert = (value: unknown, message: string) => { if (!value) throw new Error(message); };

@@ -14,7 +14,7 @@ export function Editor({ session, paper, image, name, initialSlideId, onLeave, o
   session: DeckSession; paper: Paper; image: FigureImage; name: string; initialSlideId?: string;
   onLeave?: () => void; onExport: (deck: Deck) => Promise<void>; onSelection?: (id?: string) => Promise<void>;
   onSettings?: () => void;
-  aiSettings?: import('../../model').ModelSettings;
+  aiSettings?: import('../../shared/llm/model').ModelSettings;
   aiPaper?: Paper;
   aiProjectId?: string;
   aiPreferences?: import('../../modules/project/project.schema').Project['preferences'];

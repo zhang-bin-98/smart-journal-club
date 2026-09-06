@@ -5,7 +5,7 @@ import { PaperSchema, type Paper } from '../paper/paper.schema';
 import { ProjectSchema, type PdfAsset, type Project } from '../project/project.schema';
 import { projectIn } from '../project/projectRepository';
 import { readProjectScoped } from '../paper/paperRepository';
-import { assertMessage, trimHistory } from '../assistant/conversationRepository';
+import { assertMessage, trimHistory } from '../../shared/persistence/historyStore';
 import { validateDeck } from '../../layout';
 import { validatePaper } from '../../sources';
 import { prompts } from '../../prompts';

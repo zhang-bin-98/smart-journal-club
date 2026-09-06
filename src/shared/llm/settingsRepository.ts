@@ -1,5 +1,5 @@
 import { get, transaction } from '../persistence/indexedDb';
-import { DEFAULT_SETTINGS, ModelSettingsSchema, type ModelSettings } from '../../model';
+import { DEFAULT_SETTINGS, ModelSettingsSchema, type ModelSettings } from './model';
 
 export function loadSettings() {
   return transaction(['settings'], 'readonly', async tx => ModelSettingsSchema.parse(await get(tx, 'settings', 'model') ?? DEFAULT_SETTINGS));

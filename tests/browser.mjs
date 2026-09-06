@@ -84,7 +84,7 @@ try {
     await route.fulfill({ status: 200, contentType: 'text/event-stream', body });
   });
   await page.goto(base);
-  await page.evaluate(async () => { const { saveSettings } = await import('/src/shared/llm/settingsRepository.ts'); const { DEFAULT_SETTINGS } = await import('/src/model.ts'); await saveSettings({ ...DEFAULT_SETTINGS, apiKey: 'fixed-test-key' }); });
+  await page.evaluate(async () => { const { saveSettings } = await import('/src/shared/llm/settingsRepository.ts'); const { DEFAULT_SETTINGS } = await import('/src/shared/llm/model.ts'); await saveSettings({ ...DEFAULT_SETTINGS, apiKey: 'fixed-test-key' }); });
   await page.reload();
   await page.getByLabel('选择论文 PDF').setInputFiles(resolve('test-fixtures/papers/mechanism-modt-cdifficile.pdf'));
   await page.waitForURL(/project/);

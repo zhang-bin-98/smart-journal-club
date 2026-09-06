@@ -5,7 +5,7 @@ import { mkdir, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { extname, join, resolve, sep } from 'node:path';
 import { fixtureDeck, fixturePaper } from '../src/fixtures.ts';
-const MODEL_ID = (await readFile(resolve('src/model.ts'), 'utf8')).match(/export const MODEL_ID = '([^']+)'/)[1];
+const MODEL_ID = (await readFile(resolve('src/shared/llm/model.ts'), 'utf8')).match(/export const MODEL_ID = '([^']+)'/)[1];
 
 const { chromium } = await import(process.env.SMARTJC_PLAYWRIGHT_MODULE || 'playwright');
 const directory = resolve('dist'); const prefix = '/smart-journal-club/';

@@ -4,7 +4,7 @@ import { DeckPlanSchema, type DeckPlan } from './modules/outline/outline.schema'
 import { ProjectSchema, type Project } from './modules/project/project.schema';
 import type { Paper } from './modules/paper/paper.schema';
 import { validateDeck, validatePlan } from './layout';
-import { requestJson, type ModelSettings } from './model';
+import { requestJson, type ModelSettings } from './shared/llm/model';
 import { prompts, researchPrompt } from './prompts';
 import { analyzeFigures, understandPaper } from './analysis';
 import type { PdfResource } from './pdf';
