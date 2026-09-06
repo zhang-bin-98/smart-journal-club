@@ -76,13 +76,13 @@ function ProjectContent({
     error,
     busy,
     stage,
-    warning,
     operationKind,
     session,
     image,
     persistRevision,
     generate,
     confirmOutline,
+    discardOutline,
     outlineIssues,
     restore,
     cancelTask,
@@ -91,201 +91,203 @@ function ProjectContent({
     resource,
   } = controller;
   const completed = Checkpoints.indexOf(data.project.checkpoint);
-  const content = session ? (
-    <Editor
-      key={session.current.id}
-      session={session}
-      readOnly={busy}
-      resourceAvailable={!!resource}
-      registerLeaveGuard={registerEditorLeave}
-      onRegenerate={() => openRegeneration(true)}
-      onRestore={data.project.previousDeckId ? restore : undefined}
-      taskStatus={
-        busy ? (operationKind === 'restore' ? '正在恢复上一版…' : `正在重生成：${stage || '规划汇报结构'}…`) : undefined
-      }
-      onCancelTask={operationKind === 'regenerate' ? cancelTask : undefined}
-      externalError={error}
-      paper={data.paper}
-      image={image}
-      name={data.project.name}
-      initialSlideId={data.project.lastOpenedSlideId}
-      onLeave={onLeave}
-      onSettings={onSettings}
-      aiSettings={settings}
-      aiProjectId={data.project.id}
-      aiPreferences={data.project.preferences}
-      aiPersistRevision={persistRevision}
-      notice={warning || '请核对主要结论、图例和裁图边缘；自动识别的图源可能需要调整。'}
-      onSelection={async (id) => {
-        await updateProject(data.project.id, { lastOpenedSlideId: id });
-      }}
-      onSource={(sourceId, element, _slideId, crop, apply, onDraft) =>
-        openSource({ sourceId, element, crop, apply, onDraft })
-      }
-      onExport={exportPresentation}
-    />
-  ) : data.plan ? (
-    <OutlineSummary
-      plan={data.plan}
-      busy={busy}
-      onGenerate={() => void generate()}
-      onBack={onLeave}
-      onConfirm={confirmOutline}
-      issues={outlineIssues!}
-      error={error}
-      onCancel={cancelTask}
-      canGenerate={!!settings.apiKey.trim() && online && !!resource}
-    />
-  ) : (
-    <main className="mx-auto max-w-[1080px] px-5 py-6">
-      <header className="flex items-center gap-3 border-b border-line pb-5">
-        <IconButton label="返回首页" disabled={busy} onClick={onLeave}>
-          <ArrowLeft size={16} />
-        </IconButton>
-        <Brand />
-        <h1 className="min-w-0 flex-1 truncate text-sm">{data.project.name}</h1>
-        <IconButton label="模型设置" disabled={busy} onClick={onSettings}>
-          <Settings size={17} />
-        </IconButton>
-      </header>
-      <section className="mx-auto max-w-[760px] py-12">
-        <p className="flex items-center gap-3 text-sm text-muted">
-          <FileText size={20} />
-          已保存：{data.asset?.name ?? '原 PDF 缺失'}
-        </p>
-        {data.project.checkpoint === 'paper-ready' && (
-          <section className="mt-8 space-y-5" aria-label="论文理解">
-            <h2 className="text-lg font-semibold">论文理解</h2>
-            <h3 className="text-base font-medium">{data.paper.metadata.title}</h3>
-            {(['question', 'studyDesign', 'mainFindings', 'limitations'] as const).map((topic) => (
-              <div key={topic}>
-                <h4 className="text-sm font-semibold">
-                  {
-                    { question: '研究问题', studyDesign: '研究设计', mainFindings: '主要发现', limitations: '局限' }[
-                      topic
-                    ]
-                  }
-                </h4>
-                {data.paper.story?.[topic].map((point) => (
-                  <p key={`${topic}-${point.text}`} className="mt-2 text-sm">
-                    {point.text}
-                  </p>
-                ))}
-              </div>
-            ))}
-          </section>
-        )}
-        <label className="mt-10 block text-sm font-medium" htmlFor="instruction">
-          你希望怎么汇报这篇论文？（可选）
-        </label>
-        <textarea
-          id="instruction"
-          className={`${inputClass} mt-3 min-h-36 resize-y`}
-          placeholder="例如：中文，15 页左右，重点讲结果和创新点"
-          value={instruction}
-          disabled={busy || data.project.checkpoint === 'deck-plan-ready'}
-          onChange={(event) => changeInstruction(event.target.value)}
-          onBlur={commitInstruction}
-        />
-        {(busy || completed > 0) && (
-          <ol className="mt-6 space-y-3 border-y border-line py-5">
-            {GENERATION_STEPS.map((label, index) => (
-              <li
-                key={label}
-                className={`flex items-center gap-3 text-sm ${index < completed ? 'text-success' : index === completed ? 'text-ink' : 'text-muted'}`}
-              >
-                {index < completed ? (
-                  <Check size={16} />
-                ) : busy && index === completed ? (
-                  <LoaderCircle size={16} className="animate-spin" />
-                ) : (
-                  <Circle size={16} />
-                )}
-                <span>{label}</span>
-              </li>
-            ))}
-          </ol>
-        )}
-        {!busy && completed > 0 && completed < 3 && (
-          <p className="mt-4 text-sm text-muted">下次从“{GENERATION_STEPS[completed]}”继续，已完成的步骤已保存。</p>
-        )}
-        {error && (
-          <p role="alert" className="mt-4 text-sm text-red-700">
-            {error}
+  const content =
+    session && !data.plan ? (
+      <Editor
+        key={session.current.id}
+        session={session}
+        readOnly={busy}
+        resourceAvailable={!!resource}
+        registerLeaveGuard={registerEditorLeave}
+        onRegenerate={() => openRegeneration(true)}
+        onRestore={data.project.previousDeckId ? restore : undefined}
+        taskStatus={
+          busy
+            ? operationKind === 'restore'
+              ? '正在恢复上一版…'
+              : `正在重生成：${stage || '规划汇报结构'}…`
+            : undefined
+        }
+        onCancelTask={operationKind === 'regenerate' ? cancelTask : undefined}
+        externalError={error}
+        paper={data.paper}
+        image={image}
+        name={data.project.name}
+        initialSlideId={data.project.lastOpenedSlideId}
+        onLeave={onLeave}
+        onSettings={onSettings}
+        aiSettings={settings}
+        aiProjectId={data.project.id}
+        aiPreferences={data.project.preferences}
+        aiPersistRevision={persistRevision}
+        notice="请核对主要结论、图例和裁图边缘；自动识别的图源可能需要调整。"
+        onSelection={async (id) => {
+          await updateProject(data.project.id, { lastOpenedSlideId: id });
+        }}
+        onSource={(sourceId, element, _slideId, crop, apply, onDraft) =>
+          openSource({ sourceId, element, crop, apply, onDraft })
+        }
+        onExport={exportPresentation}
+      />
+    ) : data.plan ? (
+      <OutlineSummary
+        plan={data.plan}
+        busy={busy}
+        onGenerate={() => void generate()}
+        onBack={onLeave}
+        onConfirm={confirmOutline}
+        issues={outlineIssues!}
+        error={error}
+        onCancel={cancelTask}
+        canGenerate={!!settings.apiKey.trim() && online && !!resource}
+        stale={!!data.candidateStale}
+        onDiscard={data.planRecord?.mode === 'regeneration' ? discardOutline : undefined}
+      />
+    ) : (
+      <main className="mx-auto max-w-[1080px] px-5 py-6">
+        <header className="flex items-center gap-3 border-b border-line pb-5">
+          <IconButton label="返回首页" disabled={busy} onClick={onLeave}>
+            <ArrowLeft size={16} />
+          </IconButton>
+          <Brand />
+          <h1 className="min-w-0 flex-1 truncate text-sm">{data.project.name}</h1>
+          <IconButton label="模型设置" disabled={busy} onClick={onSettings}>
+            <Settings size={17} />
+          </IconButton>
+        </header>
+        <section className="mx-auto max-w-[760px] py-12">
+          <p className="flex items-center gap-3 text-sm text-muted">
+            <FileText size={20} />
+            已保存：{data.asset?.name ?? '原 PDF 缺失'}
           </p>
-        )}
-        {warning && (
-          <p role="status" className="mt-4 text-sm text-muted">
-            {warning}
-          </p>
-        )}
-        {!resource && (
-          <p role="alert" className="mt-4 text-sm text-red-700">
-            原 PDF 缺失，请保留项目中的可读内容。
-          </p>
-        )}
-        <div className="mt-5 flex flex-wrap items-center justify-end gap-3">
-          {busy ? (
-            <>
-              <span role="status" className="text-sm text-muted">
-                {stage}…
-              </span>
-              <Button onClick={cancelTask}>
-                <X size={15} />
-                取消
-              </Button>
-            </>
-          ) : (
-            <>
-              {data.paper.pages.length > 0 && (
-                <>
-                  <span className="text-sm text-success">已解析 {data.paper.pages.length} 页</span>
-                  <Button
-                    disabled={!resource || !data.paper.sources.length}
-                    onClick={() => openSource({ sourceId: data.paper.sources[0].id, crop: false })}
-                  >
-                    <FileText size={15} />
-                    查看论文
-                  </Button>
-                </>
-              )}
-              <Button primary disabled={!resource || !settings.apiKey || !online} onClick={() => void generate()}>
-                <Play size={15} />
-                {data.project.checkpoint === 'paper-ready'
-                  ? '生成学术大纲'
-                  : error
-                    ? '重试当前步骤'
-                    : completed > 0
-                      ? '继续分析论文'
-                      : '分析论文'}
-              </Button>
-            </>
+          {data.project.checkpoint === 'paper-ready' && (
+            <section className="mt-8 space-y-5" aria-label="论文理解">
+              <h2 className="text-lg font-semibold">论文理解</h2>
+              <h3 className="text-base font-medium">{data.paper.metadata.title}</h3>
+              {(['question', 'studyDesign', 'mainFindings', 'limitations'] as const).map((topic) => (
+                <div key={topic}>
+                  <h4 className="text-sm font-semibold">
+                    {
+                      { question: '研究问题', studyDesign: '研究设计', mainFindings: '主要发现', limitations: '局限' }[
+                        topic
+                      ]
+                    }
+                  </h4>
+                  {data.paper.story?.[topic].map((point) => (
+                    <p key={`${topic}-${point.text}`} className="mt-2 text-sm">
+                      {point.text}
+                    </p>
+                  ))}
+                </div>
+              ))}
+            </section>
           )}
-        </div>
-        {!online && (
-          <p role="status" className="mt-4 text-sm text-muted">
-            当前离线，联网后可继续生成；本地项目仍可使用。
-          </p>
-        )}
-        {!settings.apiKey && !busy && (
-          <div className="mt-4 flex items-center justify-end gap-3 text-xs text-muted">
-            <span>尚未配置模型 Key</span>
-            <Button onClick={onSettings}>模型设置</Button>
+          <label className="mt-10 block text-sm font-medium" htmlFor="instruction">
+            你希望怎么汇报这篇论文？（可选）
+          </label>
+          <textarea
+            id="instruction"
+            className={`${inputClass} mt-3 min-h-36 resize-y`}
+            placeholder="例如：中文，15 页左右，重点讲结果和创新点"
+            value={instruction}
+            disabled={busy || data.project.checkpoint === 'deck-plan-ready'}
+            onChange={(event) => changeInstruction(event.target.value)}
+            onBlur={commitInstruction}
+          />
+          {(busy || completed > 0) && (
+            <ol className="mt-6 space-y-3 border-y border-line py-5">
+              {GENERATION_STEPS.map((label, index) => (
+                <li
+                  key={label}
+                  className={`flex items-center gap-3 text-sm ${index < completed ? 'text-success' : index === completed ? 'text-ink' : 'text-muted'}`}
+                >
+                  {index < completed ? (
+                    <Check size={16} />
+                  ) : busy && index === completed ? (
+                    <LoaderCircle size={16} className="animate-spin" />
+                  ) : (
+                    <Circle size={16} />
+                  )}
+                  <span>{label}</span>
+                </li>
+              ))}
+            </ol>
+          )}
+          {!busy && completed > 0 && completed < 3 && (
+            <p className="mt-4 text-sm text-muted">下次从“{GENERATION_STEPS[completed]}”继续，已完成的步骤已保存。</p>
+          )}
+          {error && (
+            <p role="alert" className="mt-4 text-sm text-red-700">
+              {error}
+            </p>
+          )}
+          {!resource && (
+            <p role="alert" className="mt-4 text-sm text-red-700">
+              原 PDF 缺失，请保留项目中的可读内容。
+            </p>
+          )}
+          <div className="mt-5 flex flex-wrap items-center justify-end gap-3">
+            {busy ? (
+              <>
+                <span role="status" className="text-sm text-muted">
+                  {stage}…
+                </span>
+                <Button onClick={cancelTask}>
+                  <X size={15} />
+                  取消
+                </Button>
+              </>
+            ) : (
+              <>
+                {data.paper.pages.length > 0 && (
+                  <>
+                    <span className="text-sm text-success">已解析 {data.paper.pages.length} 页</span>
+                    <Button
+                      disabled={!resource || !data.paper.sources.length}
+                      onClick={() => openSource({ sourceId: data.paper.sources[0].id, crop: false })}
+                    >
+                      <FileText size={15} />
+                      查看论文
+                    </Button>
+                  </>
+                )}
+                <Button primary disabled={!resource || !settings.apiKey || !online} onClick={() => void generate()}>
+                  <Play size={15} />
+                  {data.project.checkpoint === 'paper-ready'
+                    ? '生成学术大纲'
+                    : error
+                      ? '重试当前步骤'
+                      : completed > 0
+                        ? '继续分析论文'
+                        : '分析论文'}
+                </Button>
+              </>
+            )}
           </div>
-        )}
-        {!!data.paper.figures.length && !busy && (
-          <div className="mt-8 flex flex-wrap gap-2 border-t border-line pt-4">
-            {data.paper.figures.map((figure) => (
-              <Button key={figure.id} onClick={() => openSource({ sourceId: figure.sourceId, crop: false })}>
-                <FileText size={14} />
-                {figure.label ?? 'Figure'}
-              </Button>
-            ))}
-          </div>
-        )}
-      </section>
-    </main>
-  );
+          {!online && (
+            <p role="status" className="mt-4 text-sm text-muted">
+              当前离线，联网后可继续生成；本地项目仍可使用。
+            </p>
+          )}
+          {!settings.apiKey && !busy && (
+            <div className="mt-4 flex items-center justify-end gap-3 text-xs text-muted">
+              <span>尚未配置模型 Key</span>
+              <Button onClick={onSettings}>模型设置</Button>
+            </div>
+          )}
+          {!!data.paper.figures.length && !busy && (
+            <div className="mt-8 flex flex-wrap gap-2 border-t border-line pt-4">
+              {data.paper.figures.map((figure) => (
+                <Button key={figure.id} onClick={() => openSource({ sourceId: figure.sourceId, crop: false })}>
+                  <FileText size={14} />
+                  {figure.label ?? 'Figure'}
+                </Button>
+              ))}
+            </div>
+          )}
+        </section>
+      </main>
+    );
   return (
     <>
       {content}
@@ -322,6 +324,8 @@ function OutlineSummary({
   error,
   onCancel,
   canGenerate,
+  stale,
+  onDiscard,
 }: {
   plan: import('../../modules/outline/outline.schema').DeckPlan;
   busy: boolean;
@@ -332,6 +336,8 @@ function OutlineSummary({
   error: string;
   onCancel: () => void;
   canGenerate: boolean;
+  stale: boolean;
+  onDiscard?: () => Promise<void>;
 }) {
   const [warningsAccepted, setWarningsAccepted] = useState(false);
   const confirmed = plan.status === 'confirmed';
@@ -346,6 +352,7 @@ function OutlineSummary({
       </header>
       <section className="mx-auto max-w-[760px] py-10">
         <h2 className="text-lg font-semibold">{plan.title}</h2>
+        {onDiscard && <p className="mt-2 text-sm">{stale ? '候选大纲已过期' : '候选重生成大纲'}</p>}
         <p className="mt-2 text-sm text-muted">
           {confirmed ? '大纲已确认，可以生成幻灯片。' : '请检查并确认大纲后再生成幻灯片。'}
         </p>
@@ -386,6 +393,12 @@ function OutlineSummary({
           </label>
         )}
         <div className="mt-7 flex justify-end gap-3">
+          {onDiscard && (
+            <Button disabled={busy} onClick={() => void onDiscard()}>
+              <X size={15} />
+              放弃候选
+            </Button>
+          )}
           {busy && (
             <Button onClick={onCancel}>
               <X size={15} />
@@ -395,14 +408,14 @@ function OutlineSummary({
           {!confirmed && (
             <Button
               primary
-              disabled={busy || !!issues.errors.length || (!!issues.warnings.length && !warningsAccepted)}
+              disabled={busy || stale || !!issues.errors.length || (!!issues.warnings.length && !warningsAccepted)}
               onClick={() => void onConfirm(warningsAccepted)}
             >
               <Check size={15} />
               确认大纲
             </Button>
           )}
-          <Button primary disabled={!confirmed || busy || !canGenerate} onClick={onGenerate}>
+          <Button primary disabled={!confirmed || busy || stale || !canGenerate} onClick={onGenerate}>
             <Play size={15} />
             生成幻灯片
           </Button>

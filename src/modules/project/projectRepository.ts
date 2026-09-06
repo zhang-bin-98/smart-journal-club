@@ -11,6 +11,9 @@ import { validatePlan } from '../outline/validatePlan';
 import { validateDeck } from '../deck/validateDeck';
 import { validatePaper } from '../paper/sources';
 import { prompts } from '../../shared/llm/prompts';
+import { validateBuiltDeckAgainstPlan } from '../generation/validateBuiltDeckAgainstPlan';
+import { assertPlanBase } from '../outline/outlineRepository';
+import { OutlineError } from '../outline/outlineError';
 
 export async function projectIn(tx: IDBTransaction, id: string) {
   const value = await get<Project>(tx, 'projects', id);
@@ -63,7 +66,15 @@ export function listProjects() {
     );
   });
 }
-export type ProjectData = { project: Project; paper: Paper; asset?: PdfAsset; deck?: Deck; plan?: DeckPlan };
+export type ProjectData = {
+  project: Project;
+  paper: Paper;
+  asset?: PdfAsset;
+  deck?: Deck;
+  plan?: DeckPlan;
+  planRecord?: PlanRecord;
+  candidateStale?: boolean;
+};
 function planRecord(project: Project, plan: DeckPlan): PlanRecord {
   return PlanRecordSchema.parse({
     recordVersion: 1,
@@ -101,32 +112,43 @@ export function loadProject(id: string): Promise<ProjectData> {
     let discardLegacyPlan = false;
     let planWasLegacy = false;
     let wrapPlan = false;
-    if (project.checkpoint === 'deck-plan-ready') {
+    let planRecordValue: PlanRecord | undefined;
+    let candidateStale = false;
+    if (project.checkpoint === 'deck-plan-ready' || project.checkpoint === 'deck-ready') {
       const raw = await get(tx, 'plans', id);
-      if (raw === undefined) throw new Error('汇报计划数据缺失，请保留项目并检查本地存储。');
-      const wrapped = raw && typeof raw === 'object' && 'recordVersion' in raw;
-      const record = wrapped ? PlanRecordSchema.parse(raw) : undefined;
-      if (
-        record &&
-        (record.projectId !== project.id || record.plan.paperId !== project.paperId || record.mode !== 'initial')
-      )
-        throw new Error('汇报计划关联不一致，请保留项目并检查本地存储。');
-      wrapPlan = !wrapped;
-      const candidate = record ? record.plan : raw;
-      planWasLegacy = schemaVersionOf(candidate) === 1;
-      try {
-        plan = validatePlan(
-          migratePlanV1(candidate, {
-            projectId: project.id,
-            projectCreatedAt: project.createdAt,
-            projectUpdatedAt: project.updatedAt,
-          }),
-          paper,
-        );
-      } catch (cause) {
-        // 未来版本与当前格式损坏照常报错；仅无法安全迁移的 v1 临时计划原子回退，等待重新规划。
-        if (cause instanceof UnsupportedSchemaVersionError || !planWasLegacy) throw cause;
-        discardLegacyPlan = true;
+      if (raw === undefined && project.checkpoint === 'deck-plan-ready')
+        throw new Error('汇报计划数据缺失，请保留项目并检查本地存储。');
+      if (raw !== undefined) {
+        const wrapped = raw && typeof raw === 'object' && 'recordVersion' in raw;
+        const record = wrapped ? PlanRecordSchema.parse(raw) : undefined;
+        if (record && (record.projectId !== project.id || record.plan.paperId !== project.paperId))
+          throw new Error('汇报计划关联不一致，请保留项目并检查本地存储。');
+        wrapPlan = !wrapped;
+        const candidate = record ? record.plan : raw;
+        planWasLegacy = schemaVersionOf(candidate) === 1;
+        try {
+          plan = validatePlan(
+            migratePlanV1(candidate, {
+              projectId: project.id,
+              projectCreatedAt: project.createdAt,
+              projectUpdatedAt: project.updatedAt,
+            }),
+            paper,
+          );
+        } catch (cause) {
+          // 未来版本与当前格式损坏照常报错；仅无法安全迁移的 v1 临时计划原子回退，等待重新规划。
+          if (cause instanceof UnsupportedSchemaVersionError || !planWasLegacy) throw cause;
+          discardLegacyPlan = true;
+        }
+        planRecordValue = record ?? (plan ? planRecord(project, plan) : undefined);
+        if (planRecordValue) {
+          try {
+            await assertPlanBase(tx, planRecordValue, project);
+          } catch (cause) {
+            if (!(cause instanceof OutlineError) || cause.code !== 'stale-candidate') throw cause;
+            candidateStale = true;
+          }
+        }
       }
     }
     if (deck && currentRaw !== undefined && schemaVersionOf(currentRaw) === 1)
@@ -141,7 +163,15 @@ export function loadProject(id: string): Promise<ProjectData> {
     } else if (plan && wrapPlan) {
       tx.objectStore('plans').put(planRecord(opened, plan), id);
     }
-    return { project: opened, paper, asset: asset?.blob instanceof Blob ? asset : undefined, deck, plan };
+    return {
+      project: opened,
+      paper,
+      asset: asset?.blob instanceof Blob ? asset : undefined,
+      deck,
+      plan,
+      planRecord: planRecordValue,
+      candidateStale,
+    };
   });
 }
 export function updateProject(
@@ -190,7 +220,7 @@ type StageOutput =
   | { checkpoint: 'pdf-parsed' | 'figures-ready'; paper: Paper }
   | { checkpoint: 'paper-ready'; paper: Paper; strategyId: string }
   | { checkpoint: 'deck-plan-ready'; plan: DeckPlan }
-  | { checkpoint: 'deck-ready'; deck: Deck; strategyId: string };
+  | { checkpoint: 'deck-ready'; deck: Deck; strategyId: string; planId: string; planRevision: number };
 export function saveStage(captured: StageCapture, output: StageOutput, signal: AbortSignal) {
   const prior = {
     'pdf-parsed': 'project-created',
@@ -236,7 +266,10 @@ export function saveStage(captured: StageCapture, output: StageOutput, signal: A
           !output.deck.slides.length ||
           output.deck.revision !== 0 ||
           output.deck.slides.length !== plan.slides.length ||
-          output.deck.slides.some((slide, i) => slide.id !== plan.slides[i].id)
+          output.deck.slides.some((slide, i) => slide.id !== plan.slides[i].id) ||
+          plan.id !== output.planId ||
+          plan.revision !== output.planRevision ||
+          validateBuiltDeckAgainstPlan(output.deck, plan).length
         )
           throw new Error(`完整幻灯片或计划关联无效：${errors.join('；')}`);
       }

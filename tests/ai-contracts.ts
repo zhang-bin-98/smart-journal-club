@@ -10,7 +10,7 @@ import { saveRevision } from '../src/modules/deck/deckRepository';
 import { loadHistory, saveConversation } from '../src/modules/assistant/conversationRepository';
 import { DeckSchema, type ApplyRevisionArgs, type Deck } from '../src/modules/deck/deck.schema';
 import type { ChatMessage } from '../src/modules/assistant/assistant.schema';
-import { fixedPlan } from './generation-contracts';
+import { transaction } from '../src/shared/persistence/indexedDb';
 
 const assert = (value: unknown, message: string) => {
   if (!value) throw new Error(message);
@@ -42,9 +42,12 @@ async function createFixture() {
   project = await saveStage(project, { checkpoint: 'pdf-parsed', paper }, signal);
   project = await saveStage(project, { checkpoint: 'figures-ready', paper }, signal);
   project = await saveStage(project, { checkpoint: 'paper-ready', paper, strategyId: 'general' }, signal);
-  project = await saveStage(project, { checkpoint: 'deck-plan-ready', plan: fixedPlan(paper) }, signal);
   const deck = DeckSchema.parse({ ...structuredClone(fixtureDeck), id: crypto.randomUUID(), paperId: paper.id });
-  project = await saveStage(project, { checkpoint: 'deck-ready', deck, strategyId: 'general' }, signal);
+  project = { ...project, checkpoint: 'deck-ready', currentDeckId: deck.id };
+  await transaction(['projects', 'decks'], 'readwrite', async (tx) => {
+    tx.objectStore('projects').put(project, project.id);
+    tx.objectStore('decks').put(deck, deck.id);
+  });
   return { project, paper, deck };
 }
 

@@ -6,7 +6,7 @@ import { loadProject, updateProject, type ProjectData } from '../../modules/proj
 import { figureImage } from '../../modules/paper/sources';
 import { beginActivity, setDirty, type LeaveGuard, type RegisterLeaveGuard } from '../../app/activity';
 import { buildPresentation, prepareOutline, preparePaper } from '../../modules/generation/runGeneration';
-import { regenerateProject } from '../../modules/generation/regenerateDeck';
+import { discardCandidate } from '../../modules/generation/candidateRepository';
 import type { ModelSettings } from '../../shared/llm/model';
 import type { Project } from '../../modules/project/project.schema';
 import type { Deck, Element } from '../../modules/deck/deck.schema';
@@ -32,7 +32,6 @@ export function useProjectController(
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [stage, setStage] = useState('');
-  const [warning, setWarning] = useState('');
   const [regeneration, setRegeneration] = useState(false);
   const [operationKind, setOperationKind] = useState<'generate' | 'regenerate' | 'restore'>();
   const dataRef = useRef(data);
@@ -164,20 +163,21 @@ export function useProjectController(
     const current = () => !signal.aborted && parseTask.current === task;
     openRegeneration(false);
     try {
-      if (session) {
+      if (dataRef.current.plan) {
+        const next = await buildPresentation(dataRef.current, settings, signal, (label) => {
+          if (current()) setStage(label);
+        });
+        if (!controller.signal.aborted) acceptData(next);
+      } else if (session) {
         const initial = { ...dataRef.current, deck: session.current };
-        const next = await regenerateProject(
+        const next = await prepareOutline(
           initial,
-          { ...initial.project.preferences, instruction: nextInstruction ?? initial.project.preferences.instruction },
           settings,
           signal,
           (label) => {
             if (current()) setStage(label);
           },
-          (message) => {
-            if (current()) setWarning(message);
-          },
-          current,
+          { ...initial.project.preferences, instruction: nextInstruction ?? initial.project.preferences.instruction },
         );
         if (!controller.signal.aborted) acceptData(next);
       } else {
@@ -273,6 +273,16 @@ export function useProjectController(
       done();
     }
   }
+  async function discardOutline() {
+    const plan = dataRef.current.plan;
+    if (!plan || parseTask.current) return;
+    try {
+      await discardCandidate(dataRef.current.project.id, plan.id, plan.revision);
+      acceptData({ ...dataRef.current, plan: undefined, planRecord: undefined, candidateStale: false });
+    } catch (cause) {
+      setError(errorMessage(cause));
+    }
+  }
   async function exportPresentation(deck: Deck) {
     if (!resource && deck.slides.some((slide) => slide.elements.some((element) => element.type === 'figure')))
       throw new Error('原 PDF 缺失，无法导出图源');
@@ -299,13 +309,13 @@ export function useProjectController(
     error,
     busy,
     stage,
-    warning,
     operationKind,
     session,
     image,
     persistRevision,
     generate,
     confirmOutline,
+    discardOutline,
     outlineIssues,
     restore,
     cancelTask,
