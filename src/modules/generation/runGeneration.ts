@@ -3,9 +3,12 @@ import type { ModelSettings } from '../../shared/llm/model';
 import { analyzeFigures, understandPaper } from '../paper/analysis';
 import { parsePaper } from '../paper/parsePaper';
 import type { PdfResource } from '../../shared/pdf/pdfResource';
-import { saveStage, type ProjectData } from '../project/projectRepository';
+import { loadProject, saveStage, type ProjectData } from '../project/projectRepository';
+import { assertReanalysisAvailable, saveReanalysis } from '../project/reanalysisRepository';
 import { planDeck } from './planDeck';
 import { generateDeck } from './buildDeck';
+import { captureGenerationBase, saveCandidate, commitCandidate } from './candidateRepository';
+import type { Project } from '../project/project.schema';
 
 export const GENERATION_STEPS = [
   '解析论文',
@@ -15,63 +18,125 @@ export const GENERATION_STEPS = [
   '制作幻灯片',
 ] as const;
 
-// 只有完整阶段进入存储；取消和刷新后由持久化检查点决定下一步。
-export async function generateProject(
+export async function preparePaper(
   initial: ProjectData,
   resource: PdfResource,
   settings: ModelSettings,
   signal: AbortSignal,
-  onStage: (stage: string) => void,
-  onSaved: (data: ProjectData) => void,
-  onWarning: (message: string) => void,
-) {
+  onStage: (stage: string) => void = () => {},
+  onSaved: (data: ProjectData) => void = () => {},
+): Promise<ProjectData> {
+  signal.throwIfAborted();
   let data = initial;
-  while (data.project.checkpoint !== 'deck-ready') {
-    signal.throwIfAborted();
-    const captured = data.project;
-    switch (captured.checkpoint) {
-      case 'project-created': {
-        onStage(GENERATION_STEPS[0]);
-        const paper = await parsePaper(resource, data.paper, signal);
-        const project = await saveStage(captured, { checkpoint: 'pdf-parsed', paper }, signal);
-        data = { ...data, project, paper };
-        break;
-      }
-      case 'pdf-parsed': {
-        onStage(GENERATION_STEPS[1]);
-        const paper = await analyzeFigures(data.paper, resource, settings, signal);
-        const project = await saveStage(captured, { checkpoint: 'figures-ready', paper }, signal);
-        data = { ...data, project, paper };
-        break;
-      }
-      case 'figures-ready': {
-        onStage(GENERATION_STEPS[2]);
-        const result = await understandPaper(data.paper, settings, captured.preferences.instruction, signal);
-        const project = await saveStage(captured, { checkpoint: 'paper-ready', ...result }, signal);
-        data = { ...data, project, paper: result.paper };
-        break;
-      }
-      case 'paper-ready': {
-        onStage(GENERATION_STEPS[3]);
-        const { strategy, fallback } = researchPrompt(captured.preferences.strategyId);
-        if (fallback) onWarning('原研究叙事策略已不可用，本次生成使用通用策略。');
-        const plan = await planDeck(data.paper, { ...captured.preferences, strategyId: strategy.id }, settings, signal);
-        const project = await saveStage(captured, { checkpoint: 'deck-plan-ready', plan }, signal);
-        data = { ...data, project, plan };
-        break;
-      }
-      case 'deck-plan-ready': {
-        onStage(GENERATION_STEPS[4]);
-        if (!data.plan) throw new Error('已保存的汇报计划缺失，请保留项目并检查本地存储');
-        const { strategy, fallback } = researchPrompt(captured.preferences.strategyId);
-        if (fallback) onWarning('原研究叙事策略已不可用，本次生成使用通用策略。');
-        const deck = await generateDeck(data.plan, data.paper, captured.preferences, settings, signal);
-        const project = await saveStage(captured, { checkpoint: 'deck-ready', deck, strategyId: strategy.id }, signal);
-        data = { ...data, project, deck, plan: undefined };
-        break;
-      }
-    }
+  const captured = data.project;
+  if (captured.checkpoint === 'project-created') {
+    onStage(GENERATION_STEPS[0]);
+    const paper = await parsePaper(resource, data.paper, signal);
+    const project = await saveStage(captured, { checkpoint: 'pdf-parsed', paper }, signal);
+    data = { ...data, project, paper };
+    onSaved(data);
+  }
+  if (data.project.checkpoint === 'pdf-parsed') {
+    onStage(GENERATION_STEPS[1]);
+    const paper = await analyzeFigures(data.paper, resource, settings, signal);
+    const project = await saveStage(data.project, { checkpoint: 'figures-ready', paper }, signal);
+    data = { ...data, project, paper };
+    onSaved(data);
+  }
+  if (data.project.checkpoint === 'figures-ready') {
+    onStage(GENERATION_STEPS[2]);
+    const result = await understandPaper(data.paper, settings, data.project.preferences.instruction, signal);
+    const project = await saveStage(data.project, { checkpoint: 'paper-ready', ...result }, signal);
+    data = { ...data, project, paper: result.paper };
     onSaved(data);
   }
   return data;
+}
+
+export async function prepareOutline(
+  initial: ProjectData,
+  settings: ModelSettings,
+  signal: AbortSignal,
+  onStage: (stage: string) => void = () => {},
+  preferences: Project['preferences'] = initial.project.preferences,
+): Promise<ProjectData> {
+  if (!['paper-ready', 'deck-ready'].includes(initial.project.checkpoint))
+    throw new Error('论文尚未完成理解，不能规划大纲');
+  const base =
+    initial.project.checkpoint === 'deck-ready' ? await captureGenerationBase(initial.project.id) : undefined;
+  onStage(GENERATION_STEPS[3]);
+  const { strategy } = researchPrompt(preferences.strategyId);
+  const plan = await planDeck(initial.paper, { ...preferences, strategyId: strategy.id }, settings, signal);
+  if (base) {
+    const planRecord = await saveCandidate(
+      {
+        recordVersion: 1,
+        projectId: initial.project.id,
+        mode: 'regeneration',
+        base,
+        plan,
+        preferences: { ...preferences, strategyId: strategy.id },
+      },
+      signal,
+    );
+    return { ...initial, plan, planRecord, candidateStale: false };
+  }
+  const project = await saveStage(initial.project, { checkpoint: 'deck-plan-ready', plan }, signal);
+  return { ...initial, project, plan };
+}
+
+export async function reanalyzePaper(
+  initial: ProjectData,
+  settings: ModelSettings,
+  signal: AbortSignal,
+  instruction: string,
+) {
+  const captured = structuredClone({ project: initial.project, paper: initial.paper, plan: initial.plan });
+  assertReanalysisAvailable(captured);
+  signal.throwIfAborted();
+  const { story, studyProfile, ...prepared } = captured.paper;
+  const result = await understandPaper({ ...prepared, claims: [], evidences: [] }, settings, instruction, signal);
+  const saved = await saveReanalysis({ captured, ...result, instruction, signal });
+  return { ...initial, ...saved, plan: undefined, planRecord: undefined, candidateStale: false };
+}
+
+export async function buildPresentation(
+  initial: ProjectData,
+  settings: ModelSettings,
+  signal: AbortSignal,
+  onStage: (stage: string) => void = () => {},
+): Promise<ProjectData> {
+  if (!['deck-plan-ready', 'deck-ready'].includes(initial.project.checkpoint) || !initial.plan)
+    throw new Error('请先确认有效的汇报计划');
+  if (initial.candidateStale) throw new Error('候选已过期，请放弃后重新规划');
+  if (initial.plan.status !== 'confirmed') throw new Error('未确认的汇报计划不能生成幻灯片');
+  const latest = await loadProject(initial.project.id);
+  if (
+    !latest.plan ||
+    latest.plan.id !== initial.plan.id ||
+    latest.plan.revision !== initial.plan.revision ||
+    latest.plan.status !== 'confirmed' ||
+    latest.candidateStale
+  )
+    throw new Error('大纲版本或候选基准已变化，请重新打开项目');
+  signal.throwIfAborted();
+  onStage(GENERATION_STEPS[4]);
+  const preferences = initial.planRecord?.preferences ?? initial.project.preferences;
+  const { strategy } = researchPrompt(preferences.strategyId);
+  const deck = await generateDeck(initial.plan, initial.paper, preferences, settings, signal);
+  const project =
+    initial.planRecord?.mode === 'regeneration'
+      ? await commitCandidate({ ...initial.planRecord, plan: initial.plan }, deck, signal)
+      : await saveStage(
+          initial.project,
+          {
+            checkpoint: 'deck-ready',
+            deck,
+            strategyId: strategy.id,
+            planId: initial.plan.id,
+            planRevision: initial.plan.revision,
+          },
+          signal,
+        );
+  return { ...initial, project, deck, plan: undefined, planRecord: undefined, candidateStale: false };
 }

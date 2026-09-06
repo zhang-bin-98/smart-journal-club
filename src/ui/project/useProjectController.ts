@@ -5,8 +5,14 @@ import { captureVersion, restorePrevious, saveRevision } from '../../modules/dec
 import { loadProject, updateProject, type ProjectData } from '../../modules/project/projectRepository';
 import { figureImage } from '../../modules/paper/sources';
 import { beginActivity, setDirty, type LeaveGuard, type RegisterLeaveGuard } from '../../app/activity';
-import { generateProject } from '../../modules/generation/runGeneration';
-import { regenerateProject } from '../../modules/generation/regenerateDeck';
+import {
+  buildPresentation,
+  prepareOutline,
+  preparePaper,
+  reanalyzePaper,
+} from '../../modules/generation/runGeneration';
+import { discardCandidate } from '../../modules/generation/candidateRepository';
+import { createReanalysisProject } from '../../modules/project/reanalysisRepository';
 import type { ModelSettings } from '../../shared/llm/model';
 import type { Project } from '../../modules/project/project.schema';
 import type { Deck, Element } from '../../modules/deck/deck.schema';
@@ -14,6 +20,10 @@ import type { PersistAssistantRevision } from '../../modules/assistant/revision/
 import { errorMessage } from '../controls';
 import type { SourceSelection } from '../SourceDialog';
 import type { OpenProject } from './useProjectWorkspace';
+import { OutlineSession } from '../../modules/outline/OutlineSession';
+import { savePlanRevision } from '../../modules/outline/outlineRepository';
+import { validatePlanNarrative } from '../../modules/outline/validateNarrative';
+import type { PlanMutation } from '../../modules/outline/outline.schema';
 
 /** 项目工作区控制器：Deck 会话与修订持久化、偏好保存队列、生成/重生成/恢复/导出任务及对话框状态。 */
 export function useProjectController(
@@ -29,20 +39,31 @@ export function useProjectController(
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [stage, setStage] = useState('');
-  const [warning, setWarning] = useState('');
   const [regeneration, setRegeneration] = useState(false);
-  const [operationKind, setOperationKind] = useState<'generate' | 'regenerate' | 'restore'>();
+  const [reanalysis, setReanalysis] = useState(false);
+  const [operationKind, setOperationKind] = useState<'generate' | 'regenerate' | 'restore' | 'reanalysis'>();
   const dataRef = useRef(data);
   dataRef.current = data;
   const instructionRef = useRef(instruction);
   const preferenceSave = useRef<Promise<Project> | undefined>(undefined);
   const editorLeave = useRef<LeaveGuard | undefined>(undefined);
+  const outlineLeave = useRef<LeaveGuard | undefined>(undefined);
+  const registerOutlineLeave = useCallback((guard?: LeaveGuard) => {
+    outlineLeave.current = guard;
+  }, []);
   const registerEditorLeave = useCallback((guard?: LeaveGuard) => {
     editorLeave.current = guard;
   }, []);
   const preferenceKey = `preferences-${data.project.id}`;
   const dialogKey = `project-dialog-${data.project.id}`;
   const parseTask = useRef<AbortController | undefined>(undefined);
+  const outlineRef = useRef<OutlineSession | undefined>(undefined);
+  if (data.plan && outlineRef.current?.current.id !== data.plan.id)
+    outlineRef.current = new OutlineSession(data.plan, data.paper, data.project.id, savePlanRevision);
+  if (!data.plan) outlineRef.current = undefined;
+  const outlineIssues = data.plan
+    ? validatePlanNarrative({ ...data.plan, status: 'confirmed', confirmedAt: Date.now() }, data.paper)
+    : undefined;
   const persistRevision: PersistAssistantRevision = (previous, next, record, options, messages) =>
     saveRevision(
       data.project.id,
@@ -75,7 +96,8 @@ export function useProjectController(
   const leave = useRef<LeaveGuard>(async () => {});
   leave.current = async () => {
     if (parseTask.current) throw new Error('请先完成或取消当前任务');
-    if (source || regeneration) throw new Error('请先应用或取消当前对话框中的操作');
+    if (source || regeneration || reanalysis) throw new Error('请先应用或取消当前对话框中的操作');
+    await outlineLeave.current?.();
     if (session) await editorLeave.current?.();
     else await savePreferences();
   };
@@ -98,6 +120,10 @@ export function useProjectController(
   function openRegeneration(value: boolean) {
     setDirty(dialogKey, value);
     setRegeneration(value);
+  }
+  function openReanalysis(value: boolean) {
+    setDirty(dialogKey, value);
+    setReanalysis(value);
   }
   function changeInstruction(value: string) {
     instructionRef.current = value;
@@ -154,39 +180,43 @@ export function useProjectController(
     const current = () => !signal.aborted && parseTask.current === task;
     openRegeneration(false);
     try {
-      if (session) {
+      if (dataRef.current.plan) {
+        const next = await buildPresentation(dataRef.current, settings, signal, (label) => {
+          if (current()) setStage(label);
+        });
+        if (!controller.signal.aborted) acceptData(next);
+      } else if (session) {
         const initial = { ...dataRef.current, deck: session.current };
-        const next = await regenerateProject(
+        const next = await prepareOutline(
           initial,
-          { ...initial.project.preferences, instruction: nextInstruction ?? initial.project.preferences.instruction },
           settings,
           signal,
           (label) => {
             if (current()) setStage(label);
           },
-          (message) => {
-            if (current()) setWarning(message);
-          },
-          current,
+          { ...initial.project.preferences, instruction: nextInstruction ?? initial.project.preferences.instruction },
         );
         if (!controller.signal.aborted) acceptData(next);
       } else {
         const project = await savePreferences();
-        await generateProject(
-          { ...dataRef.current, project },
-          resource!,
-          settings,
-          signal,
-          (label) => {
-            if (current()) setStage(label);
-          },
-          (saved) => {
-            if (!controller.signal.aborted) acceptData(saved);
-          },
-          (message) => {
-            if (current()) setWarning(message);
-          },
-        );
+        const initial = { ...dataRef.current, project };
+        const onStage = (label: string) => {
+          if (current()) setStage(label);
+        };
+        let next: ProjectData;
+        switch (initial.project.checkpoint) {
+          case 'paper-ready':
+            next = await prepareOutline(initial, settings, signal, onStage);
+            break;
+          case 'deck-plan-ready':
+            next = await buildPresentation(initial, settings, signal, onStage);
+            break;
+          default:
+            next = await preparePaper(initial, resource!, settings, signal, onStage, (saved) => {
+              if (!controller.signal.aborted) acceptData(saved);
+            });
+        }
+        if (!controller.signal.aborted) acceptData(next);
       }
     } catch (cause) {
       if (!controller.signal.aborted)
@@ -208,6 +238,47 @@ export function useProjectController(
       }
     }
   }
+  async function reanalyze(nextInstruction: string) {
+    if (parseTask.current || !resource || !online || !settings.apiKey.trim()) return;
+    const task = new AbortController();
+    parseTask.current = task;
+    const done = beginActivity();
+    setBusy(true);
+    setError('');
+    setStage('重新理解研究内容');
+    setOperationKind('reanalysis');
+    openReanalysis(false);
+    try {
+      await outlineLeave.current?.();
+      await editorLeave.current?.();
+      await preferenceSave.current;
+      if (dataRef.current.project.currentDeckId) {
+        const project = await createReanalysisProject(
+          dataRef.current.project.id,
+          nextInstruction,
+          AbortSignal.any([controller.signal, task.signal]),
+        );
+        return project.id;
+      }
+      const next = await reanalyzePaper(
+        dataRef.current,
+        settings,
+        AbortSignal.any([controller.signal, task.signal]),
+        nextInstruction,
+      );
+      if (!controller.signal.aborted) acceptData(next);
+    } catch (cause) {
+      if (!controller.signal.aborted)
+        setError(task.signal.aborted ? '已取消重新分析，原论文理解和计划均保留。' : errorMessage(cause));
+    } finally {
+      parseTask.current = undefined;
+      if (!controller.signal.aborted) {
+        setBusy(false);
+        setOperationKind(undefined);
+      }
+      done();
+    }
+  }
   async function restore(deck: Deck) {
     if (parseTask.current) return;
     const task = new AbortController();
@@ -223,7 +294,7 @@ export function useProjectController(
         signal,
         () => !signal.aborted && parseTask.current === task,
       );
-      if (!controller.signal.aborted) acceptData({ ...dataRef.current, ...result, plan: undefined });
+      if (!controller.signal.aborted) acceptData(await loadProject(result.project.id));
     } catch (cause) {
       if (!controller.signal.aborted) setError(errorMessage(cause));
     } finally {
@@ -239,6 +310,91 @@ export function useProjectController(
   }
   function cancelTask() {
     parseTask.current?.abort();
+  }
+  async function editOutline(mutations: PlanMutation[] | 'undo' | 'redo') {
+    const outline = outlineRef.current;
+    if (!outline || parseTask.current || dataRef.current.candidateStale) return false;
+    const task = new AbortController();
+    parseTask.current = task;
+    const done = beginActivity();
+    setBusy(true);
+    setError('');
+    try {
+      const options = { signal: AbortSignal.any([task.signal, controller.signal]) };
+      if (mutations === 'undo' || mutations === 'redo') await outline[mutations](options);
+      else await outline.commit({ ...outline.capture(), mutations }, options);
+      if (controller.signal.aborted) return false;
+      const plan = outline.current;
+      acceptData({
+        ...dataRef.current,
+        plan,
+        planRecord: dataRef.current.planRecord ? { ...dataRef.current.planRecord, plan } : undefined,
+      });
+      return true;
+    } catch (cause) {
+      if (!controller.signal.aborted) setError(errorMessage(cause));
+      return false;
+    } finally {
+      if (parseTask.current === task) parseTask.current = undefined;
+      if (!controller.signal.aborted) setBusy(false);
+      done();
+    }
+  }
+  async function confirmOutline(warningsAccepted: boolean) {
+    const outline = outlineRef.current;
+    if (!outline || parseTask.current) return;
+    const task = new AbortController();
+    parseTask.current = task;
+    const done = beginActivity();
+    setBusy(true);
+    setError('');
+    try {
+      await outlineLeave.current?.();
+      const signal = AbortSignal.any([task.signal, controller.signal]);
+      const plan = await outline.confirm(outline.capture(), { signal, warningsAccepted });
+      if (!controller.signal.aborted) acceptData({ ...dataRef.current, plan });
+    } catch (cause) {
+      if (!controller.signal.aborted) setError(errorMessage(cause));
+    } finally {
+      if (parseTask.current === task) parseTask.current = undefined;
+      if (!controller.signal.aborted) setBusy(false);
+      done();
+    }
+  }
+  async function discardOutline() {
+    const plan = dataRef.current.plan;
+    if (!plan || parseTask.current) return;
+    try {
+      await discardCandidate(dataRef.current.project.id, plan.id, plan.revision);
+      acceptData({ ...dataRef.current, plan: undefined, planRecord: undefined, candidateStale: false });
+    } catch (cause) {
+      setError(errorMessage(cause));
+    }
+  }
+  async function refreshOutline() {
+    if (parseTask.current) return false;
+    try {
+      await outlineLeave.current?.();
+      await editorLeave.current?.();
+      await savePreferences();
+      const latest = await loadProject(dataRef.current.project.id);
+      if (controller.signal.aborted) return false;
+      if (latest.plan && outlineRef.current?.current.revision !== latest.plan.revision)
+        outlineRef.current = new OutlineSession(latest.plan, latest.paper, latest.project.id, savePlanRevision);
+      acceptData({
+        ...latest,
+        deck:
+          latest.deck?.id === session?.current.id && latest.deck?.revision === session?.current.revision
+            ? session
+              ? structuredClone(session.current)
+              : latest.deck
+            : latest.deck,
+      });
+      return true;
+    } catch (cause) {
+      setError(errorMessage(cause));
+      return false;
+    }
   }
   async function exportPresentation(deck: Deck) {
     if (!resource && deck.slides.some((slide) => slide.elements.some((element) => element.type === 'figure')))
@@ -266,12 +422,22 @@ export function useProjectController(
     error,
     busy,
     stage,
-    warning,
     operationKind,
     session,
     image,
     persistRevision,
     generate,
+    reanalyze,
+    reanalysis,
+    openReanalysis,
+    confirmOutline,
+    discardOutline,
+    refreshOutline,
+    outlineIssues,
+    editOutline,
+    registerOutlineLeave,
+    outlineCanUndo: outlineRef.current?.canUndo ?? false,
+    outlineCanRedo: outlineRef.current?.canRedo ?? false,
     restore,
     cancelTask,
     exportPresentation,

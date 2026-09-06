@@ -9,12 +9,20 @@ import { requestJson, type ModelSettings } from '../../shared/llm/model';
 import { prompts, researchPrompt } from '../../shared/llm/prompts';
 import { layoutRules } from '../deck/layoutRules';
 import { paperContext } from './planDeck';
+import { validateBuiltDeckAgainstPlan } from './validateBuiltDeckAgainstPlan';
+import { validatePlanNarrative } from '../outline/validateNarrative';
+
+export function assertBuildablePlan(plan: DeckPlan, paper: Paper) {
+  validatePlan(plan, paper);
+  if (plan.status !== 'confirmed') throw new Error('请先确认学术大纲');
+  if (validatePlanNarrative(plan, paper).errors.length) throw new Error('大纲仍有错误，请返回大纲修正');
+}
 
 export const GenerationOutputSchema = z.strictObject({
   slides: z.array(SlideSchema.pick({ id: true, elements: true })).min(1),
 });
 export function assembleDeck(plan: DeckPlan, raw: unknown, paper: Paper): Deck {
-  validatePlan(plan, paper);
+  assertBuildablePlan(plan, paper);
   const output = GenerationOutputSchema.parse(raw);
   if (
     output.slides.length !== plan.slides.length ||
@@ -51,6 +59,8 @@ export function assembleDeck(plan: DeckPlan, raw: unknown, paper: Paper): Deck {
   });
   const errors = validateDeck(deck, paper);
   if (errors.length) throw new Error(`幻灯片未通过校验：${errors.join('；')}`);
+  const contractErrors = validateBuiltDeckAgainstPlan(deck, plan);
+  if (contractErrors.length) throw new Error(`幻灯片未遵循确认计划：${contractErrors.join('；')}`);
   return deck;
 }
 export async function generateDeck(
@@ -60,6 +70,7 @@ export async function generateDeck(
   settings: ModelSettings,
   signal: AbortSignal,
 ) {
+  assertBuildablePlan(plan, paper);
   const { strategy } = researchPrompt(preferences.strategyId);
   const raw = await requestJson(
     settings,

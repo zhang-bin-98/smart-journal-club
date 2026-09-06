@@ -27,12 +27,23 @@ const model: Model<'openai-completions'> = {
 };
 const MAX_REQUEST_BYTES = 8 * 1024 * 1024;
 export class ModelError extends Error {
+  readonly recovery = '检查模型设置或返回当前步骤重试。';
   constructor(
     public readonly stage: string,
     public readonly code: string,
     message: string,
   ) {
     super(message);
+  }
+}
+/** 仅供固定 workflow 的一次修复使用，不将模型原始结果作为 UI 错误消息。 */
+export class ModelOutputError extends ModelError {
+  constructor(
+    stage: string,
+    readonly failedOutput: unknown,
+    readonly diagnostics: { code: string; path: string; message: string }[],
+  ) {
+    super(stage, 'invalid-output', '模型输出不符合本阶段数据要求，最近保存的成果仍保留，请重试。');
   }
 }
 function failure(stage: string, status?: number) {
@@ -162,13 +173,25 @@ export async function requestJson<T extends z.ZodType>(
     16384,
     'submit_result',
   );
-  try {
-    const calls = response.content.filter((block) => block.type === 'toolCall');
-    if (calls.length !== 1 || calls[0].name !== 'submit_result') throw new Error('缺少完整结果');
-    return schema.parse(calls[0].arguments.result);
-  } catch {
-    throw new ModelError(stage, 'invalid-output', '模型输出不符合本阶段数据要求，最近保存的成果仍保留，请重试。');
+  const calls = response.content.filter((block) => block.type === 'toolCall');
+  if (calls.length !== 1 || calls[0].name !== 'submit_result') {
+    throw new ModelOutputError(stage, null, [
+      { code: 'missing-result', path: '', message: '须返回一次 submit_result' },
+    ]);
   }
+  const raw = calls[0].arguments.result;
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success)
+    throw new ModelOutputError(
+      stage,
+      raw,
+      parsed.error.issues.map((issue) => ({
+        code: issue.code,
+        path: issue.path.map(String).join('.'),
+        message: issue.message,
+      })),
+    );
+  return parsed.data;
 }
 export async function checkConnection(settings: ModelSettings, signal: AbortSignal) {
   await requestJson(

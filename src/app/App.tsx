@@ -124,6 +124,9 @@ export function App() {
           <ProjectPage
             key={projectId}
             id={decodeURIComponent(projectId)}
+            onOpenProject={(id) => {
+              void navigate(`#/project/${encodeURIComponent(id)}`);
+            }}
             settings={settings}
             onSettings={openSettings}
             onLeave={() => {

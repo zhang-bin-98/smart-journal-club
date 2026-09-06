@@ -45,3 +45,33 @@ export const DeckPlanSchema = z.discriminatedUnion('status', [
   z.strictObject({ ...DeckPlanShape, status: z.literal('confirmed'), confirmedAt: z.number().int().nonnegative() }),
 ]);
 export type DeckPlan = z.infer<typeof DeckPlanSchema>;
+
+const id = z.string().min(1);
+const SectionPatchSchema = PlannedSectionSchema.pick({ title: true, purpose: true, transitionToNext: true })
+  .partial()
+  .refine((patch) => Object.values(patch).some((value) => value !== undefined), '修改不能为空');
+const SlidePlanPatchSchema = PlannedSlideSchema.omit({ id: true, sectionId: true })
+  .partial()
+  .refine((patch) => Object.values(patch).some((value) => value !== undefined), '修改不能为空');
+export const PlanMutationSchema = z.discriminatedUnion('type', [
+  z.strictObject({ type: z.literal('add-section'), section: PlannedSectionSchema, afterSectionId: id.nullable() }),
+  z.strictObject({ type: z.literal('delete-section'), sectionId: id }),
+  z.strictObject({ type: z.literal('update-section'), sectionId: id, patch: SectionPatchSchema }),
+  z.strictObject({ type: z.literal('move-section'), sectionId: id, afterSectionId: id.nullable() }),
+  z.strictObject({ type: z.literal('set-slide-budget'), sectionId: id, slideBudget: z.number().int().nonnegative() }),
+  z.strictObject({ type: z.literal('update-slide'), slideId: id, patch: SlidePlanPatchSchema }),
+  z.strictObject({ type: z.literal('add-slide'), slide: PlannedSlideSchema, afterSlideId: id.nullable() }),
+  z.strictObject({ type: z.literal('delete-slide'), slideId: id }),
+  z.strictObject({ type: z.literal('move-slide'), slideId: id, targetSectionId: id, afterSlideId: id.nullable() }),
+  z.strictObject({ type: z.literal('set-claim-emphasis'), claimId: id, emphasis: z.enum(ClaimEmphasises).nullable() }),
+]);
+export type PlanMutation = z.infer<typeof PlanMutationSchema>;
+export const PlanRequestSchema = z.strictObject({
+  requestId: id,
+  projectId: id,
+  planId: id,
+  baseRevision: z.number().int().nonnegative(),
+});
+export type PlanRequest = z.infer<typeof PlanRequestSchema>;
+export const PlanCommitRequestSchema = PlanRequestSchema.extend({ mutations: z.array(PlanMutationSchema).min(1) });
+export type PlanCommitRequest = z.infer<typeof PlanCommitRequestSchema>;

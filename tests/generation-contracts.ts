@@ -12,6 +12,30 @@ import {
 } from '../src/modules/project/projectRepository';
 import type { DeckPlan } from '../src/modules/outline/outline.schema';
 import type { Paper } from '../src/modules/paper/paper.schema';
+import { narrativePlan } from './narrative-fixture';
+import { OutlineSession } from '../src/modules/outline/OutlineSession';
+import { savePlanRevision } from '../src/modules/outline/outlineRepository';
+
+export function fixedOutline(paper: Paper): DeckPlan {
+  const plan = narrativePlan();
+  plan.paperId = paper.id;
+  plan.title = paper.metadata.title ?? plan.title;
+  plan.slides = plan.slides.map((slide) => ({
+    ...slide,
+    claimIds: slide.kind === 'result' ? [paper.claims[0].id] : [],
+    sourceIds: slide.kind === 'result' ? paper.sources.map((source) => source.id) : [],
+    figures: slide.figures.map(() => ({ figureId: paper.figures[0].id })),
+  }));
+  const secondResult = plan.slides.filter((slide) => slide.kind === 'result')[1];
+  secondResult.layoutId = 'figure-full';
+  secondResult.figures = [{ figureId: paper.figures[0].id }];
+  return plan;
+}
+
+export function fixedPlanningContent(paper: Paper) {
+  const { title, language, sections, slides, claimEmphasis } = fixedOutline(paper);
+  return { title, language, sections, slides, claimEmphasis };
+}
 
 const assert = (value: unknown, message: string) => {
   if (!value) throw new Error(message);
@@ -50,6 +74,15 @@ export function fixedPlan(paper: Paper): DeckPlan {
   };
 }
 export function fixedSlides(plan: DeckPlan) {
+  if (plan.slides.length !== fixtureDeck.slides.length)
+    return {
+      slides: plan.slides.map((slide) => ({
+        id: slide.id,
+        elements: slide.figures.length
+          ? slide.figures.map((figure, index) => ({ id: `${slide.id}-figure-${index}`, type: 'figure', ...figure }))
+          : [{ id: `${slide.id}-text`, type: 'text', text: slide.message || slide.title }],
+      })),
+    };
   return {
     slides: plan.slides.map((slide, index) => {
       let figureIndex = 0;
@@ -73,19 +106,22 @@ export async function runGenerationContracts() {
   project = await saveStage(project, { checkpoint: 'pdf-parsed', paper }, signal);
   project = await saveStage(project, { checkpoint: 'figures-ready', paper }, signal);
   project = await saveStage(project, { checkpoint: 'paper-ready', paper, strategyId: 'general' }, signal);
-  const plan = fixedPlan(paper);
+  let plan = fixedOutline(paper);
   const raw = fixedSlides(plan);
-  await rejected(() => validatePlan({ ...plan, slides: [] }, paper));
+  assert(validatePlan({ ...plan, slides: [] }, paper).slides.length === 0, '空页大纲可保存为草稿');
   await rejected(() => validatePlan({ ...plan, paperId: 'other' }, paper));
   const invalid = structuredClone(plan);
-  invalid.slides[1].figures[0].panelId = 'missing';
+  invalid.slides.find((slide) => slide.figures.length)!.figures[0].panelId = 'missing';
   await rejected(() => validatePlan(invalid, paper));
   await rejected(() => assembleDeck(plan, { slides: raw.slides.slice(1) }, paper));
   const beforePlan = project;
   project = await saveStage(project, { checkpoint: 'deck-plan-ready', plan }, signal);
-  assert((await loadProject(project.id)).plan?.slides.length === 3, '完整计划应可重开');
+  assert((await loadProject(project.id)).plan?.slides.length === plan.slides.length, '完整计划应可重开');
   await rejected(() => saveStage(beforePlan, { checkpoint: 'deck-plan-ready', plan }, signal));
-  const deck = assembleDeck(plan, raw, paper);
+  const outline = new OutlineSession(plan, paper, project.id, savePlanRevision);
+  plan = await outline.confirm(outline.capture());
+  let binding = { planId: plan.id, planRevision: plan.revision };
+  let deck = assembleDeck(plan, raw, paper);
   assert(deck.slides[0].elements[0].id !== raw.slides[0].elements[0].id, '元素 ID 由应用创建');
   const originalAdd = IDBObjectStore.prototype.add;
   IDBObjectStore.prototype.add = function (...args) {
@@ -93,7 +129,9 @@ export async function runGenerationContracts() {
     return originalAdd.apply(this, args);
   };
   try {
-    await rejected(() => saveStage(project, { checkpoint: 'deck-ready', deck, strategyId: 'general' }, signal));
+    await rejected(() =>
+      saveStage(project, { checkpoint: 'deck-ready', deck, strategyId: 'general', ...binding }, signal),
+    );
   } finally {
     IDBObjectStore.prototype.add = originalAdd;
   }
@@ -106,15 +144,30 @@ export async function runGenerationContracts() {
   };
   try {
     await rejected(() =>
-      saveStage(project, { checkpoint: 'deck-ready', deck, strategyId: 'general' }, cancelled.signal),
+      saveStage(project, { checkpoint: 'deck-ready', deck, strategyId: 'general', ...binding }, cancelled.signal),
     );
   } finally {
     IDBObjectStore.prototype.add = originalAdd;
   }
   assert(!(await loadProject(project.id)).deck, '提交期间取消必须回滚整个阶段');
-  const ready = await saveStage(project, { checkpoint: 'deck-ready', deck, strategyId: 'general' }, signal);
+  await outline.commit({
+    ...outline.capture(),
+    mutations: [{ type: 'update-section', sectionId: plan.sections[0].id, patch: { title: '临时章节' } }],
+  });
+  await outline.undo();
+  plan = await outline.confirm(outline.capture());
+  await rejected(() =>
+    saveStage(project, { checkpoint: 'deck-ready', deck, strategyId: 'general', ...binding }, signal),
+  );
+  assert((await loadProject(project.id)).plan?.revision === plan.revision, '旧构建不得消费再次确认后的计划');
+  binding = { planId: plan.id, planRevision: plan.revision };
+  deck = assembleDeck(plan, raw, paper);
+  const ready = await saveStage(project, { checkpoint: 'deck-ready', deck, strategyId: 'general', ...binding }, signal);
   const opened = await loadProject(project.id);
-  assert(ready.currentDeckId === deck.id && opened.deck?.slides.length === 3 && !opened.plan, '完成后只保留 Current');
+  assert(
+    ready.currentDeckId === deck.id && opened.deck?.slides.length === plan.slides.length && !opened.plan,
+    '完成后只保留 Current',
+  );
   const remainingPlan = await new Promise((resolve) => {
     const r = indexedDB.open('smartjc', 1);
     r.onsuccess = () => {
@@ -128,7 +181,9 @@ export async function runGenerationContracts() {
   assert(!remainingPlan, '临时计划记录必须物理删除');
   await checkVersions(opened);
   await deleteProject(project.id);
-  await rejected(() => saveStage(project, { checkpoint: 'deck-ready', deck, strategyId: 'general' }, signal));
+  await rejected(() =>
+    saveStage(project, { checkpoint: 'deck-ready', deck, strategyId: 'general', ...binding }, signal),
+  );
   return 'PASS: plan/source validation/complete assembly/atomic failure/cancel during write/plan cleanup/stale and deleted stage/regeneration atomicity/previous swap and cleanup';
 }
 async function storedDeckIds(projectId: string) {
@@ -162,10 +217,9 @@ async function checkVersions(initial: ProjectData) {
   const original = initial.deck!;
   const signal = new AbortController().signal;
   const captured = captureVersion(initial.project, original);
-  const nextDeck = () => {
-    const plan = fixedPlan(paper);
-    return assembleDeck(plan, fixedSlides(plan), paper);
-  };
+  const nextPlanSession = new OutlineSession(fixedOutline(paper), paper, initial.project.id);
+  const confirmed = await nextPlanSession.confirm(nextPlanSession.capture());
+  const nextDeck = () => assembleDeck(confirmed, fixedSlides(confirmed), paper);
   const preferences = {
     ...initial.project.preferences,
     instruction: '重新生成时采用新的汇报重点',

@@ -3,7 +3,16 @@ import type { Deck, RevisionRecord } from '../../modules/deck/deck.schema';
 import { request } from './indexedDb';
 
 // history store 同时保存 assistant 可见对话与 deck 修订记录；裁剪与写入校验是共享的持久化契约。
-export type HistoryEntry = RevisionRecord | ChatMessage;
+type PlanRevisionReceipt = {
+  kind: 'plan-revision';
+  id: string;
+  projectId: string;
+  planId: string;
+  baseRevision: number;
+  committedRevision: number;
+  createdAt: number;
+};
+export type HistoryEntry = RevisionRecord | ChatMessage | PlanRevisionReceipt;
 export function isMessage(item: HistoryEntry): item is ChatMessage {
   return 'role' in item;
 }
