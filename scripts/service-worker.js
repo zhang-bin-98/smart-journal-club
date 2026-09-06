@@ -2,7 +2,7 @@ const VERSION = __SMARTJC_VERSION__;
 const FILES = __SMARTJC_FILES__;
 const INTEGRITY = __SMARTJC_INTEGRITY__;
 const ROOT = new URL('./', self.location.href);
-const PREFIX = 'smartjc-static:' + ROOT.pathname + ':';
+const PREFIX = `smartjc-static:${ROOT.pathname}:`;
 const CACHE = PREFIX + VERSION;
 const URLS = FILES.map(file => new URL(file, ROOT).href);
 self.addEventListener('install', event => {
@@ -23,9 +23,9 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   const request = event.request; const url = new URL(request.url);
   if (request.method !== 'GET' || url.origin !== ROOT.origin || !url.pathname.startsWith(ROOT.pathname) || request.headers.has('authorization')) return;
-  const navigation = request.mode === 'navigate' && (url.pathname === ROOT.pathname || url.pathname === ROOT.pathname + 'index.html');
+  const navigation = request.mode === 'navigate' && (url.pathname === ROOT.pathname || url.pathname === `${ROOT.pathname}index.html`);
   const key = navigation ? new URL('index.html', ROOT).href : url.origin + url.pathname;
-  if (!navigation && !URLS.includes(key) && !url.pathname.startsWith(ROOT.pathname + 'assets/')) return;
+  if (!navigation && !URLS.includes(key) && !url.pathname.startsWith(`${ROOT.pathname}assets/`)) return;
   event.respondWith((async () => {
     const current = await caches.open(CACHE);
     const cached = await current.match(key);
@@ -50,7 +50,7 @@ self.addEventListener('message', event => {
     event.waitUntil((async () => {
       try {
         const response = await fetch(new Request(self.location.href, { cache: 'no-store' }));
-        if (!response.ok || !(await response.text()).startsWith('const VERSION = ' + JSON.stringify(VERSION) + ';')) { reply({ ready: false, updateRequired: true }); return; }
+        if (!response.ok || !(await response.text()).startsWith(`const VERSION = ${JSON.stringify(VERSION)};`)) { reply({ ready: false, updateRequired: true }); return; }
         await (await caches.open(CACHE)).addAll(FILES.map(file => new Request(new URL(file, ROOT), { cache: 'reload', integrity: INTEGRITY[file] }))); reply({ ready: true }); }
       catch { reply({ ready: false }); }
     })());

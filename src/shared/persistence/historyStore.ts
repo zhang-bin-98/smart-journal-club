@@ -11,5 +11,5 @@ export function assertMessage(message: ChatMessage, projectId: string, deck: Dec
 export async function trimHistory(tx: IDBTransaction, projectId: string) {
   const history = (await request(tx.objectStore('history').getAll()) as HistoryEntry[]).filter(item => item.projectId === projectId).sort((a, b) => b.createdAt - a.createdAt);
   // 请求标识单独保留，避免普通对话挤掉最近的修改去重记录。
-  for (const items of [history.filter(isMessage), history.filter(item => !isMessage(item))]) items.slice(100).forEach(item => tx.objectStore('history').delete(item.id));
+  for (const items of [history.filter(isMessage), history.filter((item) => !isMessage(item))]) items.slice(100).forEach((item) => { tx.objectStore('history').delete(item.id); });
 }

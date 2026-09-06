@@ -1,7 +1,7 @@
 import { get, request, stored, stores, transaction } from '../../shared/persistence/indexedDb';
 import { ProjectSchema, type PdfAsset, type Project } from './project.schema';
 import { PaperSchema, type Paper } from '../paper/paper.schema';
-import { DeckSchema, RevisionRecordSchema, type Deck, type RevisionRecord } from '../deck/deck.schema';
+import { DeckSchema, type Deck, type RevisionRecord } from '../deck/deck.schema';
 import { DeckPlanSchema, type DeckPlan } from '../outline/outline.schema';
 import { validatePlan } from '../outline/validatePlan';
 import { validateDeck } from '../deck/validateDeck';
@@ -53,7 +53,7 @@ export function updateProject(id: string, changes: Partial<Pick<Project, 'name' 
     const project = await projectIn(tx, id);
     if ('lastOpenedSlideId' in changes && changes.lastOpenedSlideId) {
       const deck = project.currentDeckId ? stored(DeckSchema, await get(tx, 'decks', project.currentDeckId), '当前幻灯片') : undefined;
-      if (!deck || !deck.slides.some(slide => slide.id === changes.lastOpenedSlideId)) throw new Error('当前页已变化，请重新打开项目');
+      if (!deck?.slides.some(slide => slide.id === changes.lastOpenedSlideId)) throw new Error('当前页已变化，请重新打开项目');
     }
     const next = ProjectSchema.parse({ ...project, ...changes, nameIsCustom: 'name' in changes ? true : project.nameIsCustom, updatedAt: Date.now() });
     tx.objectStore('projects').put(next, id); return next;
@@ -66,7 +66,7 @@ export function deleteProject(id: string) {
     if (project.currentDeckId) tx.objectStore('decks').delete(project.currentDeckId);
     if (project.previousDeckId) tx.objectStore('decks').delete(project.previousDeckId);
     const history = await request(tx.objectStore('history').getAll()) as RevisionRecord[];
-    history.filter(item => item.projectId === id).forEach(item => tx.objectStore('history').delete(item.id));
+    history.filter((item) => item.projectId === id).forEach((item) => { tx.objectStore('history').delete(item.id); });
   });
 }
 
@@ -89,7 +89,7 @@ export function saveStage(captured: StageCapture, output: StageOutput, signal: A
     if (output.checkpoint === 'deck-ready') {
       const plan = validatePlan(stored(DeckPlanSchema, await get(tx, 'plans', project.id), '汇报计划'), paper);
       const errors = validateDeck(output.deck, paper);
-      if (errors.length || !output.deck.slides.length || output.deck.revision !== 0 || output.deck.slides.length !== plan.slides.length || output.deck.slides.some((slide, i) => slide.id !== plan.slides[i].id)) throw new Error('完整幻灯片或计划关联无效：' + errors.join('；'));
+      if (errors.length || !output.deck.slides.length || output.deck.revision !== 0 || output.deck.slides.length !== plan.slides.length || output.deck.slides.some((slide, i) => slide.id !== plan.slides[i].id)) throw new Error(`完整幻灯片或计划关联无效：${errors.join('；')}`);
     }
     signal.throwIfAborted();
     const next: Project = { ...project, name: !project.nameIsCustom && paper.metadata.title ? paper.metadata.title : project.name, checkpoint: output.checkpoint, updatedAt: Date.now() };

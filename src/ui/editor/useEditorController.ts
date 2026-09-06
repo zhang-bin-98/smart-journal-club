@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { createSlide } from '../../modules/deck/mutations';
-import { DeckSession } from '../../modules/deck/DeckSession';
+import type { DeckSession } from '../../modules/deck/DeckSession';
 import type { DeckMutation, RevisionScope } from '../../modules/deck/deck.schema';
 import type { Deck, Element } from '../../modules/deck/deck.schema';
 import type { Paper } from '../../modules/paper/paper.schema';
@@ -43,7 +43,7 @@ export function useEditorController({ session, paper, readOnly, resourceAvailabl
     active.current = true;
     const beforeUnload = (event: BeforeUnloadEvent) => { if (draft.current || pending.current) event.preventDefault(); };
     window.addEventListener('beforeunload', beforeUnload);
-    return () => { active.current = false; setDirty(dirtyKey, false); setDirty(dirtyKey + '-panels', false); window.removeEventListener('beforeunload', beforeUnload); };
+    return () => { active.current = false; setDirty(dirtyKey, false); setDirty(`${dirtyKey}-panels`, false); window.removeEventListener('beforeunload', beforeUnload); };
   }, [dirtyKey]);
   const leave = useRef<LeaveGuard>(async () => {});
   leave.current = async () => {

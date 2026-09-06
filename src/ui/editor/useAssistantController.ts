@@ -36,6 +36,7 @@ export function useAssistantController({ session, paper, settings, projectId, pr
     mounted.current = true;
     return () => { mounted.current = false; task.current?.abort(); task.current = undefined; registerCancel(); onBusyChange(false); };
   }, [registerCancel, onBusyChange]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: historyAttempt 驱动读取失败后的手动重试
   useEffect(() => {
     let active = true;
     if (!projectId) { setLoading(false); return; }
@@ -45,6 +46,7 @@ export function useAssistantController({ session, paper, settings, projectId, pr
     });
     return () => { active = false; };
   }, [projectId, historyAttempt]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 依赖即触发条件，消息或状态变化时滚动到底部
   useEffect(() => { messageList.current?.scrollTo({ top: messageList.current.scrollHeight }); }, [messages, pendingMessage, busy, error]);
   function cancel(reason?: 'manual') {
     const controller = task.current;

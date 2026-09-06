@@ -84,7 +84,7 @@ export async function runAiContracts() {
     try { await rejected(() => session.applyRevision(capture(project.id, session.current), batch, { isTaskActive: () => active }), '事务写入期间失效必须回滚'); }
     finally { IDBObjectStore.prototype.put = originalPut; }
     assert(JSON.stringify((await loadProject(project.id)).deck) === stable && !session.canUndo, '取消和失效不得前进内容或撤销栈');
-    const conversation = Array.from({ length: 105 }, (_, index): ChatMessage => ({ id: crypto.randomUUID(), projectId: project.id, deckId: deck.id, baseRevision: session.current.revision, role: 'assistant', text: '固定回答 ' + index, createdAt: Date.now() + index + 100 }));
+    const conversation = Array.from({ length: 105 }, (_, index): ChatMessage => ({ id: crypto.randomUUID(), projectId: project.id, deckId: deck.id, baseRevision: session.current.revision, role: 'assistant', text: `固定回答 ${index}`, createdAt: Date.now() + index + 100 }));
     await saveConversation(project.id, conversation);
     const history = await loadHistory(project.id);
     assert(history.length === 100 && history[0].text === '固定回答 5' && history.at(-1)?.text === '固定回答 104', '可见历史仅保留最近 100 条');
@@ -108,8 +108,8 @@ export async function runAiContracts() {
 type WireSchema = { properties?: Record<string, WireSchema>; const?: unknown; enum?: unknown[]; items?: WireSchema };
 type WireRequest = { tools: { function: { name: string; parameters?: WireSchema } }[]; messages: { role: string; content?: string }[] };
 function event(delta: unknown, reason: string) {
-  const chunk = (value: unknown, finish_reason: string | null) => 'data: ' + JSON.stringify({ id: 'fixed-ai', object: 'chat.completion.chunk', choices: [{ index: 0, delta: value, finish_reason }] }) + '\n\n';
-  return new Response(chunk({ role: 'assistant', ...(delta as object) }, null) + chunk({}, reason) + 'data: [DONE]\n\n', { headers: { 'Content-Type': 'text/event-stream' } });
+  const chunk = (value: unknown, finish_reason: string | null) => `data: ${JSON.stringify({ id: 'fixed-ai', object: 'chat.completion.chunk', choices: [{ index: 0, delta: value, finish_reason }] })}\n\n`;
+  return new Response(`${chunk({ role: 'assistant', ...(delta as object) }, null) + chunk({}, reason)}data: [DONE]\n\n`, { headers: { 'Content-Type': 'text/event-stream' } });
 }
 function call(name: string, args: unknown) {
   return event({ tool_calls: [{ index: 0, id: crypto.randomUUID(), type: 'function', function: { name: name.replaceAll('.', '__'), arguments: JSON.stringify(args) } }] }, 'tool_calls');
@@ -170,7 +170,7 @@ async function runAiModelContracts() {
       if (failure === 'duplicate') return call('deck.apply_revision', local);
       if (failure === 'stale') await session.commit({ type: 'slides', slideIds: ['slide-3'] }, [{ type: 'update-slide', slideId: 'slide-3', changes: { title: '新的手工内容' } }], '手工修改');
       return answer();
-    }], () => rejected(() => run(session, controller.signal), '失败、取消、重复调用或旧响应必须丢弃候选：' + failure));
-    assert(session.current.slides[0].title === deck.slides[0].title && session.current.revision === (failure === 'stale' ? 1 : 0), '失败请求不得留下 AI 内容或版本：' + failure);
+    }], () => rejected(() => run(session, controller.signal), `失败、取消、重复调用或旧响应必须丢弃候选：${failure}`));
+    assert(session.current.slides[0].title === deck.slides[0].title && session.current.revision === (failure === 'stale' ? 1 : 0), `失败请求不得留下 AI 内容或版本：${failure}`);
   }
 }

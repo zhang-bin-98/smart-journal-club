@@ -20,6 +20,7 @@ export function HomePage({ openProject, onSettings, registerLeaveGuard }: { open
   leave.current = async () => { if (uploading.current || working.current) throw new Error('正在保存项目，请稍后再离开'); if (rename || deleting) throw new Error('请先完成或取消当前项目操作'); };
   useEffect(() => { registerLeaveGuard?.(() => leave.current()); return () => { registerLeaveGuard?.(); setDirty('home-form', false); }; }, [registerLeaveGuard]);
   function closeForm() { setRename(undefined); setDeleting(undefined); setDirty('home-form', false); }
+  // biome-ignore lint/correctness/useExhaustiveDependencies: refresh 计数器驱动重命名/删除后重新加载列表
   useEffect(() => {
     let active = true; const done = beginActivity();
     listProjects().then(result => { if (active) setProjects(result); }, cause => { if (active) setError(errorMessage(cause)); }).finally(done);
@@ -58,7 +59,7 @@ export function HomePage({ openProject, onSettings, registerLeaveGuard }: { open
     {!!projects.length && <section><h2 className="mb-4 text-base font-semibold">最近项目</h2>
       <div className="border-t border-line">{projects.map(({ project, slideCount }) => <div key={project.id} className="relative flex flex-wrap items-center gap-3 border-b border-line py-4">
         {rename?.id === project.id ? <form className="flex min-w-0 flex-1 gap-2" onSubmit={event => { event.preventDefault(); if (rename.name.trim()) void action(() => updateProject(project.id, { name: rename.name.trim() })); }}>
-          <input aria-label="项目名称" autoFocus className={inputClass} value={rename.name} onChange={event => setRename({ ...rename, name: event.target.value })} />
+          <input aria-label="项目名称" className={inputClass} value={rename.name} onChange={event => setRename({ ...rename, name: event.target.value })} />
           <Button type="submit" disabled={!rename.name.trim() || acting}>保存</Button><Button disabled={acting} onClick={closeForm}>取消</Button>
         </form> : <button disabled={saving || acting || !!rename || !!deleting} className="min-w-0 flex-1 cursor-pointer text-left" onClick={() => openProject(project.id)}><span className="block truncate text-sm font-medium">{project.name}</span><span className="mt-1 block text-xs text-muted">{slideCount !== undefined ? `${slideCount} 页 · 已完成` : '待继续'} · {new Date(project.updatedAt).toLocaleString('zh-CN')}</span></button>}
         <IconButton label={`${project.name} 更多操作`} disabled={saving || acting || !!rename || !!deleting} onClick={() => setMenu(menu === project.id ? undefined : project.id)}><MoreHorizontal size={16} /></IconButton>

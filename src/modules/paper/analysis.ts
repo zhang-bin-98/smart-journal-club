@@ -4,7 +4,7 @@ import { BBoxSchema } from '../../shared/schema';
 import { requestJson, type ModelSettings } from '../../shared/llm/model';
 import { prompts } from '../../shared/llm/prompts';
 import { validatePaper } from './sources';
-import { PdfResource } from '../../shared/pdf/pdfResource';
+import type { PdfResource } from '../../shared/pdf/pdfResource';
 
 export const FigurePageSchema = z.strictObject({ figures: z.array(z.strictObject({
   label: z.string().min(1), caption: z.string(), description: z.string(), bbox: BBoxSchema,
@@ -26,7 +26,7 @@ export async function analyzeFigures(paper: Paper, resource: PdfResource, settin
     try { await resource.render(page.pageNumber, canvas, ANALYSIS_EDGE, signal); image = canvas.toDataURL('image/png'); }
     finally { canvas.width = 0; canvas.height = 0; }
     const imageRegions = await resource.imageRegions(page.pageNumber);
-    const output = await requestJson(settings, prompts.common + '\n\n' + prompts.stages.figures, { pageNumber: page.pageNumber, pageText: page.text, imageRegions }, FigurePageSchema, signal, 'figures', image);
+    const output = await requestJson(settings, `${prompts.common}\n\n${prompts.stages.figures}`, { pageNumber: page.pageNumber, pageText: page.text, imageRegions }, FigurePageSchema, signal, 'figures', image);
     for (const figure of output.figures) {
       const sourceId = crypto.randomUUID();
       working.sources.push({ id: sourceId, kind: 'figure', pageNumber: page.pageNumber, bbox: figure.bbox });
@@ -41,7 +41,7 @@ export async function analyzeFigures(paper: Paper, resource: PdfResource, settin
 }
 export function mapUnderstanding(paper: Paper, raw: unknown) {
   const output = UnderstandingSchema.parse(raw);
-  if (!output.supported) throw new Error('当前论文不在首版支持范围：' + output.reason);
+  if (!output.supported) throw new Error(`当前论文不在首版支持范围：${output.reason}`);
   if (!prompts.strategies.some(strategy => strategy.id === output.strategyId)) throw new Error('模型返回的研究叙事策略不存在');
   const identifiers = new Map<string, string>();
   [...output.claims, ...output.evidences].forEach(item => { if (identifiers.has(item.id)) throw new Error('模型返回重复 ID'); identifiers.set(item.id, crypto.randomUUID()); });
@@ -53,7 +53,7 @@ export function mapUnderstanding(paper: Paper, raw: unknown) {
   return { paper: next, strategyId: output.strategyId };
 }
 export async function understandPaper(paper: Paper, settings: ModelSettings, instruction: string, signal: AbortSignal) {
-  const result = await requestJson(settings, prompts.common + '\n\n' + prompts.stages.understand, {
+  const result = await requestJson(settings, `${prompts.common}\n\n${prompts.stages.understand}`, {
     instruction, strategies: prompts.strategies, paper,
   }, UnderstandingSchema, signal, 'understand');
   return mapUnderstanding(paper, result);

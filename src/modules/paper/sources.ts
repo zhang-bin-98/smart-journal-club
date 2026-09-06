@@ -21,7 +21,7 @@ export function figureImage(resource: PdfResource, paper: Paper, locator: Figure
 export function validatePaper(input: unknown, ready = false): Paper {
   const paper = PaperSchema.parse(input);
   const ids = new Set<string>();
-  const addId = (id: string) => { if (ids.has(id)) throw new Error('论文中有重复 ID：' + id); ids.add(id); };
+  const addId = (id: string) => { if (ids.has(id)) throw new Error(`论文中有重复 ID：${id}`); ids.add(id); };
   const pages = new Set(paper.pages.map(page => page.pageNumber));
   if (pages.size !== paper.pages.length || paper.pages.some((page, index) => page.pageNumber !== index + 1)) throw new Error('论文页码不连续');
   paper.sources.forEach(source => {

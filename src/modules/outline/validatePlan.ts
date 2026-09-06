@@ -9,6 +9,6 @@ export function validatePlan(input: unknown, paper: Paper): DeckPlan {
     slides: plan.slides.map(({ figures, ...slide }) => ({ ...slide, elements: figures.map(figure => ({ ...figure, id: crypto.randomUUID(), type: 'figure' as const })) })),
   };
   const errors = validateDeck(candidate, paper);
-  if (errors.length) throw new Error('汇报计划无效：' + errors.join('；'));
+  if (errors.length) throw new Error(`汇报计划无效：${errors.join('；')}`);
   return plan;
 }

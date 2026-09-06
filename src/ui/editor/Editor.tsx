@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ArrowDown, ArrowLeft, ArrowUp, Bot, Crop, Download, FileText, List, MoreHorizontal, Plus, Quote, RefreshCw, Redo2, Settings, Trash2, Undo2, X } from 'lucide-react';
-import { DeckSession } from '../../modules/deck/DeckSession';
+import type { DeckSession } from '../../modules/deck/DeckSession';
 import { LayoutIds, type Deck, type Element, type Slide } from '../../modules/deck/deck.schema';
 import type { Paper } from '../../modules/paper/paper.schema';
 import { Brand, Button, errorMessage, IconButton } from '../controls';
@@ -30,7 +30,7 @@ export function Editor({ session, paper, image, name, initialSlideId, onLeave, o
   const { deck, slide, element, selectedElement, setSelectedElement, status, setStatus, error, setError, exporting, exportPresentation, aiBusy, manualNotice, manualEdit, aiBusyChanged, registerAiCancel, cancelAi, dirtyKey, draft, changed, commit, saveText, flush, run, select, source, addSlide, move, history, addElement, navigationOpen, setNavigationOpen } = controller;
   const geometry = slide && computeLayout(slide);
   const crowded = geometry && (geometry.titleText.overflow || geometry.messageText.overflow || geometry.elements.some(item => item.text.overflow));
-  useEffect(() => { setDirty(dirtyKey + '-panels', navigationOpen || aiOpen || menuOpen); }, [dirtyKey, navigationOpen, aiOpen, menuOpen]);
+  useEffect(() => { setDirty(`${dirtyKey}-panels`, navigationOpen || aiOpen || menuOpen); }, [dirtyKey, navigationOpen, aiOpen, menuOpen]);
   const figure = element?.type === 'figure' ? paper.figures.find(item => item.id === element.figureId) : undefined;
   const sourceId = element?.type === 'figure' ? (element.panelId ? figure?.panels.find(panel => panel.id === element.panelId)?.sourceId : figure?.sourceId) : undefined;
   return <main className="mx-auto min-h-screen max-w-[1600px] p-3 font-sans text-ink sm:p-5">
@@ -85,7 +85,7 @@ export function Editor({ session, paper, image, name, initialSlideId, onLeave, o
           }}>{LayoutIds.map((id, index) => <option key={id} value={id}>{layoutNames[index]}</option>)}</select>
           <IconButton label="新增文字" disabled={!slide || readOnly} onClick={() => void run(() => addElement('text'))}><FileText size={15} /></IconButton>
           <IconButton label="新增列表" disabled={!slide || readOnly} onClick={() => void run(() => addElement('bullet-list'))}><List size={15} /></IconButton>
-          <IconButton label="新增引用" disabled={!slide || !slide.sourceIds.length || readOnly} onClick={() => void run(() => addElement('citation'))}><Quote size={15} /></IconButton>
+          <IconButton label="新增引用" disabled={!slide?.sourceIds.length || readOnly} onClick={() => void run(() => addElement('citation'))}><Quote size={15} /></IconButton>
           {element && <IconButton label="删除选中元素" disabled={readOnly} onClick={() => void run(async () => { await commit({ type: 'slides', slideIds: [slide!.id] }, [{ type: 'delete-element', slideId: slide!.id, elementId: element.id }], '删除元素'); setSelectedElement(undefined); })}><Trash2 size={15} /></IconButton>}
           {sourceId && onSource && <><Button disabled={!resourceAvailable} onClick={() => source(sourceId)}><FileText size={15} />查看来源</Button><IconButton label="裁图" disabled={readOnly || !resourceAvailable} onClick={() => source(sourceId, true)}><Crop size={15} /></IconButton></>}
           <div className="ml-auto flex gap-2"><IconButton label="撤销" disabled={!session.canUndo || readOnly} onClick={() => void run(() => history('undo'))}><Undo2 size={16} /></IconButton><IconButton label="重做" disabled={!session.canRedo || readOnly} onClick={() => void run(() => history('redo'))}><Redo2 size={16} /></IconButton></div>

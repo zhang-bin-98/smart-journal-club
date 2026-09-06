@@ -8,7 +8,7 @@ let registration: ServiceWorkerRegistration | undefined;
 let installPrompt: InstallPrompt | undefined;
 let started = false;
 let acceptedUpdate = false;
-const change = (next: Partial<PwaState>) => { state = { ...state, ...next }; listeners.forEach(listener => listener()); };
+const change = (next: Partial<PwaState>) => { state = { ...state, ...next }; listeners.forEach((listener) => { listener(); }); };
 export const getPwaState = () => state;
 export const subscribePwa = (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; };
 function message<T>(worker: ServiceWorker, type: string): Promise<T> {

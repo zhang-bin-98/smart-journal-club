@@ -25,7 +25,7 @@ export function assembleDeck(plan: DeckPlan, raw: unknown, paper: Paper): Deck {
     }),
   });
   const errors = validateDeck(deck, paper);
-  if (errors.length) throw new Error('幻灯片未通过校验：' + errors.join('；'));
+  if (errors.length) throw new Error(`幻灯片未通过校验：${errors.join('；')}`);
   return deck;
 }
 export async function generateDeck(plan: DeckPlan, paper: Paper, preferences: Project['preferences'], settings: ModelSettings, signal: AbortSignal) {

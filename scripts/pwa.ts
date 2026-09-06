@@ -17,7 +17,7 @@ export function pwaPlugin(): Plugin {
     },
     configureServer(server) {
       const base = config.base === './' ? '/' : config.base;
-      server.middlewares.use(base + 'pdfjs/', (req, res, next) => {
+      server.middlewares.use(`${base}pdfjs/`, (req, res, next) => {
         const path = req.url?.split('?')[0] ?? '';
         if (!/^\/(cmaps|standard_fonts|wasm)\/[a-zA-Z0-9_.-]+$/.test(path)) { next(); return; }
         void readFile(resolve(config.root, 'node_modules/pdfjs-dist', path.slice(1))).then(data => {
@@ -34,7 +34,7 @@ export function pwaPlugin(): Plugin {
       const template = await readFile(resolve(config.root, 'scripts/service-worker.js'), 'utf8');
       const hash = createHash('sha256').update(template);
       const integrity: Record<string, string> = {};
-      for (const file of files) { const content = await readFile(resolve(directory, file)); hash.update(file); hash.update(content); integrity[file] = 'sha256-' + createHash('sha256').update(content).digest('base64'); }
+      for (const file of files) { const content = await readFile(resolve(directory, file)); hash.update(file); hash.update(content); integrity[file] = `sha256-${createHash('sha256').update(content).digest('base64')}`; }
       const source = template.replace('__SMARTJC_VERSION__', JSON.stringify(hash.digest('hex').slice(0, 16))).replace('__SMARTJC_FILES__', JSON.stringify(files)).replace('__SMARTJC_INTEGRITY__', JSON.stringify(integrity));
       await writeFile(resolve(directory, 'sw.js'), source);
     },

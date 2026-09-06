@@ -1,4 +1,4 @@
-import { LayoutIds, type Element, type LayoutId, type Slide } from '../deck.schema';
+import type { Element, Slide } from '../deck.schema';
 import type { BBox } from '../../../shared/schema';
 
 export type Rect = BBox;
@@ -39,9 +39,20 @@ export function computeLayout(slide: Slide): ComputedLayout {
     if (slide.layoutId === 'panel-grid') { const columns = figures.length > 2 ? 2 : Math.max(1, figures.length); const n = Math.max(0, figures.findIndex(candidate => candidate.id === element.id)); return { element, rect: r(.06 + (n % columns) * (.88 / columns), top + Math.floor(n / columns) * .28, .82 / columns, .24) }; }
     const height = Math.min(.42, .52 / Math.max(1, content.length)); return { element, rect: r(.08, .3 + content.indexOf(element) * height, .84, height - .025) };
   });
-  citations.forEach((element, index) => elements.push({ element, rect: r(.08, .84 + index * .035, .84, .028) }));
+  citations.forEach((element, index) => { elements.push({ element, rect: r(.08, .84 + index * .035, .84, .028) }); });
   return { title, titleText: textMetrics(slide.title, title, 26, 22, 1.2), message, messageText: textMetrics(slide.message ?? '', message ?? title, 12, 12), sourceLabel: r(.06, .95, .88, .025),
-    elements: elements.map(item => ({ ...item, text: textMetrics(item.element.type === 'text' ? item.element.text : item.element.type === 'bullet-list' ? item.element.items.join('\n') : '', item.rect, item.element.type === 'citation' ? 8 : 18, item.element.type === 'citation' ? 8 : 16) })),
+    elements: elements.map((item) => ({
+      ...item,
+      text: textMetrics(
+        item.element.type === 'text'
+          ? item.element.text
+          : item.element.type === 'bullet-list'
+            ? item.element.items.join('\n')
+            : '',
+        item.rect,
+        item.element.type === 'citation' ? 8 : 18,
+        item.element.type === 'citation' ? 8 : 16,
+      ),
+    })),
   };
 }
-export function layoutIds(): readonly LayoutId[] { return LayoutIds; }

@@ -1,7 +1,7 @@
 import { DeckSession, type PersistRevision } from '../src/modules/deck/DeckSession';
 import { fixtureDeck, fixturePaper } from './fixtures';
 import { createProject, deleteProject, listProjects, loadProject, saveStage, updateProject } from '../src/modules/project/projectRepository';
-import { getDeck, saveRevision } from '../src/modules/deck/deckRepository';
+import { saveRevision } from '../src/modules/deck/deckRepository';
 import { getPaper, getPaperClaim, getPaperFigure, getPaperPage } from '../src/modules/paper/paperRepository';
 import { validatePaper } from '../src/modules/paper/sources';
 

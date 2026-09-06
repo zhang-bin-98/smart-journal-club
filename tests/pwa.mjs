@@ -16,10 +16,10 @@ const files = JSON.parse(workerSource.match(/^const FILES = (.+);$/m)[1]);
 const blockedAsset = files.find(file => /^assets\/export-/.test(file));
 assert.ok(blockedAsset);
 const indexSource = await readFile(join(directory, 'index.html'), 'utf8');
-const secondIndex = indexSource + '\n<!-- fixed second production build -->';
+const secondIndex = `${indexSource}\n<!-- fixed second production build -->`;
 const integrity = JSON.parse(workerSource.match(/^const INTEGRITY = (.+);$/m)[1]);
-const secondIntegrity = { ...integrity, 'index.html': 'sha256-' + createHash('sha256').update(secondIndex).digest('base64') };
-const secondWorker = workerSource.replace(/^(const VERSION = ")([^"]+)(";)/, '$1$2-test-update$3').replace(/^const INTEGRITY = .+;$/m, 'const INTEGRITY = ' + JSON.stringify(secondIntegrity) + ';');
+const secondIntegrity = { ...integrity, 'index.html': `sha256-${createHash('sha256').update(secondIndex).digest('base64')}` };
+const secondWorker = workerSource.replace(/^(const VERSION = ")([^"]+)(";)/, '$1$2-test-update$3').replace(/^const INTEGRITY = .+;$/m, `const INTEGRITY = ${JSON.stringify(secondIntegrity)};`);
 let updateVersion = false; let failInitialInstall = true;
 const mime = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.png': 'image/png', '.svg': 'image/svg+xml', '.wasm': 'application/wasm' };
 const server = createServer(async (request, response) => {
@@ -67,7 +67,7 @@ try {
   assert.equal(initialWorker.ready, true);
   assert.equal(await page.evaluate(async () => (await navigator.serviceWorker.ready).scope), base);
   const manifest = await page.locator('link[rel=manifest]').getAttribute('href');
-  assert.equal(new URL(manifest, base).pathname, prefix + 'manifest.webmanifest');
+  assert.equal(new URL(manifest, base).pathname, `${prefix}manifest.webmanifest`);
   const pdf = (await readFile(resolve('test-fixtures/papers/mechanism-modt-cdifficile.pdf'))).toString('base64');
   await page.evaluate(async ({ projectId, deck, paper, pdf, modelId }) => {
     const open = indexedDB.open('smartjc', 1);
@@ -84,7 +84,7 @@ try {
 
   // 首次只打开首页；PDF 和导出模块必须来自构建缓存，而非之前的在线操作。
   await context.setOffline(true); await page.close(); page = await context.newPage();
-  await page.goto(base + '#/project/' + projectId);
+  await page.goto(`${base}#/project/${projectId}`);
   await page.locator('[data-slide-preview=current] img').waitFor().catch(async cause => { console.error({ body: await page.locator('body').innerText(), errors }); throw cause; });
   await page.locator('[data-slide-preview=current] [data-element-id=f1]').click();
   await page.getByRole('button', { name: '裁图', exact: true }).click();
@@ -104,7 +104,7 @@ try {
   const offlineState = await readState(page);
   assert.ok(offlineState.deck.slides[1].elements.find(element => element.id === 'f1').cropOverride);
   assert.equal(offlineState.deck.slides[2].elements.some(element => element.cropOverride), false);
-  await page.close(); page = await context.newPage(); await page.goto(base + '#/project/' + projectId);
+  await page.close(); page = await context.newPage(); await page.goto(`${base}#/project/${projectId}`);
   await page.locator('[data-slide-preview=current] img').waitFor().catch(async cause => { console.error({ body: await page.locator('body').innerText(), errors }); throw cause; });
   assert.equal(await page.getByRole('textbox', { name: '幻灯片标题', exact: true }).innerText(), '离线修改仍可保存');
   assert.deepEqual((await readState(page)).deck, offlineState.deck);
@@ -113,7 +113,7 @@ try {
 
   await context.setOffline(false); updateVersion = true;
   await page.evaluate(async ({ version, asset }) => {
-    const name = (await caches.keys()).find(key => key.startsWith('smartjc-static:') && key.endsWith(':' + version));
+    const name = (await caches.keys()).find(key => key.startsWith('smartjc-static:') && key.endsWith(`:${version}`));
     await (await caches.open(name)).delete(new URL(asset, location.href));
   }, { version: initialWorker.version, asset: blockedAsset });
   await page.evaluate(() => { window.__pwaNoReload = 'preserved'; });
@@ -130,7 +130,7 @@ try {
   });
   assert.equal(repair.updateRequired, true);
   const previousCache = await page.evaluate(async ({ version, asset }) => {
-    const name = (await caches.keys()).find(key => key.startsWith('smartjc-static:') && key.endsWith(':' + version));
+    const name = (await caches.keys()).find(key => key.startsWith('smartjc-static:') && key.endsWith(`:${version}`));
     const cache = await caches.open(name);
     return { missing: !(await cache.match(new URL(asset, location.href))), index: await (await cache.match(new URL('index.html', location.href))).text() };
   }, { version: initialWorker.version, asset: blockedAsset });
@@ -151,7 +151,7 @@ try {
   await page.getByRole('button', { name: '取消', exact: true }).waitFor({ state: 'hidden' });
   assert.equal(await update.isDisabled(), false);
   await page.unroute('https://api.deepseek.com/chat/completions');
-  const second = await context.newPage(); await second.goto(base + '#/project/' + projectId);
+  const second = await context.newPage(); await second.goto(`${base}#/project/${projectId}`);
   await second.getByRole('textbox', { name: '幻灯片标题', exact: true }).fill('另一标签页未保存草稿');
   await second.evaluate(() => { window.__pwaOtherNoReload = true; });
   await update.click();
@@ -163,7 +163,7 @@ try {
   const beforeUpdate = await readState(page);
   await Promise.all([page.waitForEvent('load'), update.click()]);
   await page.getByText('本地离线功能已就绪', { exact: true }).waitFor();
-  assert.equal((await workerStatus(page)).version, initialWorker.version + '-test-update');
+  assert.equal((await workerStatus(page)).version, `${initialWorker.version}-test-update`);
   assert.deepEqual(await readState(page), beforeUpdate);
   assert.equal(await page.evaluate(async () => (await caches.keys()).includes('other-app-fixed-cache')), true);
   assert.equal(await page.evaluate(async () => {

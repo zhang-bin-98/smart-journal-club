@@ -1,4 +1,4 @@
-import { ApplyRevisionArgsSchema, type ApplyRevisionArgs, type Deck } from '../../deck/deck.schema';
+import { ApplyRevisionArgsSchema, type Deck } from '../../deck/deck.schema';
 import type { Paper } from '../../paper/paper.schema';
 import { DeckSession } from '../../deck/DeckSession';
 import type { AiTarget } from '../target/resolveTarget';

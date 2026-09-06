@@ -32,7 +32,7 @@ export async function exportDeck(deck: Deck, paper: Paper, getImage: (element: E
         sourceIds.add(figureSource(paper, { figureId: element.figureId, panelId: element.panelId }).id);
       } else if (element.type === 'text') out.addText(element.text, { ...opts, breakLine: false });
       else if (element.type === 'bullet-list') out.addText(element.items.map(item => ({ text: item, options: { bullet: { indent: 12 }, breakLine: true } })), opts);
-      else { element.sourceIds.forEach(id => sourceIds.add(id)); out.addText(sourceText(paper, element.sourceIds), { ...opts, fontSize: 8, color: '526575' }); }
+      else { element.sourceIds.forEach((id) => { sourceIds.add(id); }); out.addText(sourceText(paper, element.sourceIds), { ...opts, fontSize: 8, color: '526575' }); }
     }
     out.addText(sourceText(paper, [...sourceIds]), { ...box(layout.sourceLabel), fontSize: 8, color: '526575' });
   }
@@ -44,6 +44,6 @@ export async function exportDeck(deck: Deck, paper: Paper, getImage: (element: E
 
 export function downloadDeck(blob: Blob, name: string) {
   const url = URL.createObjectURL(blob); const link = document.createElement('a');
-  link.href = url; link.download = (name.replace(/[<>:"/\\|?*]/g, '-') || 'smartJC') + '.pptx'; link.click();
+  link.href = url; link.download = `${name.replace(/[<>:"/\\|?*]/g, '-') || 'smartJC'}.pptx`; link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

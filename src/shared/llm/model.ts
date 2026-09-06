@@ -68,7 +68,7 @@ export async function requestJson<T extends z.ZodType>(settings: ModelSettings, 
   const content: Exclude<Context['messages'][number], { role: 'assistant' | 'toolResult' }>['content'] = [{ type: 'text', text: JSON.stringify(data) }];
   if (image) content.push({ type: 'image', mimeType: 'image/png', data: image.slice(image.indexOf(',') + 1) });
   const response = await requestModel(settings, {
-    systemPrompt: systemPrompt + '\n\n使用 submit_result 返回本阶段结构化结果；所有必填字段均须提供。',
+    systemPrompt: `${systemPrompt}\n\n使用 submit_result 返回本阶段结构化结果；所有必填字段均须提供。`,
     tools: [{ name: 'submit_result', description: '返回完整阶段结果，必填字段不得省略；不直接保存项目。', parameters: z.toJSONSchema(z.strictObject({ result: schema })) as Tool['parameters'] }],
     messages: [{ role: 'user', content, timestamp: Date.now() }],
   }, signal, stage, false, 16384, 'submit_result');

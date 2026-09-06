@@ -31,6 +31,7 @@ function Editable({ value, editKey, editing, label }: { value: string; editKey: 
 
 function Figure({ element, image }: { element: Extract<Element, { type: 'figure' }>; image: FigureImage }) {
   const [result, setResult] = useState<{ url?: string; error?: string }>({});
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 仅在裁图覆盖值变化时重建图片，避免元素身份变化触发重复加载
   useEffect(() => {
     let active = true;
     setResult({});

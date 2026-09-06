@@ -2,7 +2,7 @@ import type { Deck, DeckMutation, RevisionScope, Slide, SlideKind } from './deck
 import { layoutCapacity } from './layoutRules';
 
 const clone = <T>(value: T): T => structuredClone(value);
-export function findSlide(deck: Deck, id: string) { const slide = deck.slides.find(item => item.id === id); if (!slide) throw new Error('找不到幻灯片：' + id); return slide; }
+export function findSlide(deck: Deck, id: string) { const slide = deck.slides.find(item => item.id === id); if (!slide) throw new Error(`找不到幻灯片：${id}`); return slide; }
 export function ensureScope(scope: RevisionScope, ids: string[], element?: { slideId: string; elementId: string }) {
   if (scope.type === 'deck') return;
   if (scope.type === 'slides' && ids.every(id => scope.slideIds.includes(id))) return;
@@ -38,4 +38,4 @@ export function applyMutation(deck: Deck, mutation: DeckMutation): { affected: s
   if (!layoutCapacity(slide)) slide.layoutId = fallbackLayout(slide);
   return { affected: [slide.id], element: { slideId: slide.id, elementId: mutation.elementId } };
 }
-export function createSlide(id: string, number: number): Slide { return { id, kind: 'custom' as SlideKind, title: '新幻灯片 ' + number, layoutId: 'text-only', elements: [{ id: id + '-text', type: 'text', text: '' }], claimIds: [], sourceIds: [] }; }
+export function createSlide(id: string, number: number): Slide { return { id, kind: 'custom' as SlideKind, title: `新幻灯片 ${number}`, layoutId: 'text-only', elements: [{ id: `${id}-text`, type: 'text', text: '' }], claimIds: [], sourceIds: [] }; }

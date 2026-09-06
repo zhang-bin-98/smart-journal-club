@@ -41,7 +41,7 @@ export async function runAiRevision({ settings, paper, deck: inputDeck, session,
   const target = resolveAiTarget(request, deck, paper, selectedSlideId, selectedElementId, history);
   const createMessages = (answer: string, revision?: { summary: string; affectedSlideIds: string[] }): ChatMessage[] => {
     const common = { projectId, deckId: deck.id, baseRevision, targetSlideIds: target.slideIds, ...(target.elementId ? { targetElementId: target.elementId } : {}), createdAt: Date.now() };
-    return [{ ...common, id: requestId + '-user', role: 'user', text: request }, { ...common, id: requestId + '-assistant', createdAt: common.createdAt + 1, role: 'assistant', text: answer, ...(revision ? { ...revision, revision: baseRevision + 1 } : {}) }];
+    return [{ ...common, id: `${requestId}-user`, role: 'user', text: request }, { ...common, id: `${requestId}-assistant`, createdAt: common.createdAt + 1, role: 'assistant', text: answer, ...(revision ? { ...revision, revision: baseRevision + 1 } : {}) }];
   };
   const answerResult = async (answer: string) => {
     assertActive(); const messages = createMessages(answer);
@@ -52,7 +52,7 @@ export async function runAiRevision({ settings, paper, deck: inputDeck, session,
   const data = { request, layoutRules, selectedSlideId, selectedElementId, boundTarget: { ...target, allowedScopeTypes: target.elementId ? ['slides', 'element'] : target.global && !target.titleOnly && !target.figureId ? ['slides', 'deck'] : ['slides'] }, recentMessages: history, preferences, ...localContext(paper, deck, target) };
   const prompt = [prompts.common, prompts.stages.ai].join('\n\n');
   // 分类调用没有写工具；请求只读时，后续工具回合也不会提供写工具。
-  const intent = await requestJson(settings, prompt + '\n当前步骤只识别意图：问题、解释、检查或审核选择 answer；要求实际调整（含“太挤”“短一点”“按刚才建议修改”）选择 revision；只有研究叙事、内容取舍或结构调整需要 needsStrategy。此步骤不执行修改。', data, AiIntentSchema, signal, 'ai');
+  const intent = await requestJson(settings, `${prompt}\n当前步骤只识别意图：问题、解释、检查或审核选择 answer；要求实际调整（含“太挤”“短一点”“按刚才建议修改”）选择 revision；只有研究叙事、内容取舍或结构调整需要 needsStrategy。此步骤不执行修改。`, data, AiIntentSchema, signal, 'ai');
   assertActive();
   if (/不要(?:做任何)?修改|不(?:要|用|需)改|只(?:需|要)?(?:解释|回答|检查|审核|建议)|仅(?:解释|回答|检查|审核)|do not (?:edit|change|modify)/i.test(modificationRequest(request))) intent.mode = 'answer';
   const strategy = intent.needsStrategy ? researchPrompt(preferences?.strategyId) : undefined;
@@ -89,7 +89,7 @@ export async function runAiRevision({ settings, paper, deck: inputDeck, session,
     const answer = response.content.flatMap(block => block.type === 'text' ? [block.text] : []).join('\n').trim();
     if (!candidate) {
       if (!answer) throw new Error('模型未返回回答，请重试');
-      return answerResult(intent.mode === 'revision' ? answer + '\n\n本轮未更改幻灯片。' : answer);
+      return answerResult(intent.mode === 'revision' ? `${answer}\n\n本轮未更改幻灯片。` : answer);
     }
     assertActive();
     const text = answer || '已完成修改。'; const messages = createMessages(text, { summary: candidate.args.summary, affectedSlideIds: candidate.affectedSlideIds });

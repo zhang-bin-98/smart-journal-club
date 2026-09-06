@@ -40,7 +40,7 @@ export async function transaction<T>(names: Store[], mode: IDBTransactionMode, w
 }
 export const get = <T>(tx: IDBTransaction, name: Store, key: string) => request(tx.objectStore(name).get(key)) as Promise<T | undefined>;
 export function stored<T>(schema: { parse(value: unknown): T }, value: unknown, label: string): T {
-  if (value === undefined) throw new Error(label + '数据缺失，请保留项目并检查本地存储。');
-  if (!value || typeof value !== 'object' || !('schemaVersion' in value) || value.schemaVersion !== 1) throw new Error(label + '数据版本与当前应用不兼容，请更新应用后重试；项目数据已保留。');
+  if (value === undefined) throw new Error(`${label}数据缺失，请保留项目并检查本地存储。`);
+  if (!value || typeof value !== 'object' || !('schemaVersion' in value) || value.schemaVersion !== 1) throw new Error(`${label}数据版本与当前应用不兼容，请更新应用后重试；项目数据已保留。`);
   return schema.parse(value);
 }

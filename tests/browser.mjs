@@ -30,7 +30,7 @@ try {
   }
   await page.unroute('https://api.deepseek.com/chat/completions');
   console.log('PASS: Pi AI fixed SSE/JSON/authentication/invalid output');
-  await page.goto(base + '#/fixture');
+  await page.goto(`${base}#/fixture`);
   const title = page.getByRole('textbox', { name: '幻灯片标题', exact: true });
   await title.fill('中文草稿');
   assert.equal(await title.evaluate(el => el === document.activeElement), true);
@@ -147,7 +147,7 @@ try {
   const aiHeld = new Promise(resolve => { markAiHeld = resolve; });
   const aiEvent = (delta, reason) => {
     const chunk = (value, finish_reason) => `data: ${JSON.stringify({ id: 'fixed-ai-ui', object: 'chat.completion.chunk', choices: [{ index: 0, delta: value, finish_reason }] })}\n\n`;
-    return chunk({ role: 'assistant', ...delta }, null) + chunk({}, reason) + 'data: [DONE]\n\n';
+    return `${chunk({ role: 'assistant', ...delta }, null) + chunk({}, reason)}data: [DONE]\n\n`;
   };
   await page.route('https://api.deepseek.com/chat/completions', async route => {
     const request = route.request().postDataJSON();
@@ -158,7 +158,7 @@ try {
       scope: { type: 'slides', slideIds: [generated.slides[0].id] }, summary: aiMode === 'first' ? '精简第一页标题' : '再次调整第一页标题',
       mutations: [{ type: 'update-slide', slideId: generated.slides[0].id, changes: { title: aiMode === 'first' ? 'AI 固定标题' : 'AI 再次修改标题' } }],
     };
-    const body = afterTool ? aiEvent({ content: '已完成指定页标题修改。' }, 'stop') : aiEvent({ tool_calls: [{ index: 0, id: 'call-ai-' + aiMode, type: 'function', function: { name: classify ? 'submit_result' : 'deck__apply_revision', arguments: JSON.stringify(args) } }] }, 'tool_calls');
+    const body = afterTool ? aiEvent({ content: '已完成指定页标题修改。' }, 'stop') : aiEvent({ tool_calls: [{ index: 0, id: `call-ai-${aiMode}`, type: 'function', function: { name: classify ? 'submit_result' : 'deck__apply_revision', arguments: JSON.stringify(args) } }] }, 'tool_calls');
     await route.fulfill({ status: 200, contentType: 'text/event-stream', body });
   });
   const aiInput = page.getByRole('textbox', { name: 'AI 输入', exact: true });
@@ -227,7 +227,7 @@ try {
       const fixed = await import('/tests/generation-contracts.ts');
       return stage === 'plan' ? { strategyId: 'general', plan: fixed.fixedPlan(data.paper) } : fixed.fixedSlides(data.plan);
     }, { stage, data });
-    await route.fulfill({ status: 200, contentType: 'text/event-stream', body: aiEvent({ tool_calls: [{ index: 0, id: 'call-regeneration-' + stage, type: 'function', function: { name: 'submit_result', arguments: JSON.stringify({ result }) } }] }, 'tool_calls') });
+    await route.fulfill({ status: 200, contentType: 'text/event-stream', body: aiEvent({ tool_calls: [{ index: 0, id: `call-regeneration-${stage}`, type: 'function', function: { name: 'submit_result', arguments: JSON.stringify({ result }) } }] }, 'tool_calls') });
   });
   async function beginRegeneration() {
     await page.getByRole('button', { name: '更多操作', exact: true }).click();

@@ -28,8 +28,8 @@ export class PdfResource {
     if (!this.document) this.document = (async () => {
       const data = await this.blob.arrayBuffer();
       if (this.disposed) throw new Error('项目已关闭');
-      const assets = new URL(import.meta.env.BASE_URL + 'pdfjs/', document.baseURI).href;
-      this.loading = getDocument({ data, cMapUrl: assets + 'cmaps/', cMapPacked: true, standardFontDataUrl: assets + 'standard_fonts/', wasmUrl: assets + 'wasm/' });
+      const assets = new URL(`${import.meta.env.BASE_URL}pdfjs/`, document.baseURI).href;
+      this.loading = getDocument({ data, cMapUrl: `${assets}cmaps/`, cMapPacked: true, standardFontDataUrl: `${assets}standard_fonts/`, wasmUrl: `${assets}wasm/` });
       try {
         const pdf = await this.loading.promise;
         if (pdf.numPages > PDF_MAX_PAGES) throw new Error('PDF 超过 80 页，请选择正文版本');
@@ -128,7 +128,7 @@ export class PdfResource {
   }
   clearImages() { this.images.clear(); }
   async dispose() {
-    this.disposed = true; this.images.clear(); this.renders.forEach(task => task.cancel());
+    this.disposed = true; this.images.clear(); this.renders.forEach((task) => { task.cancel(); });
     await this.loading?.destroy();
   }
 }

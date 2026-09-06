@@ -36,6 +36,7 @@ export function useProjectController(opened: OpenProject, settings: ModelSetting
   const dialogKey = `project-dialog-${data.project.id}`;
   const parseTask = useRef<AbortController | undefined>(undefined);
   const persistRevision: PersistAssistantRevision = (previous, next, record, options, messages) => saveRevision(data.project.id, previous, next, record, options?.signal ? AbortSignal.any([options.signal, controller.signal]) : controller.signal, { isTaskActive: options?.isTaskActive, messages });
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 会话仅随 deck/paper/项目标识/任务控制器重建，persistRevision 每次渲染新建是有意的
   const session = useMemo(() => data.deck ? new DeckSession(data.deck, data.paper, (previous, next, record, options) => persistRevision(previous, next, record, options), data.project.id) : undefined, [data.deck, data.paper, data.project.id, controller]);
   const image = useMemo(() => async (element: Extract<Element, { type: 'figure' }>) => {
     if (!resource) throw new Error('原 PDF 缺失'); return figureImage(resource, data.paper, element, element.cropOverride);

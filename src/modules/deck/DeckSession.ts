@@ -44,7 +44,11 @@ export class DeckSession {
     const previous = snapshot(this.current); const next = clone(this.current); const affected = new Set<string>();
     for (const mutation of mutations) {
       if (mutation.type === 'set-language' && scope.type !== 'deck') throw new Error('语言修改必须使用 deck 范围');
-      const result = applyMutation(next, mutation); ensureScope(scope, result.affected, result.element); result.affected.forEach(id => affected.add(id));
+      const result = applyMutation(next, mutation);
+      ensureScope(scope, result.affected, result.element);
+      result.affected.forEach((id) => {
+        affected.add(id);
+      });
     }
     await this.save(next, scope, summary, [...affected], requestId, options);
     this.undoStack.push(previous); if (this.undoStack.length > 20) this.undoStack.shift(); this.redoStack = [];
