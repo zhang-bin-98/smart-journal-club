@@ -7,7 +7,7 @@ import type { Project } from './modules/project/project.schema';
 import type { ChatMessage } from './modules/assistant/assistant.schema';
 import { DeckSession } from './deck';
 import { prompts, researchPrompt } from './prompts';
-import { saveConversation } from './storage';
+import { saveConversation } from './modules/assistant/conversationRepository';
 import { layoutRules } from './generation';
 
 export type AiRecentMessage = { role: string; text: string; deckId?: string; baseRevision?: number; revision?: number; targetSlideIds?: string[]; targetElementId?: string };

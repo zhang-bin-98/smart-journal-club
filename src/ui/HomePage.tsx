@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { FileUp, MoreHorizontal, Pencil, Settings, Trash2 } from 'lucide-react';
-import { createProject, deleteProject, listProjects, updateProject } from '../storage';
+import { createProject, deleteProject, listProjects, updateProject } from '../modules/project/projectRepository';
 import { beginActivity, setDirty, type LeaveGuard, type RegisterLeaveGuard } from '../activity';
 import { Brand, Button, errorMessage, IconButton, inputClass } from './controls';
 

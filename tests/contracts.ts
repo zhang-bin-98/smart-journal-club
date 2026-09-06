@@ -1,6 +1,8 @@
 import { DeckSession, type PersistRevision } from '../src/deck';
 import { fixtureDeck, fixturePaper } from '../src/fixtures';
-import { createProject, deleteProject, getDeck, getPaper, getPaperClaim, getPaperFigure, getPaperPage, listProjects, loadProject, saveRevision, saveStage, updateProject } from '../src/storage';
+import { createProject, deleteProject, listProjects, loadProject, saveStage, updateProject } from '../src/modules/project/projectRepository';
+import { getDeck, saveRevision } from '../src/modules/deck/deckRepository';
+import { getPaper, getPaperClaim, getPaperFigure, getPaperPage } from '../src/modules/paper/paperRepository';
 import { validatePaper } from '../src/sources';
 
 const assert = (value: unknown, message: string) => { if (!value) throw new Error(message); };

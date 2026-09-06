@@ -2,7 +2,9 @@ import { DeckSession, type PersistRevision, type RevisionRequest } from '../src/
 import { fixtureDeck, fixturePaper } from '../src/fixtures';
 import { resolveAiTarget, runAiRevision, validateAiCandidate } from '../src/ai';
 import { DEFAULT_SETTINGS } from '../src/model';
-import { createProject, deleteProject, loadHistory, loadProject, saveConversation, saveRevision, saveStage } from '../src/storage';
+import { createProject, deleteProject, loadProject, saveStage } from '../src/modules/project/projectRepository';
+import { saveRevision } from '../src/modules/deck/deckRepository';
+import { loadHistory, saveConversation } from '../src/modules/assistant/conversationRepository';
 import { DeckSchema, type ApplyRevisionArgs, type Deck } from '../src/modules/deck/deck.schema';
 import type { ChatMessage } from '../src/modules/assistant/assistant.schema';
 import { fixedPlan } from './generation-contracts';

@@ -3,7 +3,7 @@ import { fixturePaper } from '../src/fixtures';
 import { mapUnderstanding, UnderstandingSchema } from '../src/analysis';
 import { prompts } from '../src/prompts';
 import { parsePromptFiles } from '../src/prompt-config';
-import { createProject, deleteProject, loadProject, saveStage } from '../src/storage';
+import { createProject, deleteProject, loadProject, saveStage } from '../src/modules/project/projectRepository';
 import { DEFAULT_SETTINGS, requestJson } from '../src/model';
 import type { Paper } from '../src/modules/paper/paper.schema';
 

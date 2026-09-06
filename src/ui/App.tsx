@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { HomePage } from './HomePage';
 import { DEFAULT_SETTINGS, type ModelSettings } from '../model';
-import { loadSettings } from '../storage';
+import { loadSettings } from '../shared/llm/settingsRepository';
 import { beginActivity, isAppIdle, setDirty, subscribeActivity, type LeaveGuard } from '../activity';
 import { errorMessage } from './controls';
 import { PwaNotice } from './PwaNotice';

@@ -6,7 +6,7 @@ import type { Paper } from '../../modules/paper/paper.schema';
 import type { Project } from '../../modules/project/project.schema';
 import type { DeckSession } from '../../deck';
 import { runAiRevision } from '../../ai';
-import { loadHistory } from '../../storage';
+import { loadHistory } from '../../modules/assistant/conversationRepository';
 import { beginActivity, setDirty } from '../../activity';
 import { Button, errorMessage, inputClass, useOnline } from '../controls';
 

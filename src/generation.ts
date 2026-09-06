@@ -8,7 +8,8 @@ import { requestJson, type ModelSettings } from './model';
 import { prompts, researchPrompt } from './prompts';
 import { analyzeFigures, understandPaper } from './analysis';
 import type { PdfResource } from './pdf';
-import { captureVersion, commitRegeneration, saveStage, type ProjectData } from './storage';
+import { captureVersion, commitRegeneration } from './modules/deck/deckRepository';
+import { saveStage, type ProjectData } from './modules/project/projectRepository';
 
 export const GENERATION_STEPS = ['解析论文', '分析 Figure / Panel', '理解研究内容', '规划汇报结构', '制作幻灯片'] as const;
 export const GenerationOutputSchema = z.strictObject({ slides: z.array(SlideSchema.pick({ id: true, elements: true })).min(1) });

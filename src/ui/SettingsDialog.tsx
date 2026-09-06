@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Check, KeyRound, Trash2, X } from 'lucide-react';
 import { checkConnection, type ModelSettings } from '../model';
-import { saveSettings } from '../storage';
+import { saveSettings } from '../shared/llm/settingsRepository';
 import { beginActivity } from '../activity';
 import { Button, errorMessage, IconButton, inputClass, useOnline } from './controls';
 
