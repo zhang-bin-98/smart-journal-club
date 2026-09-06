@@ -3,6 +3,7 @@ import type { Paper } from '../../paper/paper.schema';
 import { DeckSession } from '../../deck/DeckSession';
 import type { AiTarget } from '../target/resolveTarget';
 import { AssistantError } from '../assistantError';
+import { validateDeckNarrative } from '../../outline/validateNarrative';
 
 export async function validateAiCandidate(raw: unknown, target: AiTarget, deck: Deck, paper: Paper) {
   const args = ApplyRevisionArgsSchema.parse(raw);
@@ -86,6 +87,8 @@ export async function validateAiCandidate(raw: unknown, target: AiTarget, deck: 
   // 使用现有提交与布局校验，在独立内存会话中验证完整批次；不产生存储写入。
   const working = new DeckSession(deck, paper);
   await working.commit(args.scope, args.mutations, args.summary);
+  const narrative = validateDeckNarrative(working.current, paper);
+  if (narrative.errors.length) throw new AssistantError('narrative-invalid', narrative.errors[0].message);
   const affectedSlideIds = [
     ...new Set(
       args.mutations.flatMap((mutation) =>
