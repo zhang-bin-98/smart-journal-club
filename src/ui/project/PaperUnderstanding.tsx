@@ -35,7 +35,7 @@ export function PaperUnderstanding({
   image: FigureImage;
   sourceAvailable: boolean;
 }) {
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
   const { strategy, fallback } = researchPrompt(strategyId);
   const claims = expanded ? paper.claims : paper.claims.slice(0, 6);
   function sources(ids: string[]) {
@@ -162,13 +162,6 @@ function ClaimEvidence({
       </h4>
       <p className="mt-1 text-xs text-muted">{strengthLabels[claim.strength]}</p>
       {!claim.evidenceIds.length && <p className="mt-2 text-amber-700">尚无关联证据，需要核对</p>}
-      {claim.evidenceIds.length > 0 && (
-        <img
-          src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='3'%3E%3Crect width='4' height='3' fill='%23f3f4f6'/%3E%3C/svg%3E"
-          alt="论文证据图"
-          className="mt-3 aspect-[4/3] w-full object-contain sm:w-1/2"
-        />
-      )}
       <details className="mt-3" onToggle={(event) => setExpanded(event.currentTarget.open)}>
         <summary className="cursor-pointer">查看证据（{claim.evidenceIds.length}）</summary>
         {claim.evidenceIds.map((id) => {
@@ -193,8 +186,6 @@ function ClaimEvidence({
                 sourceId: panel.sourceId,
               })),
           ]);
-          if (!figures.length && evidence.sourceIds[0])
-            figures.push({ id: evidence.sourceIds[0], figureId: evidence.sourceIds[0], label: '证据图', sourceId: evidence.sourceIds[0] });
           return (
             <div key={id} className="mt-4 space-y-3">
               <p className="break-words">{evidence.summary}</p>
@@ -210,7 +201,7 @@ function ClaimEvidence({
               <div className="grid gap-4 sm:grid-cols-2">
                 {figures.map((figure) => (
                   <figure key={figure.id} className="min-w-0">
-                    {expanded && <EvidenceImage figure={figure} image={image} />}
+                    {sourceAvailable && expanded && <EvidenceImage figure={figure} image={image} />}
                     <figcaption className="mt-2">
                       <Button disabled={!sourceAvailable} onClick={() => onSource(figure.sourceId)}>
                         <FileText size={14} />
@@ -235,12 +226,10 @@ function EvidenceImage({
   figure: { id: string; figureId: string; panelId?: string };
   image: FigureImage;
 }) {
-  const placeholder =
-    'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="4" height="3"%3E%3Crect width="4" height="3" fill="%23f3f4f6"/%3E%3C/svg%3E';
-  const [state, setState] = useState<{ url?: string; failed?: boolean }>({ url: placeholder });
+  const [state, setState] = useState<{ url?: string; failed?: boolean }>({});
   useEffect(() => {
     let active = true;
-    setState({ url: placeholder });
+    setState({});
     void image({ id: figure.id, type: 'figure', figureId: figure.figureId, panelId: figure.panelId }).then(
       (url) => {
         if (active) setState({ url });

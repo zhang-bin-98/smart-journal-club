@@ -20,7 +20,7 @@ async function rejected(work: () => unknown | Promise<unknown>) {
   assert(failed, '应拒绝非法结果');
 }
 export function understanding(paper: Paper) {
-  const sourceId = paper.sources[0].id;
+  const sourceId = paper.figures[0]?.sourceId ?? paper.sources[0].id;
   return {
     supported: true,
     strategyId: 'general',
