@@ -16,7 +16,9 @@ export type FigurePanel = z.infer<typeof FigurePanelSchema>;
 export const FigureRefSchema = z.object({ id: z.string().min(1), label: z.string().optional(), caption: z.string().optional(), sourceId: z.string().min(1), description: z.string().optional(), panels: z.array(FigurePanelSchema) });
 export type FigureRef = z.infer<typeof FigureRefSchema>;
 export const ClaimSchema = z.strictObject({ id: z.string().min(1), text: z.string().min(1), strength: z.enum(['descriptive', 'associative', 'supportive', 'causal']), importance: z.enum(['primary', 'secondary']), evidenceIds: z.array(z.string().min(1)) });
+export type Claim = z.infer<typeof ClaimSchema>;
 export const EvidenceSchema = z.strictObject({ id: z.string().min(1), kind: z.string().min(1), summary: z.string().min(1), sourceIds: z.array(z.string().min(1)).min(1) });
+export type Evidence = z.infer<typeof EvidenceSchema>;
 export const StoryTopics = ['background', 'knowledgeGap', 'question', 'studyDesign', 'mainFindings', 'novelty', 'limitations', 'conclusion'] as const;
 export const StoryPointSchema = z.strictObject({ text: z.string().min(1), claimIds: z.array(z.string().min(1)), sourceIds: z.array(z.string().min(1)) });
 export const StorySchema = z.record(z.enum(StoryTopics), z.array(StoryPointSchema));
@@ -35,18 +37,48 @@ export const ProjectSchema = z.strictObject({
 export type Project = z.infer<typeof ProjectSchema>;
 export type PdfAsset = { blob: Blob; name: string };
 
-const TextElementSchema = z.object({ id: z.string().min(1), type: z.literal('text'), text: z.string() });
-const BulletListElementSchema = z.object({ id: z.string().min(1), type: z.literal('bullet-list'), items: z.array(z.string()) });
-const FigureElementSchema = z.object({ id: z.string().min(1), type: z.literal('figure'), figureId: z.string().min(1), panelId: z.string().optional(), cropOverride: BBoxSchema.optional() });
-const CitationElementSchema = z.object({ id: z.string().min(1), type: z.literal('citation'), sourceIds: z.array(z.string().min(1)) });
+export const TextElementSchema = z.strictObject({ id: z.string().min(1), type: z.literal('text'), text: z.string() });
+export const BulletListElementSchema = z.strictObject({ id: z.string().min(1), type: z.literal('bullet-list'), items: z.array(z.string()) });
+export const FigureElementSchema = z.strictObject({ id: z.string().min(1), type: z.literal('figure'), figureId: z.string().min(1), panelId: z.string().optional(), cropOverride: BBoxSchema.optional() });
+export const CitationElementSchema = z.strictObject({ id: z.string().min(1), type: z.literal('citation'), sourceIds: z.array(z.string().min(1)) });
 export const SlideElementSchema = z.discriminatedUnion('type', [TextElementSchema, BulletListElementSchema, FigureElementSchema, CitationElementSchema]);
 export type SlideElement = z.infer<typeof SlideElementSchema>;
 export type Element = SlideElement;
-export const SlideSchema = z.object({ id: z.string().min(1), kind: z.enum(SlideKinds), title: z.string(), message: z.string().optional(), layoutId: z.enum(LayoutIds), elements: z.array(SlideElementSchema), claimIds: z.array(z.string()), sourceIds: z.array(z.string()) });
+export const SlideSchema = z.strictObject({ id: z.string().min(1), kind: z.enum(SlideKinds), title: z.string(), message: z.string().optional(), layoutId: z.enum(LayoutIds), elements: z.array(SlideElementSchema), claimIds: z.array(z.string()), sourceIds: z.array(z.string()) });
 export type Slide = z.infer<typeof SlideSchema>;
-export const DeckSchema = z.object({ schemaVersion: z.literal(1), id: z.string().min(1), paperId: z.string().min(1), revision: z.number().int().nonnegative(), title: z.string(), language: z.string().min(1), slides: z.array(SlideSchema), createdAt: z.number().int().nonnegative(), updatedAt: z.number().int().nonnegative() });
+export const DeckSchema = z.strictObject({ schemaVersion: z.literal(1), id: z.string().min(1), paperId: z.string().min(1), revision: z.number().int().nonnegative(), title: z.string(), language: z.string().min(1), slides: z.array(SlideSchema), createdAt: z.number().int().nonnegative(), updatedAt: z.number().int().nonnegative() });
 export type Deck = z.infer<typeof DeckSchema>;
 export const DeckPlanSchema = DeckSchema.pick({ schemaVersion: true, paperId: true, title: true, language: true }).extend({
   slides: z.array(SlideSchema.omit({ elements: true }).extend({ figures: z.array(FigureElementSchema.pick({ figureId: true, panelId: true })) })).min(1),
 });
 export type DeckPlan = z.infer<typeof DeckPlanSchema>;
+
+export const RevisionScopeSchema = z.discriminatedUnion('type', [
+  z.strictObject({ type: z.literal('element'), slideId: z.string().min(1), elementId: z.string().min(1) }),
+  z.strictObject({ type: z.literal('slides'), slideIds: z.array(z.string().min(1)).min(1) }),
+  z.strictObject({ type: z.literal('deck') }),
+]);
+export type RevisionScope = z.infer<typeof RevisionScopeSchema>;
+
+const SlideChangesSchema = z.strictObject({
+  kind: z.enum(SlideKinds).optional(), title: z.string().optional(), message: z.string().optional(),
+  layoutId: z.enum(LayoutIds).optional(), claimIds: z.array(z.string()).optional(), sourceIds: z.array(z.string()).optional(),
+}).partial();
+export const DeckMutationSchema = z.discriminatedUnion('type', [
+  z.strictObject({ type: z.literal('add-slide'), slide: SlideSchema, afterSlideId: z.string().min(1).nullable() }),
+  z.strictObject({ type: z.literal('delete-slide'), slideId: z.string().min(1) }),
+  z.strictObject({ type: z.literal('move-slide'), slideId: z.string().min(1), afterSlideId: z.string().min(1).nullable() }),
+  z.strictObject({ type: z.literal('update-slide'), slideId: z.string().min(1), changes: SlideChangesSchema }),
+  z.strictObject({ type: z.literal('add-element'), slideId: z.string().min(1), element: SlideElementSchema }),
+  z.strictObject({ type: z.literal('replace-element'), slideId: z.string().min(1), element: SlideElementSchema }),
+  z.strictObject({ type: z.literal('delete-element'), slideId: z.string().min(1), elementId: z.string().min(1) }),
+  z.strictObject({ type: z.literal('set-language'), language: z.string().trim().min(1) }),
+]);
+export type DeckMutation = z.infer<typeof DeckMutationSchema>;
+
+export const ApplyRevisionArgsSchema = z.strictObject({
+  scope: RevisionScopeSchema,
+  mutations: z.array(DeckMutationSchema).min(1),
+  summary: z.string().trim().min(1),
+});
+export type ApplyRevisionArgs = z.infer<typeof ApplyRevisionArgsSchema>;

@@ -1,7 +1,7 @@
-import { DeckSchema, ProjectSchema, type Deck, type DeckPlan, type Paper, type PdfAsset, type Project } from './types';
+import { DeckSchema, ProjectSchema, PaperSchema, type Deck, type DeckPlan, type Paper, type PdfAsset, type Project } from './types';
 import { validateDeck, validatePlan } from './layout';
 import { validatePaper } from './sources';
-import type { RevisionRecord } from './deck';
+import type { RevisionRecord, RevisionRequest } from './deck';
 import { DEFAULT_SETTINGS, ModelSettingsSchema, type ModelSettings } from './model';
 import { prompts } from './prompts';
 
@@ -135,21 +135,70 @@ export function saveStage(captured: StageCapture, output: StageOutput, signal: A
     return next;
   }, signal);
 }
-export function saveRevision(projectId: string, previous: Deck, next: Deck, record: RevisionRecord, signal?: AbortSignal) {
+export function saveRevision(projectId: string, previous: Deck, next: Deck, record: RevisionRecord, signal?: AbortSignal, guard?: { isTaskActive?: () => boolean }) {
   return transaction(['projects', 'papers', 'decks', 'history'], 'readwrite', async tx => {
     const project = await projectIn(tx, projectId);
     const current = project.currentDeckId && await get<Deck>(tx, 'decks', project.currentDeckId);
     if (!current || current.id !== previous.id || current.revision !== previous.revision || next.id !== current.id || next.revision !== current.revision + 1) throw new Error('项目已在其他页面修改，当前修改未保存。请重新打开最新项目。');
+    if (record.projectId && record.projectId !== projectId) throw new Error('修改请求项目不匹配');
+    if (record.deckId !== next.id || record.baseRevision !== previous.revision || record.committedRevision !== next.revision || !record.id) throw new Error('修改请求绑定的版本无效');
     if (await get(tx, 'history', record.id)) throw new Error('本次修改已经提交');
     const paper = validatePaper(await get(tx, 'papers', project.paperId));
     const errors = validateDeck(next, paper); if (errors.length) throw new Error(errors.join('；'));
     signal?.throwIfAborted();
+    if (guard?.isTaskActive && !guard.isTaskActive()) throw new Error('修改请求已失效');
     tx.objectStore('decks').put(next, next.id);
     tx.objectStore('projects').put({ ...project, updatedAt: next.updatedAt, lastOpenedSlideId: next.slides.some(slide => slide.id === project.lastOpenedSlideId) ? project.lastOpenedSlideId : next.slides[0]?.id }, projectId);
     tx.objectStore('history').add({ ...record, projectId }, record.id);
     const history = (await request(tx.objectStore('history').getAll()) as RevisionRecord[]).filter(item => item.projectId === projectId).sort((a, b) => b.createdAt - a.createdAt);
     history.slice(100).forEach(item => tx.objectStore('history').delete(item.id));
   }, signal);
+}
+
+export type RevisionReadContext = RevisionRequest;
+export function captureRevision(projectId: string, deck: Deck): RevisionReadContext {
+  return { requestId: crypto.randomUUID(), projectId, deckId: deck.id, baseRevision: deck.revision };
+}
+async function readProjectScoped<T>(projectId: string, reader: (tx: IDBTransaction, project: Project, paper: Paper) => Promise<T>) {
+  return transaction(['projects', 'papers', 'decks'], 'readonly', async tx => {
+    const project = await projectIn(tx, projectId);
+    const paper = PaperSchema.parse(await get(tx, 'papers', project.paperId));
+    return reader(tx, project, paper);
+  });
+}
+/** AI 只读工具：返回当前项目的论文概要，不暴露其他项目数据。 */
+export function getPaper(projectId: string) {
+  return readProjectScoped(projectId, async (_tx, _project, paper) => structuredClone(paper));
+}
+export function getPaperPage(projectId: string, pageNumber: number) {
+  return readProjectScoped(projectId, async (_tx, _project, paper) => {
+    if (!Number.isInteger(pageNumber) || pageNumber < 1) throw new Error('页码无效');
+    const page = paper.pages.find(item => item.pageNumber === pageNumber);
+    if (!page) throw new Error('找不到指定页');
+    return structuredClone(page);
+  });
+}
+export function getPaperFigure(projectId: string, figureId: string) {
+  return readProjectScoped(projectId, async (_tx, _project, paper) => {
+    const figure = paper.figures.find(item => item.id === figureId);
+    if (!figure) throw new Error('找不到指定 Figure');
+    return structuredClone(figure);
+  });
+}
+export function getPaperClaim(projectId: string, claimId: string) {
+  return readProjectScoped(projectId, async (_tx, _project, paper) => {
+    const claim = paper.claims.find(item => item.id === claimId);
+    if (!claim) throw new Error('找不到指定 Claim');
+    return structuredClone(claim);
+  });
+}
+export function getDeck(projectId: string) {
+  return readProjectScoped(projectId, async (tx, project, paper) => {
+    if (!project.currentDeckId) throw new Error('项目尚未生成幻灯片');
+    const deck = DeckSchema.parse(await get(tx, 'decks', project.currentDeckId));
+    const errors = validateDeck(deck, paper); if (errors.length) throw new Error(errors.join('；'));
+    return structuredClone(deck);
+  });
 }
 
 export function loadSettings() {

@@ -1,6 +1,6 @@
 import { DeckSession, type PersistRevision } from '../src/deck';
 import { fixtureDeck, fixturePaper } from '../src/fixtures';
-import { createProject, deleteProject, listProjects, loadProject, saveRevision, saveStage, updateProject } from '../src/storage';
+import { createProject, deleteProject, getDeck, getPaper, getPaperClaim, getPaperFigure, getPaperPage, listProjects, loadProject, saveRevision, saveStage, updateProject } from '../src/storage';
 import { validatePaper } from '../src/sources';
 
 const assert = (value: unknown, message: string) => { if (!value) throw new Error(message); };
@@ -44,10 +44,17 @@ export async function runContracts() {
     tx.objectStore('settings').put({ marker: 'independent-setting' }, 'contract-check');
   });
   const persist: PersistRevision = (previous, next, record) => saveRevision(project.id, previous, next, record);
-  const session = new DeckSession(initial, paper, persist);
-  const stale = new DeckSession(initial, paper, persist);
+  const session = new DeckSession(initial, paper, persist, project.id);
+  const stale = new DeckSession(initial, paper, persist, project.id);
   const edit = (value: string) => session.commit({ type: 'slides', slideIds: ['slide-1'] }, [{ type: 'update-slide', slideId: 'slide-1', changes: { title: value } }], '契约检查');
   await edit('已经提交的标题');
+  const languageSession = new DeckSession(initial, paper);
+  await languageSession.commit({ type: 'deck' }, [{ type: 'set-language', language: 'en-US' }], '切换语言', crypto.randomUUID());
+  assert(languageSession.current.language === 'en-US', 'set-language 应受控修改');
+  assert((await getPaper(project.id)).id === project.paperId, 'Paper 读取必须限定当前项目');
+  assert((await getPaperPage(project.id, 1)).pageNumber === 1, 'Paper 页读取应返回指定页');
+  assert((await getPaperFigure(project.id, paper.figures[0].id)).id === paper.figures[0].id, 'Figure 读取应返回指定图');
+  await rejected(() => getPaperClaim(project.id, 'missing-claim'), '缺失 Claim 不得跨项目读取');
   await rejected(() => stale.commit({ type: 'slides', slideIds: ['slide-1'] }, [{ type: 'update-slide', slideId: 'slide-1', changes: { title: '过期响应' } }], '旧请求'), '旧 Deck 版本不得覆盖');
   assert(stale.current.revision === 0 && !stale.canUndo, '旧请求不得改变会话');
   const originalPut = IDBObjectStore.prototype.put;
