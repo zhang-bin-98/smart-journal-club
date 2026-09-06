@@ -15,6 +15,70 @@ export const GENERATION_STEPS = [
   '制作幻灯片',
 ] as const;
 
+export async function preparePaper(
+  initial: ProjectData,
+  resource: PdfResource,
+  settings: ModelSettings,
+  signal: AbortSignal,
+  onStage: (stage: string) => void = () => {},
+): Promise<ProjectData> {
+  let data = initial;
+  const captured = data.project;
+  if (captured.checkpoint === 'project-created') {
+    onStage(GENERATION_STEPS[0]);
+    const paper = await parsePaper(resource, data.paper, signal);
+    const project = await saveStage(captured, { checkpoint: 'pdf-parsed', paper }, signal);
+    data = { ...data, project, paper };
+  }
+  if (data.project.checkpoint === 'pdf-parsed') {
+    onStage(GENERATION_STEPS[1]);
+    const paper = await analyzeFigures(data.paper, resource, settings, signal);
+    const project = await saveStage(data.project, { checkpoint: 'figures-ready', paper }, signal);
+    data = { ...data, project, paper };
+  }
+  if (data.project.checkpoint === 'figures-ready') {
+    onStage(GENERATION_STEPS[2]);
+    const result = await understandPaper(data.paper, settings, data.project.preferences.instruction, signal);
+    const project = await saveStage(data.project, { checkpoint: 'paper-ready', ...result }, signal);
+    data = { ...data, project, paper: result.paper };
+  }
+  return data;
+}
+
+export async function prepareOutline(
+  initial: ProjectData,
+  settings: ModelSettings,
+  signal: AbortSignal,
+  onStage: (stage: string) => void = () => {},
+): Promise<ProjectData> {
+  if (initial.project.checkpoint !== 'paper-ready') throw new Error('论文尚未完成理解，不能规划大纲');
+  onStage(GENERATION_STEPS[3]);
+  const { strategy } = researchPrompt(initial.project.preferences.strategyId);
+  const plan = await planDeck(
+    initial.paper,
+    { ...initial.project.preferences, strategyId: strategy.id },
+    settings,
+    signal,
+  );
+  const project = await saveStage(initial.project, { checkpoint: 'deck-plan-ready', plan }, signal);
+  return { ...initial, project, plan };
+}
+
+export async function buildPresentation(
+  initial: ProjectData,
+  settings: ModelSettings,
+  signal: AbortSignal,
+  onStage: (stage: string) => void = () => {},
+): Promise<ProjectData> {
+  if (initial.project.checkpoint !== 'deck-plan-ready' || !initial.plan) throw new Error('请先确认有效的汇报计划');
+  if (initial.plan.status !== 'confirmed') throw new Error('未确认的汇报计划不能生成幻灯片');
+  onStage(GENERATION_STEPS[4]);
+  const { strategy } = researchPrompt(initial.project.preferences.strategyId);
+  const deck = await generateDeck(initial.plan, initial.paper, initial.project.preferences, settings, signal);
+  const project = await saveStage(initial.project, { checkpoint: 'deck-ready', deck, strategyId: strategy.id }, signal);
+  return { ...initial, project, deck, plan: undefined };
+}
+
 // 只有完整阶段进入存储；取消和刷新后由持久化检查点决定下一步。
 export async function generateProject(
   initial: ProjectData,
