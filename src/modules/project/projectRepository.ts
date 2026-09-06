@@ -4,6 +4,7 @@ import { PaperSchema, type Paper } from '../paper/paper.schema';
 import { DeckSchema, DeckSchemaVersion, type Deck, type RevisionRecord } from '../deck/deck.schema';
 import { migrateDeckV1, readableSlideCount, schemaVersionOf } from '../deck/migrateDeck';
 import { DeckPlanSchema, type DeckPlan } from '../outline/outline.schema';
+import { PlanRecordSchema, type PlanRecord } from '../outline/planRecord.schema';
 import { migratePlanV1 } from '../outline/migrateDeckPlan';
 import { UnsupportedSchemaVersionError } from '../../shared/errors/migration';
 import { validatePlan } from '../outline/validatePlan';
@@ -63,6 +64,16 @@ export function listProjects() {
   });
 }
 export type ProjectData = { project: Project; paper: Paper; asset?: PdfAsset; deck?: Deck; plan?: DeckPlan };
+function planRecord(project: Project, plan: DeckPlan): PlanRecord {
+  return PlanRecordSchema.parse({
+    recordVersion: 1,
+    projectId: project.id,
+    mode: project.currentDeckId ? 'regeneration' : 'initial',
+    plan,
+    preferences: project.preferences,
+    updatedAt: Date.now(),
+  });
+}
 // v1 Deck/Plan 在同一 readwrite 事务内确定性迁移并原子写回；全部已是 v2 时不产生任何写入。
 export function loadProject(id: string): Promise<ProjectData> {
   return transaction(['projects', 'papers', 'assets', 'decks', 'plans'], 'readwrite', async (tx) => {
@@ -93,10 +104,12 @@ export function loadProject(id: string): Promise<ProjectData> {
     if (project.checkpoint === 'deck-plan-ready') {
       const raw = await get(tx, 'plans', id);
       if (raw === undefined) throw new Error('汇报计划数据缺失，请保留项目并检查本地存储。');
-      planWasLegacy = schemaVersionOf(raw) === 1;
+      const wrapped = raw && typeof raw === 'object' && 'recordVersion' in raw;
+      const candidate = wrapped ? PlanRecordSchema.parse(raw).plan : raw;
+      planWasLegacy = schemaVersionOf(candidate) === 1;
       try {
         plan = validatePlan(
-          migratePlanV1(raw, {
+          migratePlanV1(candidate, {
             projectId: project.id,
             projectCreatedAt: project.createdAt,
             projectUpdatedAt: project.updatedAt,
@@ -118,8 +131,11 @@ export function loadProject(id: string): Promise<ProjectData> {
       tx.objectStore('plans').delete(id);
       opened = ProjectSchema.parse({ ...project, checkpoint: 'paper-ready' });
       tx.objectStore('projects').put(opened, id);
-    } else if (plan && planWasLegacy) {
-      tx.objectStore('plans').put(plan, id);
+    } else if (
+      plan &&
+      (planWasLegacy || !((await get(tx, 'plans', id)) as { recordVersion?: number } | undefined)?.recordVersion)
+    ) {
+      tx.objectStore('plans').put(planRecord(opened, plan), id);
     }
     return { project: opened, paper, asset: asset?.blob instanceof Blob ? asset : undefined, deck, plan };
   });
@@ -204,10 +220,12 @@ export function saveStage(captured: StageCapture, output: StageOutput, signal: A
       if (paper.id !== captured.paperId || !paper.pages.length) throw new Error('阶段产物或论文关联不正确');
       if (output.checkpoint === 'deck-plan-ready') validatePlan(output.plan, paper);
       if (output.checkpoint === 'deck-ready') {
-        const plan = validatePlan(
-          stored(DeckPlanSchema, await get(tx, 'plans', project.id), '汇报计划', DeckSchemaVersion),
-          paper,
-        );
+        const rawPlan = await get(tx, 'plans', project.id);
+        const planValue =
+          rawPlan && typeof rawPlan === 'object' && 'recordVersion' in rawPlan
+            ? PlanRecordSchema.parse(rawPlan).plan
+            : rawPlan;
+        const plan = validatePlan(stored(DeckPlanSchema, planValue, '汇报计划', DeckSchemaVersion), paper);
         const errors = validateDeck(output.deck, paper);
         if (
           errors.length ||
@@ -228,7 +246,8 @@ export function saveStage(captured: StageCapture, output: StageOutput, signal: A
       if (output.checkpoint === 'paper-ready')
         next.preferences = { ...project.preferences, strategyId: output.strategyId };
       if ('paper' in output) tx.objectStore('papers').put(paper, paper.id);
-      if (output.checkpoint === 'deck-plan-ready') tx.objectStore('plans').put(output.plan, project.id);
+      if (output.checkpoint === 'deck-plan-ready')
+        tx.objectStore('plans').put(planRecord(project, output.plan), project.id);
       if (output.checkpoint === 'deck-ready') {
         tx.objectStore('decks').add(output.deck, output.deck.id);
         tx.objectStore('plans').delete(project.id);
