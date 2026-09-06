@@ -50,6 +50,7 @@ export function Editor({
   resourceAvailable = true,
   registerLeaveGuard,
   onRegenerate,
+  onReanalyze,
   onRestore,
   taskStatus,
   onCancelTask,
@@ -74,6 +75,7 @@ export function Editor({
   resourceAvailable?: boolean;
   registerLeaveGuard?: RegisterLeaveGuard;
   onRegenerate?: () => void;
+  onReanalyze?: () => void;
   onRestore?: (deck: Deck) => Promise<void>;
   taskStatus?: string;
   onCancelTask?: () => void;
@@ -216,6 +218,20 @@ export function Editor({
                   >
                     <Undo2 size={15} />
                     恢复上一版
+                  </Button>
+                )}
+                {onReanalyze && (
+                  <Button
+                    disabled={!resourceAvailable || !!taskStatus}
+                    onClick={() =>
+                      void run(() => {
+                        setMenuOpen(false);
+                        onReanalyze();
+                      })
+                    }
+                  >
+                    <FileText size={15} />
+                    在新项目中重新分析同一论文
                   </Button>
                 )}
               </div>

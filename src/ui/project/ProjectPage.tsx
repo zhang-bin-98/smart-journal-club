@@ -14,12 +14,14 @@ import { OutlineEditor } from '../../modules/outline/ui/OutlineEditor';
 
 export function ProjectPage({
   id,
+  onOpenProject,
   onLeave,
   settings,
   onSettings,
   registerLeaveGuard,
 }: {
   id: string;
+  onOpenProject: (id: string) => void;
   onLeave: () => void;
   settings: ModelSettings;
   onSettings: () => void;
@@ -31,6 +33,7 @@ export function ProjectPage({
       <ProjectContent
         key={id}
         opened={opened}
+        onOpenProject={onOpenProject}
         onLeave={onLeave}
         settings={settings}
         onSettings={onSettings}
@@ -52,12 +55,14 @@ export function ProjectPage({
 
 function ProjectContent({
   opened,
+  onOpenProject,
   onLeave,
   settings,
   onSettings,
   registerLeaveGuard,
 }: {
   opened: OpenProject;
+  onOpenProject: (id: string) => void;
   onLeave: () => void;
   settings: ModelSettings;
   onSettings: () => void;
@@ -83,6 +88,9 @@ function ProjectContent({
     image,
     persistRevision,
     generate,
+    reanalyze,
+    reanalysis,
+    openReanalysis,
     confirmOutline,
     discardOutline,
     refreshOutline,
@@ -103,12 +111,15 @@ function ProjectContent({
         resourceAvailable={!!resource}
         registerLeaveGuard={registerEditorLeave}
         onRegenerate={() => openRegeneration(true)}
+        onReanalyze={() => openReanalysis(true)}
         onRestore={data.project.previousDeckId ? restore : undefined}
         taskStatus={
           busy
             ? operationKind === 'restore'
               ? '正在恢复上一版…'
-              : `正在重生成：${stage || '规划汇报结构'}…`
+              : operationKind === 'reanalysis'
+                ? '正在创建重新分析项目…'
+                : `正在重生成：${stage || '规划汇报结构'}…`
             : undefined
         }
         onCancelTask={operationKind === 'regenerate' ? cancelTask : undefined}
@@ -255,6 +266,14 @@ function ProjectContent({
                       <FileText size={15} />
                       查看论文
                     </Button>
+                    {data.project.checkpoint === 'paper-ready' && !data.project.currentDeckId && (
+                      <Button
+                        disabled={busy || !resource || !settings.apiKey || !online}
+                        onClick={() => openReanalysis(true)}
+                      >
+                        重新分析
+                      </Button>
+                    )}
                   </>
                 )}
                 <Button primary disabled={!resource || !settings.apiKey || !online} onClick={() => void generate()}>
@@ -329,6 +348,21 @@ function ProjectContent({
             setCurrentView(false);
             void generate(value);
           }}
+        />
+      )}
+      {reanalysis && (
+        <RegenerateDialog
+          instruction={data.project.preferences.instruction}
+          disabled={!online || !settings.apiKey.trim() || !resource}
+          onClose={() => openReanalysis(false)}
+          onStart={(value) =>
+            void reanalyze(value).then((id) => {
+              if (id) onOpenProject(id);
+            })
+          }
+          reanalysis
+          hasPlan={!!data.plan}
+          newProject={!!data.project.currentDeckId}
         />
       )}
     </>
@@ -428,6 +462,11 @@ function OutlineSummary({
           </label>
         )}
         <div className="mt-7 flex flex-wrap justify-end gap-3">
+          {!onCurrent && (
+            <Button disabled={busy || dirty || !canGenerate} onClick={() => controller.openReanalysis(true)}>
+              重新分析
+            </Button>
+          )}
           {onDiscard && (
             <Button disabled={busy || dirty} onClick={() => void onDiscard()}>
               <X size={15} />
@@ -467,14 +506,40 @@ function RegenerateDialog({
   disabled,
   onClose,
   onStart,
+  reanalysis = false,
+  hasPlan = false,
+  newProject = false,
 }: {
   instruction: string;
   disabled: boolean;
   onClose: () => void;
   onStart: (instruction: string) => void;
+  reanalysis?: boolean;
+  hasPlan?: boolean;
+  newProject?: boolean;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [value, setValue] = useState(instruction);
+  const mode = reanalysis ? (newProject ? 'copy' : 'reanalyze') : 'regenerate';
+  const copy = {
+    regenerate: {
+      title: '重新生成整套 PPT',
+      description: '使用已有论文分析重新组织汇报，成功后保留当前文稿作为上一版。',
+      submit: '开始重生成',
+    },
+    copy: {
+      title: '在新项目中重新分析同一论文',
+      description: '复制原 PDF 和完整图源到新项目，打开后可继续分析。原项目、当前版、上一版及候选大纲均保留。',
+      submit: '创建并打开新项目',
+    },
+    reanalyze: {
+      title: '重新分析论文',
+      description: hasPlan
+        ? '重新分析成功后，原大纲及其确认状态将失效。失败或取消会保留原论文理解和大纲。'
+        : '复用原论文和图源重新分析，成功后替换论文理解。失败或取消会保留原成果。',
+      submit: '开始重新分析',
+    },
+  }[mode];
   useEffect(() => {
     const node = dialog.current!;
     node.showModal();
@@ -483,7 +548,7 @@ function RegenerateDialog({
   return (
     <dialog
       ref={dialog}
-      aria-label="重新生成整套 PPT"
+      aria-label={reanalysis ? '重新分析论文' : '重新生成整套 PPT'}
       onCancel={(event) => {
         event.preventDefault();
         onClose();
@@ -491,28 +556,28 @@ function RegenerateDialog({
       className="fixed inset-0 m-auto w-[min(600px,94vw)] max-w-none rounded-md border border-line bg-white p-5 text-ink shadow-xl backdrop:bg-black/35"
     >
       <header className="flex items-center justify-between gap-3">
-        <h2 className="text-base font-semibold">重新生成整套 PPT</h2>
-        <IconButton label="关闭重生成" onClick={onClose}>
+        <h2 className="text-base font-semibold">{copy.title}</h2>
+        <IconButton label={reanalysis ? '关闭重新分析' : '关闭重生成'} onClick={onClose}>
           <X size={16} />
         </IconButton>
       </header>
-      <p className="mt-4 text-sm text-muted">使用已有论文分析重新组织汇报，成功后保留当前文稿作为上一版。</p>
+      <p className="mt-4 text-sm text-muted">{copy.description}</p>
       <label className="mt-5 block text-sm" htmlFor="regeneration-instruction">
         你希望怎么汇报这篇论文？
       </label>
       <textarea
         id="regeneration-instruction"
-        aria-label="重生成要求"
+        aria-label={reanalysis ? '重新分析要求' : '重生成要求'}
         className={`${inputClass} mt-2 min-h-36`}
         value={value}
         onChange={(event) => setValue(event.target.value)}
         placeholder="例如：中文，15 页左右，重点讲结果和创新点"
       />
-      {disabled && <p className="mt-3 text-xs text-muted">联网并配置模型 Key 后可开始重生成。</p>}
+      {disabled && <p className="mt-3 text-xs text-muted">原 PDF 可用、联网并配置模型 Key 后可继续。</p>}
       <footer className="mt-5 flex justify-end gap-2">
         <Button onClick={onClose}>取消</Button>
         <Button primary disabled={disabled} onClick={() => onStart(value)}>
-          开始重生成
+          {copy.submit}
         </Button>
       </footer>
     </dialog>

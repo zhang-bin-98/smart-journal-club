@@ -5,8 +5,14 @@ import { captureVersion, restorePrevious, saveRevision } from '../../modules/dec
 import { loadProject, updateProject, type ProjectData } from '../../modules/project/projectRepository';
 import { figureImage } from '../../modules/paper/sources';
 import { beginActivity, setDirty, type LeaveGuard, type RegisterLeaveGuard } from '../../app/activity';
-import { buildPresentation, prepareOutline, preparePaper } from '../../modules/generation/runGeneration';
+import {
+  buildPresentation,
+  prepareOutline,
+  preparePaper,
+  reanalyzePaper,
+} from '../../modules/generation/runGeneration';
 import { discardCandidate } from '../../modules/generation/candidateRepository';
+import { createReanalysisProject } from '../../modules/project/reanalysisRepository';
 import type { ModelSettings } from '../../shared/llm/model';
 import type { Project } from '../../modules/project/project.schema';
 import type { Deck, Element } from '../../modules/deck/deck.schema';
@@ -34,7 +40,8 @@ export function useProjectController(
   const [busy, setBusy] = useState(false);
   const [stage, setStage] = useState('');
   const [regeneration, setRegeneration] = useState(false);
-  const [operationKind, setOperationKind] = useState<'generate' | 'regenerate' | 'restore'>();
+  const [reanalysis, setReanalysis] = useState(false);
+  const [operationKind, setOperationKind] = useState<'generate' | 'regenerate' | 'restore' | 'reanalysis'>();
   const dataRef = useRef(data);
   dataRef.current = data;
   const instructionRef = useRef(instruction);
@@ -89,7 +96,7 @@ export function useProjectController(
   const leave = useRef<LeaveGuard>(async () => {});
   leave.current = async () => {
     if (parseTask.current) throw new Error('请先完成或取消当前任务');
-    if (source || regeneration) throw new Error('请先应用或取消当前对话框中的操作');
+    if (source || regeneration || reanalysis) throw new Error('请先应用或取消当前对话框中的操作');
     await outlineLeave.current?.();
     if (session) await editorLeave.current?.();
     else await savePreferences();
@@ -113,6 +120,10 @@ export function useProjectController(
   function openRegeneration(value: boolean) {
     setDirty(dialogKey, value);
     setRegeneration(value);
+  }
+  function openReanalysis(value: boolean) {
+    setDirty(dialogKey, value);
+    setReanalysis(value);
   }
   function changeInstruction(value: string) {
     instructionRef.current = value;
@@ -225,6 +236,47 @@ export function useProjectController(
           setOperationKind(undefined);
         }
       }
+    }
+  }
+  async function reanalyze(nextInstruction: string) {
+    if (parseTask.current || !resource || !online || !settings.apiKey.trim()) return;
+    const task = new AbortController();
+    parseTask.current = task;
+    const done = beginActivity();
+    setBusy(true);
+    setError('');
+    setStage('重新理解研究内容');
+    setOperationKind('reanalysis');
+    openReanalysis(false);
+    try {
+      await outlineLeave.current?.();
+      await editorLeave.current?.();
+      await preferenceSave.current;
+      if (dataRef.current.project.currentDeckId) {
+        const project = await createReanalysisProject(
+          dataRef.current.project.id,
+          nextInstruction,
+          AbortSignal.any([controller.signal, task.signal]),
+        );
+        return project.id;
+      }
+      const next = await reanalyzePaper(
+        dataRef.current,
+        settings,
+        AbortSignal.any([controller.signal, task.signal]),
+        nextInstruction,
+      );
+      if (!controller.signal.aborted) acceptData(next);
+    } catch (cause) {
+      if (!controller.signal.aborted)
+        setError(task.signal.aborted ? '已取消重新分析，原论文理解和计划均保留。' : errorMessage(cause));
+    } finally {
+      parseTask.current = undefined;
+      if (!controller.signal.aborted) {
+        setBusy(false);
+        setOperationKind(undefined);
+      }
+      done();
     }
   }
   async function restore(deck: Deck) {
@@ -367,6 +419,9 @@ export function useProjectController(
     image,
     persistRevision,
     generate,
+    reanalyze,
+    reanalysis,
+    openReanalysis,
     confirmOutline,
     discardOutline,
     refreshOutline,

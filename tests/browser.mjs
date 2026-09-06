@@ -20,6 +20,9 @@ try {
   );
   console.log(await page.evaluate(async () => (await import('/tests/migration-contracts.ts')).runMigrationContracts()));
   console.log(await page.evaluate(async () => (await import('/tests/outline-contracts.ts')).runOutlineContracts()));
+  console.log(
+    await page.evaluate(async () => (await import('/tests/reanalysis-contracts.ts')).runReanalysisContracts()),
+  );
   console.log(await page.evaluate(async () => (await import('/tests/ai-contracts.ts')).runAiContracts()));
   let modelCase = 'success';
   await page.route('https://api.deepseek.com/chat/completions', async (route) => {
@@ -540,6 +543,115 @@ try {
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   assert.deepEqual(errors, []);
   console.log('PASS: PDF upload/parse/canvas/source/crop-isolation/save/reopen/rebuild/export/mobile');
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  const originalForReanalysis = await page.evaluate(
+    async (id) => JSON.stringify(await (await import('/src/modules/project/projectRepository.ts')).loadProject(id)),
+    id,
+  );
+  await page.getByRole('button', { name: '更多操作', exact: true }).click();
+  await page.getByRole('button', { name: '在新项目中重新分析同一论文', exact: true }).click();
+  await page.getByRole('textbox', { name: '重新分析要求', exact: true }).fill('重新核对主要结论的证据');
+  await page.getByRole('button', { name: '创建并打开新项目', exact: true }).click();
+  await page.waitForURL((url) => url.hash.startsWith('#/project/') && !url.hash.endsWith(id));
+  await page.getByRole('button', { name: '继续分析论文', exact: true }).waitFor();
+  const cloneId = page.url().split('/project/')[1];
+  const reanalysisCalls = [];
+  let failReanalysis = false;
+  await page.route('https://api.deepseek.com/chat/completions', async (route) => {
+    const body = route.request().postDataJSON();
+    const text = body.messages.find((message) => message.role === 'user').content;
+    const data = JSON.parse(typeof text === 'string' ? text : text.find((item) => item.type === 'text').text);
+    const stage = body.messages[0].content.includes('规划汇报结构') ? 'plan' : 'understand';
+    reanalysisCalls.push(stage);
+    if (failReanalysis) {
+      await route.fulfill({
+        status: 401,
+        contentType: 'application/json',
+        body: '{"error":{"message":"fixed authentication failure"}}',
+      });
+      return;
+    }
+    const result = await page.evaluate(
+      async ({ stage, paper }) =>
+        stage === 'plan'
+          ? (await import('/tests/generation-contracts.ts')).fixedPlanningContent(paper)
+          : (await import('/tests/analysis-contracts.ts')).understanding(paper),
+      { stage, paper: data.paper },
+    );
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/event-stream',
+      body: aiEvent(
+        {
+          tool_calls: [
+            {
+              index: 0,
+              id: 'reanalysis-fixed',
+              type: 'function',
+              function: { name: 'submit_result', arguments: JSON.stringify({ result }) },
+            },
+          ],
+        },
+        'tool_calls',
+      ),
+    });
+  });
+  await page.getByRole('button', { name: '继续分析论文', exact: true }).click();
+  await page.getByRole('button', { name: '生成学术大纲', exact: true }).waitFor();
+  assert.deepEqual(reanalysisCalls, ['understand']);
+  await page.getByRole('button', { name: '生成学术大纲', exact: true }).click();
+  await page.getByRole('button', { name: '确认大纲', exact: true }).click();
+  await page.getByRole('button', { name: '确认大纲', exact: true }).waitFor({ state: 'hidden' });
+  const confirmedBeforeReanalysis = await page.evaluate(
+    async (id) => JSON.stringify(await (await import('/src/modules/project/projectRepository.ts')).loadProject(id)),
+    cloneId,
+  );
+  await page.getByRole('button', { name: '重新分析', exact: true }).click();
+  await page
+    .getByText('重新分析成功后，原大纲及其确认状态将失效。失败或取消会保留原论文理解和大纲。', { exact: true })
+    .waitFor();
+  await page.getByRole('textbox', { name: '重新分析要求', exact: true }).fill('新分析要求');
+  await page.screenshot({ path: join(output, 'reanalysis-desktop.png'), fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: join(output, 'reanalysis-mobile.png'), fullPage: true });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  failReanalysis = true;
+  await page.getByRole('button', { name: '开始重新分析', exact: true }).click();
+  await page.getByRole('alert').filter({ hasText: '模型认证失败' }).waitFor();
+  assert.equal(
+    await page.evaluate(
+      async (id) => JSON.stringify(await (await import('/src/modules/project/projectRepository.ts')).loadProject(id)),
+      cloneId,
+    ),
+    confirmedBeforeReanalysis,
+  );
+  failReanalysis = false;
+  await page.getByRole('button', { name: '重新分析', exact: true }).click();
+  await page.getByRole('textbox', { name: '重新分析要求', exact: true }).fill('新分析要求');
+  await page.getByRole('button', { name: '开始重新分析', exact: true }).click();
+  await page.getByRole('button', { name: '生成学术大纲', exact: true }).waitFor();
+  assert.deepEqual(reanalysisCalls, ['understand', 'plan', 'understand', 'understand']);
+  await page.reload();
+  await page.getByRole('button', { name: '生成学术大纲', exact: true }).waitFor();
+  const reanalyzed = await page.evaluate(
+    async (id) => (await import('/src/modules/project/projectRepository.ts')).loadProject(id),
+    cloneId,
+  );
+  assert.equal(reanalyzed.project.checkpoint, 'paper-ready');
+  assert.equal(reanalyzed.plan, undefined);
+  assert.equal(reanalyzed.project.preferences.instruction, '新分析要求');
+  assert.equal(
+    await page.evaluate(
+      async (id) => JSON.stringify(await (await import('/src/modules/project/projectRepository.ts')).loadProject(id)),
+      id,
+    ),
+    originalForReanalysis,
+  );
+  assert.deepEqual(errors, []);
+  console.log(
+    'PASS: independent reanalysis project/reuse figures/explicit understanding/confirmed outline invalidation/reload pause/original versions preserved',
+  );
   console.log('Artifacts:', output);
 } finally {
   await browser.close();

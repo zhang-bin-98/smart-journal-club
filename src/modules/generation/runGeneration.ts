@@ -4,6 +4,7 @@ import { analyzeFigures, understandPaper } from '../paper/analysis';
 import { parsePaper } from '../paper/parsePaper';
 import type { PdfResource } from '../../shared/pdf/pdfResource';
 import { loadProject, saveStage, type ProjectData } from '../project/projectRepository';
+import { assertReanalysisAvailable, saveReanalysis } from '../project/reanalysisRepository';
 import { planDeck } from './planDeck';
 import { generateDeck } from './buildDeck';
 import { captureGenerationBase, saveCandidate, commitCandidate } from './candidateRepository';
@@ -82,6 +83,21 @@ export async function prepareOutline(
   }
   const project = await saveStage(initial.project, { checkpoint: 'deck-plan-ready', plan }, signal);
   return { ...initial, project, plan };
+}
+
+export async function reanalyzePaper(
+  initial: ProjectData,
+  settings: ModelSettings,
+  signal: AbortSignal,
+  instruction: string,
+) {
+  const captured = structuredClone({ project: initial.project, paper: initial.paper, plan: initial.plan });
+  assertReanalysisAvailable(captured);
+  signal.throwIfAborted();
+  const { story, studyProfile, ...prepared } = captured.paper;
+  const result = await understandPaper({ ...prepared, claims: [], evidences: [] }, settings, instruction, signal);
+  const saved = await saveReanalysis({ captured, ...result, instruction, signal });
+  return { ...initial, ...saved, plan: undefined, planRecord: undefined, candidateStale: false };
 }
 
 export async function buildPresentation(
