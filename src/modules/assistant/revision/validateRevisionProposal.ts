@@ -2,6 +2,7 @@ import { ApplyRevisionArgsSchema, type Deck } from '../../deck/deck.schema';
 import type { Paper } from '../../paper/paper.schema';
 import { DeckSession } from '../../deck/DeckSession';
 import type { AiTarget } from '../target/resolveTarget';
+import { AssistantError } from '../assistantError';
 
 export async function validateAiCandidate(raw: unknown, target: AiTarget, deck: Deck, paper: Paper) {
   const args = ApplyRevisionArgsSchema.parse(raw);
@@ -9,6 +10,15 @@ export async function validateAiCandidate(raw: unknown, target: AiTarget, deck: 
     throw new Error('标题或页面修改必须使用包含目标页的 slides 范围');
   const newIds = args.mutations.flatMap((mutation) => (mutation.type === 'add-slide' ? [mutation.slide.id] : []));
   const allowed = new Set([...target.slideIds, ...newIds]);
+  if (
+    target.sectionId &&
+    args.mutations.some(
+      (mutation) =>
+        (mutation.type === 'add-slide' && mutation.slide.sectionId !== target.sectionId) ||
+        (mutation.type === 'move-slide' && mutation.targetSectionId !== target.sectionId),
+    )
+  )
+    throw new AssistantError('section-scope', '章节请求不能将页面移入其他章节。');
   if (!target.global) {
     if (
       args.scope.type === 'deck' ||
@@ -87,5 +97,5 @@ export async function validateAiCandidate(raw: unknown, target: AiTarget, deck: 
       ),
     ),
   ];
-  return { args, affectedSlideIds };
+  return { args, affectedSlideIds, preview: working.current };
 }

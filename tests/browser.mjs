@@ -283,26 +283,23 @@ try {
   };
   await page.route('https://api.deepseek.com/chat/completions', async (route) => {
     const request = route.request().postDataJSON();
-    const classify = request.tools.some((tool) => tool.function.name === 'submit_result');
     const afterTool = request.messages.some((message) => message.role === 'tool');
-    if (afterTool && aiMode === 'held') {
+    if (aiMode === 'held') {
       heldAiRoute = route;
       markAiHeld();
       return;
     }
-    const args = classify
-      ? { result: { mode: 'revision', needsStrategy: false } }
-      : {
-          scope: { type: 'slides', slideIds: [generated.slides[0].id] },
-          summary: aiMode === 'first' ? '精简第一页标题' : '再次调整第一页标题',
-          mutations: [
-            {
-              type: 'update-slide',
-              slideId: generated.slides[0].id,
-              changes: { title: aiMode === 'first' ? 'AI 固定标题' : 'AI 再次修改标题' },
-            },
-          ],
-        };
+    const args = {
+      scope: { type: 'slides', slideIds: [generated.slides[0].id] },
+      summary: aiMode === 'first' ? '精简第一页标题' : '再次调整第一页标题',
+      mutations: [
+        {
+          type: 'update-slide',
+          slideId: generated.slides[0].id,
+          changes: { title: aiMode === 'first' ? 'AI 固定标题' : 'AI 再次修改标题' },
+        },
+      ],
+    };
     const body = afterTool
       ? aiEvent({ content: '已完成指定页标题修改。' }, 'stop')
       : aiEvent(
@@ -313,7 +310,7 @@ try {
                 id: `call-ai-${aiMode}`,
                 type: 'function',
                 function: {
-                  name: classify ? 'submit_result' : 'deck__apply_revision',
+                  name: 'deck_propose_revision',
                   arguments: JSON.stringify(args),
                 },
               },
@@ -324,12 +321,22 @@ try {
     await route.fulfill({ status: 200, contentType: 'text/event-stream', body });
   });
   const aiInput = page.getByRole('textbox', { name: 'AI 输入', exact: true });
+  await page.getByRole('button', { name: '修改', exact: true }).click();
   const beforeAi = await page.evaluate(
     async (id) => (await (await import('/src/modules/project/projectRepository.ts')).loadProject(id)).deck,
     id,
   );
   await aiInput.fill('第 1 页标题短一点');
   await page.getByRole('button', { name: '发送', exact: true }).click();
+  await page.getByRole('region', { name: '待应用修改', exact: true }).waitFor();
+  assert.deepEqual(
+    await page.evaluate(
+      async (id) => (await (await import('/src/modules/project/projectRepository.ts')).loadProject(id)).deck,
+      id,
+    ),
+    beforeAi,
+  );
+  await page.getByRole('button', { name: '应用修改', exact: true }).click();
   await page.getByText('修改摘要：精简第一页标题', { exact: true }).waitFor();
   const firstSummaryUndo = page.getByRole('button', { name: '撤销本次修改', exact: true }).first();
   assert.equal(await firstSummaryUndo.isDisabled(), false);
@@ -360,6 +367,7 @@ try {
   aiMode = 'second';
   await aiInput.fill('第 1 页标题再精简一些');
   await page.getByRole('button', { name: '发送', exact: true }).click();
+  await page.getByRole('button', { name: '应用修改', exact: true }).click();
   await page.getByText('修改摘要：再次调整第一页标题', { exact: true }).waitFor();
   assert.equal(await page.getByRole('button', { name: '撤销本次修改', exact: true }).last().isDisabled(), false);
   await editingTitle.fill('AI 之后的手工修改');

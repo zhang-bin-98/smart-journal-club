@@ -1,36 +1,35 @@
 import { z } from 'zod';
 import type { Paper } from '../../paper/paper.schema';
+import { AssistantError } from '../assistantError';
 
 export const paperReadSchemas = {
-  'paper.get': z.strictObject({}),
-  'paper.get_page': z.strictObject({ pageNumber: z.number().int().positive() }),
-  'paper.get_figure': z.strictObject({ figureId: z.string().min(1) }),
-  'paper.get_claim': z.strictObject({ claimId: z.string().min(1) }),
+  paper_get_overview: z.strictObject({}),
+  paper_get_figure: z.strictObject({ figureId: z.string().min(1) }),
+  paper_get_claims: z.strictObject({ claimIds: z.array(z.string().min(1)).min(1) }),
+};
+export const paperReadLabels = {
+  paper_get_overview: '读取论文概要',
+  paper_get_figure: '查看图源与 Panel',
+  paper_get_claims: '核对结论与证据',
 };
 export const paperReadDescriptions: Record<keyof typeof paperReadSchemas, string> = {
-  'paper.get': '读取当前论文概要及 Figure/Claim 索引，不返回全文。',
-  'paper.get_page': '读取当前论文一个 PDF 页的文本。',
-  'paper.get_figure': '按原论文 Figure ID 读取图注、Panel 及来源。',
-  'paper.get_claim': '读取一个 Claim、对应 Evidence 和 Source。',
+  paper_get_overview: '读取当前论文问题、设计、发现及 Figure/Claim 索引，不返回全文。',
+  paper_get_figure: '按原论文 Figure ID 读取图注、Panel 及来源。',
+  paper_get_claims: '读取指定 Claim、对应 Evidence 和 Source。',
 };
 export function paperReadTool(name: keyof typeof paperReadSchemas, args: unknown, paper: Paper) {
   const parsed = paperReadSchemas[name].parse(args);
-  if (name === 'paper.get')
+  if (name === 'paper_get_overview')
     return {
       metadata: paper.metadata,
       studyProfile: paper.studyProfile,
-      pageCount: paper.pages.length,
+      story: paper.story,
       figures: paper.figures.map(({ id, label }) => ({ id, label })),
       claims: paper.claims.map(({ id, text }) => ({ id, text })),
     };
-  if (name === 'paper.get_page') {
-    const page = paper.pages.find((page) => page.pageNumber === (parsed as { pageNumber: number }).pageNumber);
-    if (!page) throw new Error('论文页码不存在');
-    return page;
-  }
-  if (name === 'paper.get_figure') {
+  if (name === 'paper_get_figure') {
     const figure = paper.figures.find((figure) => figure.id === (parsed as { figureId: string }).figureId);
-    if (!figure) throw new Error('Figure 不存在');
+    if (!figure) throw new AssistantError('unknown-figure', 'Figure 不存在');
     return {
       figure,
       sources: paper.sources.filter((source) =>
@@ -38,11 +37,15 @@ export function paperReadTool(name: keyof typeof paperReadSchemas, args: unknown
       ),
     };
   }
-  const claim = paper.claims.find((claim) => claim.id === (parsed as { claimId: string }).claimId);
-  if (!claim) throw new Error('Claim 不存在');
-  const evidences = paper.evidences.filter((evidence) => claim.evidenceIds.includes(evidence.id));
+  const ids = (parsed as { claimIds: string[] }).claimIds;
+  if (ids.some((id) => !paper.claims.some((claim) => claim.id === id)))
+    throw new AssistantError('unknown-claim', 'Claim 不存在');
+  const claims = paper.claims.filter((claim) => ids.includes(claim.id));
+  const evidences = paper.evidences.filter((evidence) =>
+    claims.some((claim) => claim.evidenceIds.includes(evidence.id)),
+  );
   return {
-    claim,
+    claims,
     evidences,
     sources: paper.sources.filter((source) => evidences.some((evidence) => evidence.sourceIds.includes(source.id))),
   };

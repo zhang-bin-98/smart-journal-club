@@ -5,7 +5,7 @@ export const MODEL_ID = 'deepseek-v4-flash-vision-exp';
 export const ModelSettingsSchema = z.strictObject({ modelId: z.literal(MODEL_ID), apiKey: z.string() });
 export type ModelSettings = z.infer<typeof ModelSettingsSchema>;
 export const DEFAULT_SETTINGS: ModelSettings = { modelId: MODEL_ID, apiKey: '' };
-const model: Model<'openai-completions'> = {
+export const model: Model<'openai-completions'> = {
   id: MODEL_ID,
   name: 'DeepSeek V4 Flash Vision',
   api: 'openai-completions',
@@ -61,6 +61,7 @@ export async function requestModel(
   json = false,
   maxTokens = 16384,
   outputTool?: string,
+  onText?: (delta: string) => void,
 ) {
   if (!settings.apiKey.trim()) throw new ModelError(stage, 'missing-key', '请先在模型设置中配置 API Key。');
   if (typeof navigator !== 'undefined' && !navigator.onLine)
@@ -97,7 +98,7 @@ export async function requestModel(
   const requestSignal = AbortSignal.any([signal, timeout]);
   try {
     const { stream } = await import('@earendil-works/pi-ai/api/openai-completions');
-    const response = await stream(model, wireContext, {
+    const responseStream = stream(model, wireContext, {
       apiKey: settings.apiKey,
       signal: requestSignal,
       temperature: 0.2,
@@ -117,7 +118,11 @@ export async function requestModel(
           throw new ModelError(stage, 'request-size', '本阶段内容超过请求预算，请减少输入内容后重试。');
         return body;
       },
-    }).result();
+    });
+    for await (const event of responseStream) {
+      if (event.type === 'text_delta') onText?.(event.delta);
+    }
+    const response = await responseStream.result();
     signal.throwIfAborted();
     if (timeout.aborted)
       throw new ModelError(stage, 'timeout', '模型响应超时，已停止本次请求。完整阶段仍保留，请稍后重试。');

@@ -18,7 +18,9 @@ export type AiTarget = {
   titleOnly?: boolean;
   allowNewSlides: boolean;
   clarification?: string;
+  sectionId?: string;
 };
+export type AssistantScope = 'element' | 'slides' | 'section' | 'deck';
 // 保留其他内容的限制不应被识别为另一项修改或整轮只读要求。
 export function modificationRequest(request: string) {
   return request
@@ -84,6 +86,7 @@ export function resolveAiTarget(
   selectedSlideId?: string,
   selectedElementId?: string,
   recentMessages: AiRecentMessage[] = [],
+  selectionScope?: AssistantScope,
 ): AiTarget {
   const pages = explicitPages(request);
   const global = !pages.length && /整体|全部|所有|整套|全局|每一页|全篇|entire deck|all slides/i.test(request);
@@ -114,6 +117,17 @@ export function resolveAiTarget(
       target.slideIds = deck.slides.filter((slide) => section.kinds.includes(slide.kind)).map((slide) => slide.id);
       if (!target.slideIds.length)
         return { ...target, clarification: '当前文稿中没有找到指定部分，请提供要调整的页码。' };
+    }
+  }
+  if (!target.slideIds.length && !target.clarification && selectionScope) {
+    const selected = deck.slides.find((slide) => slide.id === selectedSlideId);
+    if (selectionScope === 'deck') {
+      target.global = true;
+      target.allowNewSlides = true;
+      target.slideIds = deck.slides.map((slide) => slide.id);
+    } else if (selectionScope === 'section' && selected) {
+      target.sectionId = selected.sectionId;
+      target.slideIds = deck.slides.filter((slide) => slide.sectionId === selected.sectionId).map((slide) => slide.id);
     }
   }
   const figureMatch = request.match(/(?:Figure|Fig\.?|图)\s*(\d+)/i);
@@ -167,7 +181,9 @@ export function resolveAiTarget(
     !target.titleOnly &&
     !target.figureId &&
     !pages.length &&
-    !global &&
+    !target.global &&
+    !target.sectionId &&
+    (!selectionScope || selectionScope === 'element') &&
     !/这(?:一)?页|当前页|本页|背景|研究问题|方法|结果页/.test(request)
   ) {
     if (selectedSlide?.elements.some((element) => element.id === selectedElementId))

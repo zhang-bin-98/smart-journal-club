@@ -1,4 +1,4 @@
-import { Bot, CircleStop, Send, Undo2 } from 'lucide-react';
+import { Bot, Check, CircleStop, MessageCircle, Pencil, Send, Undo2, X } from 'lucide-react';
 import type { ModelSettings } from '../../shared/llm/model';
 import type { Paper } from '../../modules/paper/paper.schema';
 import type { Project } from '../../modules/project/project.schema';
@@ -6,6 +6,7 @@ import type { PersistAssistantRevision } from '../../modules/assistant/revision/
 import type { DeckSession } from '../../modules/deck/DeckSession';
 import { Button, inputClass } from '../controls';
 import { useAssistantController } from './useAssistantController';
+import { proposalDiff } from '../../modules/assistant/revision/proposalDiff';
 
 export type CancelAi = (reason?: 'manual') => boolean;
 export function AiPanel({
@@ -72,6 +73,15 @@ export function AiPanel({
     canUndo,
     undoRevision,
     messageList,
+    mode,
+    setMode,
+    scope,
+    setScope,
+    proposal,
+    apply,
+    progress,
+    streamedText,
+    target,
   } = controller;
   return (
     <section className="flex h-full min-h-0 min-w-0 flex-col bg-panel p-4" aria-label="AI 助手">
@@ -89,9 +99,6 @@ export function AiPanel({
           <p role="status" className="text-xs text-muted">
             正在读取对话…
           </p>
-        )}
-        {!loading && !messages.length && (
-          <p className="text-xs leading-relaxed text-muted">可以询问图表、逻辑或证据，也可以明确要求修改当前页。</p>
         )}
         {messages.map((message) => (
           <div
@@ -135,8 +142,48 @@ export function AiPanel({
         {busy && (
           <p role="status" className="flex items-center gap-2 text-xs text-muted">
             <CircleStop size={14} className="animate-pulse" />
-            正在调整…
+            {progress}
           </p>
+        )}
+        {busy && streamedText && <p className="whitespace-pre-wrap wrap-anywhere text-xs">{streamedText}</p>}
+        {proposal && (
+          <section aria-label="待应用修改" className="space-y-3 border-t border-line pt-3 text-xs">
+            <h3 className="font-semibold">待应用修改</h3>
+            <p className="wrap-anywhere">{proposal.summary}</p>
+            <p>影响 {proposal.affectedSlideIds.length} 页</p>
+            <details>
+              <summary className="cursor-pointer">查看差异</summary>
+              {proposal.affectedSlideIds.map((id) => {
+                const before = session.current.slides.find((slide) => slide.id === id);
+                const after = proposal.preview.slides.find((slide) => slide.id === id);
+                const page = session.current.slides.findIndex((slide) => slide.id === id) + 1;
+                return (
+                  <div key={id} className="mt-3 space-y-2 border-l-2 border-line pl-2 wrap-anywhere">
+                    <p className="font-medium">{page ? `第 ${page} 页` : '新增页'}</p>
+                    {proposalDiff(before, after, paper, { before: session.current, after: proposal.preview }).map(
+                      (row) => (
+                        <div key={row.key}>
+                          <p>{row.label}</p>
+                          <p>修改前：{row.before}</p>
+                          <p>修改后：{row.after}</p>
+                        </div>
+                      ),
+                    )}
+                  </div>
+                );
+              })}
+            </details>
+            <div className="flex flex-wrap gap-2">
+              <Button primary disabled={busy || disabled} onClick={() => void apply()}>
+                <Check size={14} />
+                应用修改
+              </Button>
+              <Button disabled={busy} onClick={() => cancel()}>
+                <X size={14} />
+                放弃
+              </Button>
+            </div>
+          </section>
         )}
       </div>
       {historyError && (
@@ -158,6 +205,37 @@ export function AiPanel({
         </p>
       )}
       <div className="mt-4 shrink-0 border-t border-line pt-3">
+        <div role="group" aria-label="AI 模式" className="mb-2 flex gap-1">
+          <Button aria-pressed={mode === 'answer'} disabled={busy || !!proposal} onClick={() => setMode('answer')}>
+            <MessageCircle size={14} />
+            提问
+          </Button>
+          <Button aria-pressed={mode === 'revision'} disabled={busy || !!proposal} onClick={() => setMode('revision')}>
+            <Pencil size={14} />
+            修改
+          </Button>
+        </div>
+        <label className="mb-2 flex items-center gap-2 text-xs">
+          范围
+          <select
+            aria-label="AI 作用范围"
+            className={inputClass}
+            value={scope}
+            disabled={busy || !!proposal}
+            onChange={(event) => setScope(event.target.value as typeof scope)}
+          >
+            <option value="element" disabled={!selectedElementId}>
+              元素
+            </option>
+            <option value="slides">页面</option>
+            <option value="section">章节</option>
+            <option value="deck">整套 PPT</option>
+          </select>
+        </label>
+        <p aria-label="实际作用范围" className="mb-2 text-xs wrap-anywhere text-muted">
+          {target.clarification ??
+            `${target.global ? '整套 PPT' : target.sectionId ? '当前章节' : target.elementId ? '选定元素' : '页面'}：${target.slideIds.map((id) => session.current.slides.findIndex((slide) => slide.id === id) + 1).join('、') || '无'}`}
+        </p>
         {!online && (
           <p role="status" className="mb-2 text-xs text-muted">
             当前离线，联网后可使用 AI；本地编辑和导出仍可用。

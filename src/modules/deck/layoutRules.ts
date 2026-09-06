@@ -1,4 +1,12 @@
 import type { Slide } from './deck.schema';
+export const layoutLabels = {
+  title: '标题',
+  'text-only': '文字',
+  'figure-full': '单图',
+  'figure-text': '图文',
+  'two-figures': '双图',
+  'panel-grid': 'Panel 网格',
+};
 
 export const layoutRules = {
   title: '无图，最多一个副标题 text 元素',
