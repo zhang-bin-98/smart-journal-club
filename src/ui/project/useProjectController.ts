@@ -5,7 +5,7 @@ import { captureVersion, restorePrevious, saveRevision } from '../../modules/dec
 import { loadProject, updateProject, type ProjectData } from '../../modules/project/projectRepository';
 import { figureImage } from '../../modules/paper/sources';
 import { beginActivity, setDirty, type LeaveGuard, type RegisterLeaveGuard } from '../../app/activity';
-import { generateProject } from '../../modules/generation/runGeneration';
+import { buildPresentation, prepareOutline, preparePaper } from '../../modules/generation/runGeneration';
 import { regenerateProject } from '../../modules/generation/regenerateDeck';
 import type { ModelSettings } from '../../shared/llm/model';
 import type { Project } from '../../modules/project/project.schema';
@@ -172,21 +172,15 @@ export function useProjectController(
         if (!controller.signal.aborted) acceptData(next);
       } else {
         const project = await savePreferences();
-        await generateProject(
-          { ...dataRef.current, project },
-          resource!,
-          settings,
-          signal,
-          (label) => {
-            if (current()) setStage(label);
-          },
-          (saved) => {
-            if (!controller.signal.aborted) acceptData(saved);
-          },
-          (message) => {
-            if (current()) setWarning(message);
-          },
-        );
+        let next = { ...dataRef.current, project };
+        if (next.project.checkpoint === 'project-created')
+          next = await preparePaper(next, resource!, settings, signal, setStage);
+        if (next.project.checkpoint === 'pdf-parsed' || next.project.checkpoint === 'figures-ready')
+          next = await preparePaper(next, resource!, settings, signal, setStage);
+        if (next.project.checkpoint === 'paper-ready') next = await prepareOutline(next, settings, signal, setStage);
+        if (next.project.checkpoint === 'deck-plan-ready' && next.plan?.status === 'confirmed')
+          next = await buildPresentation(next, settings, signal, setStage);
+        if (!controller.signal.aborted) acceptData(next);
       }
     } catch (cause) {
       if (!controller.signal.aborted)

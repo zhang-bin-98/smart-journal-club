@@ -122,6 +122,8 @@ function ProjectContent({
       }
       onExport={exportPresentation}
     />
+  ) : data.plan ? (
+    <OutlineSummary plan={data.plan} busy={busy} onGenerate={() => void generate()} onBack={onLeave} />
   ) : (
     <main className="mx-auto max-w-[1080px] px-5 py-6">
       <header className="flex items-center gap-3 border-b border-line pb-5">
@@ -267,6 +269,56 @@ function ProjectContent({
         />
       )}
     </>
+  );
+}
+
+function OutlineSummary({
+  plan,
+  busy,
+  onGenerate,
+  onBack,
+}: {
+  plan: import('../../modules/outline/outline.schema').DeckPlan;
+  busy: boolean;
+  onGenerate: () => void;
+  onBack: () => void;
+}) {
+  const confirmed = plan.status === 'confirmed';
+  return (
+    <main className="mx-auto max-w-[1080px] px-5 py-6">
+      <header className="flex items-center gap-3 border-b border-line pb-5">
+        <IconButton label="返回首页" disabled={busy} onClick={onBack}>
+          <ArrowLeft size={16} />
+        </IconButton>
+        <Brand />
+        <h1 className="min-w-0 flex-1 truncate text-sm">学术大纲</h1>
+      </header>
+      <section className="mx-auto max-w-[760px] py-10">
+        <h2 className="text-lg font-semibold">{plan.title}</h2>
+        <p className="mt-2 text-sm text-muted">
+          {confirmed ? '大纲已确认，可以生成幻灯片。' : '请检查并确认大纲后再生成幻灯片。'}
+        </p>
+        <ol className="mt-6 space-y-3">
+          {plan.sections.map((section) => (
+            <li key={section.id} className="border-b border-line pb-3 text-sm">
+              <div className="flex justify-between gap-3">
+                <strong>{section.title}</strong>
+                <span className="text-muted">
+                  {plan.slides.filter((slide) => slide.sectionId === section.id).length}/{section.slideBudget} 页
+                </span>
+              </div>
+              <p className="mt-1 text-muted">{section.purpose}</p>
+            </li>
+          ))}
+        </ol>
+        <div className="mt-7 flex justify-end">
+          <Button primary disabled={!confirmed || busy} onClick={onGenerate}>
+            <Play size={15} />
+            生成幻灯片
+          </Button>
+        </div>
+      </section>
+    </main>
   );
 }
 
