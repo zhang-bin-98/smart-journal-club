@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { FileUp, MoreHorizontal, Pencil, Settings, Trash2 } from 'lucide-react';
 import { createProject, deleteProject, listProjects, updateProject } from '../modules/project/projectRepository';
-import { beginActivity, setDirty, type LeaveGuard, type RegisterLeaveGuard } from '../activity';
+import { beginActivity, setDirty, type LeaveGuard, type RegisterLeaveGuard } from '../app/activity';
 import { Brand, Button, errorMessage, IconButton, inputClass } from './controls';
 
 export function HomePage({ openProject, onSettings, registerLeaveGuard }: { openProject: (id: string) => void; onSettings: () => void; registerLeaveGuard?: RegisterLeaveGuard }) {

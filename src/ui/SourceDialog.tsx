@@ -6,7 +6,7 @@ import type { Paper } from '../modules/paper/paper.schema';
 import type { PdfResource } from '../shared/pdf/pdfResource';
 import { Button, errorMessage, IconButton } from './controls';
 import { PdfPageView } from './PdfPageView';
-import { beginActivity } from '../activity';
+import { beginActivity } from '../app/activity';
 
 export type SourceSelection = { onDraft?: () => void; sourceId: string; element?: Extract<Element, { type: 'figure' }>; crop: boolean; apply?: (element: Extract<Element, { type: 'figure' }>) => Promise<void> };
 export function SourceDialog({ paper, resource, selection, onClose, readOnly = false }: { readOnly?: boolean; paper: Paper; resource?: PdfResource; selection: SourceSelection; onClose: () => void }) {

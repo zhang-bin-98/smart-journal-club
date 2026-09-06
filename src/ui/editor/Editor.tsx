@@ -1,15 +1,14 @@
-import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ArrowDown, ArrowLeft, ArrowUp, Bot, Crop, Download, FileText, List, MoreHorizontal, Plus, Quote, RefreshCw, Redo2, Settings, Trash2, Undo2, X } from 'lucide-react';
-import { createSlide } from '../../modules/deck/mutations';
 import { DeckSession } from '../../modules/deck/DeckSession';
-import type { DeckMutation, RevisionScope } from '../../modules/deck/deck.schema';
 import { LayoutIds, type Deck, type Element, type Slide } from '../../modules/deck/deck.schema';
 import type { Paper } from '../../modules/paper/paper.schema';
 import { Brand, Button, errorMessage, IconButton } from '../controls';
-import { SlidePreview, type FigureImage, type TextEdit } from './SlidePreview';
+import { SlidePreview, type FigureImage } from './SlidePreview';
 import { computeLayout } from '../../modules/deck/layout/computeLayout';
-import { AiPanel, type CancelAi } from './AiPanel';
-import { beginActivity, setDirty, type LeaveGuard, type RegisterLeaveGuard } from '../../activity';
+import { AiPanel } from './AiPanel';
+import { setDirty, type RegisterLeaveGuard } from '../../app/activity';
+import { useEditorController } from './useEditorController';
 
 const layoutNames = ['标题', '文字', '单图', '图文', '双图', 'Panel 网格'];
 export function Editor({ session, paper, image, name, initialSlideId, onLeave, onExport, onSelection, onSource, onSettings, notice, aiSettings, aiPaper, aiProjectId, aiPreferences, aiPersistRevision, readOnly = false, resourceAvailable = true, registerLeaveGuard, onRegenerate, onRestore, taskStatus, onCancelTask, externalError }: {
@@ -25,121 +24,13 @@ export function Editor({ session, paper, image, name, initialSlideId, onLeave, o
   onRegenerate?: () => void; onRestore?: (deck: Deck) => Promise<void>; taskStatus?: string; onCancelTask?: () => void; externalError?: string;
   onSource?: (sourceId: string, element: Extract<Element, { type: 'figure' }> | undefined, slideId: string, crop: boolean, apply: (element: Extract<Element, { type: 'figure' }>) => Promise<void>, onDraft: () => void) => void;
 }) {
-  const [, refresh] = useState(0);
-  const [selectedId, setSelectedId] = useState<string | undefined>(initialSlideId ?? session.current.slides[0]?.id);
-  const [selectedElement, setSelectedElement] = useState<string>();
-  const [status, setStatus] = useState('已保存');
-  const [error, setError] = useState('');
-  const [exporting, setExporting] = useState(false);
-  const [aiBusy, setAiBusy] = useState(false);
-  const [manualNotice, setManualNotice] = useState('');
-  const [navigationOpen, setNavigationOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const dirtyKey = useId();
-  const operations = useRef(new Set<Promise<void>>());
-  const draft = useRef<TextEdit | null>(null);
-  const pending = useRef<Promise<void> | null>(null);
-  const active = useRef(true);
-  const aiCancel = useRef<CancelAi | undefined>(undefined);
-  const registerAiCancel = useCallback((cancel?: CancelAi) => { aiCancel.current = cancel; }, []);
-  const aiBusyChanged = useCallback((busy: boolean) => { setAiBusy(busy); if (busy) setManualNotice(''); }, []);
-  const manualEdit = useCallback(() => { if (aiCancel.current?.('manual')) setManualNotice('已转为手工编辑'); }, []);
-  const deck = session.current;
-  const slide = deck.slides.find(item => item.id === selectedId) ?? deck.slides[0];
-  const element = slide?.elements.find(item => item.id === selectedElement);
+  const controller = useEditorController({ session, paper, readOnly, resourceAvailable, initialSlideId, onSelection, onSource, onExport, registerLeaveGuard });
+  const { deck, slide, element, selectedElement, setSelectedElement, status, setStatus, error, setError, exporting, exportPresentation, aiBusy, manualNotice, manualEdit, aiBusyChanged, registerAiCancel, cancelAi, dirtyKey, draft, changed, commit, saveText, flush, run, select, source, addSlide, move, history, addElement, navigationOpen, setNavigationOpen } = controller;
   const geometry = slide && computeLayout(slide);
   const crowded = geometry && (geometry.titleText.overflow || geometry.messageText.overflow || geometry.elements.some(item => item.text.overflow));
-  useEffect(() => {
-    active.current = true;
-    const beforeUnload = (event: BeforeUnloadEvent) => { if (draft.current || pending.current) event.preventDefault(); };
-    window.addEventListener('beforeunload', beforeUnload);
-    return () => { active.current = false; setDirty(dirtyKey, false); setDirty(dirtyKey + '-panels', false); window.removeEventListener('beforeunload', beforeUnload); };
-  }, [dirtyKey]);
-  const leave = useRef<LeaveGuard>(async () => {});
-  leave.current = async () => {
-    try { if (readOnly) throw new Error('请先完成或取消当前任务'); await Promise.all([...operations.current]); await flush(); aiCancel.current?.(); }
-    catch (cause) { setError(errorMessage(cause)); throw cause; }
-  };
-  useEffect(() => { registerLeaveGuard?.(() => leave.current()); return () => registerLeaveGuard?.(); }, [registerLeaveGuard]);
   useEffect(() => { setDirty(dirtyKey + '-panels', navigationOpen || aiOpen || menuOpen); }, [dirtyKey, navigationOpen, aiOpen, menuOpen]);
-  const changed = useCallback(() => { if (active.current) refresh(value => value + 1); }, []);
-  async function commit(scope: RevisionScope, mutations: DeckMutation[], summary: string) {
-    if (readOnly) throw new Error('请先完成或取消重生成后再编辑');
-    manualEdit(); const done = beginActivity();
-    try { await session.commit(scope, mutations, summary); changed(); } finally { done(); }
-  }
-  async function saveText(key: string, value: string) {
-    if (!slide) return;
-    if (key === 'title' || key === 'message') await commit({ type: 'slides', slideIds: [slide.id] }, [{ type: 'update-slide', slideId: slide.id, changes: { [key]: value } }], '编辑文字');
-    else {
-      const item = slide.elements.find(candidate => candidate.id === key);
-      if (!item || (item.type !== 'text' && item.type !== 'bullet-list')) throw new Error('文字目标已变化，请重新打开项目');
-      const next: Element = item.type === 'text' ? { ...item, text: value } : { ...item, items: value.split('\n') };
-      await commit({ type: 'element', slideId: slide.id, elementId: item.id }, [{ type: 'replace-element', slideId: slide.id, element: next }], '编辑文字');
-    }
-  }
-  async function flush() {
-    if (pending.current) await pending.current;
-    const current = draft.current;
-    if (!current) return;
-    if (current.composing) throw new Error('请先完成当前输入');
-    if (current.value === current.original) { draft.current = null; setDirty(dirtyKey, false); setStatus('已保存'); return; }
-    setStatus('正在保存…');
-    const operation = current.save();
-    pending.current = operation;
-    try {
-      await operation;
-      if (draft.current === current) draft.current = null;
-      else if (draft.current?.key === current.key) draft.current.original = current.value;
-      setDirty(dirtyKey, !!draft.current); setStatus(draft.current ? '未保存' : '已保存'); setError('');
-    } catch (cause) { setStatus('未保存'); throw cause; }
-    finally { pending.current = null; }
-    if (draft.current) await flush();
-  }
-  async function run(action: () => void | Promise<void>) {
-    const done = beginActivity();
-    const operation = (async () => { try { await flush(); await action(); if (active.current) setError(''); changed(); } catch (cause) { if (active.current) setError(errorMessage(cause)); } })();
-    operations.current.add(operation);
-    try { await operation; } finally { operations.current.delete(operation); done(); }
-  }
-  async function select(id?: string) { await onSelection?.(id); setSelectedId(id); setSelectedElement(undefined); setNavigationOpen(false); }
-  function source(sourceId?: string, crop = false) {
-    if (!slide || !sourceId) return;
-    if (!resourceAvailable) { setError('原 PDF 缺失，无法查看来源及裁图。'); return; }
-    if (crop && readOnly) return;
-    const selectedFigure = element?.type === 'figure' ? paper.figures.find(item => item.id === element.figureId) : undefined;
-    const selectedSourceId = element?.type === 'figure' && element.panelId ? selectedFigure?.panels.find(panel => panel.id === element.panelId)?.sourceId : selectedFigure?.sourceId;
-    void run(() => onSource?.(sourceId, element?.type === 'figure' && selectedSourceId === sourceId ? element : undefined, slide.id, crop, async next => {
-      const current = session.current.slides.find(item => item.id === slide.id)?.elements.find(item => item.id === next.id);
-      if (current?.type !== 'figure' || current.figureId !== next.figureId || current.panelId !== next.panelId) throw new Error('图源已变化，请重新打开来源后裁图');
-      const cropped = { ...current }; if (next.cropOverride) cropped.cropOverride = next.cropOverride; else delete cropped.cropOverride;
-      await commit({ type: 'element', slideId: slide.id, elementId: next.id }, [{ type: 'replace-element', slideId: slide.id, element: cropped }], '调整当前元素裁图');
-    }, manualEdit));
-  }
-  async function addSlide() {
-    const next = createSlide(crypto.randomUUID(), deck.slides.length + 1);
-    await commit({ type: 'deck' }, [{ type: 'add-slide', slide: next, afterSlideId: slide?.id ?? null }], '新增幻灯片');
-    await select(next.id);
-  }
-  async function move(id: string, afterSlideId: string | null) {
-    if (id === afterSlideId) return;
-    await commit({ type: 'deck' }, [{ type: 'move-slide', slideId: id, afterSlideId }], '调整页顺序');
-  }
-  async function history(direction: 'undo' | 'redo') {
-    manualEdit();
-    const index = slide ? session.current.slides.indexOf(slide) : 0;
-    await session[direction]();
-    const slides = session.current.slides;
-    await select(slides.find(item => item.id === slide?.id)?.id ?? slides[Math.min(index, slides.length - 1)]?.id);
-  }
-  async function addElement(type: 'text' | 'bullet-list' | 'citation') {
-    if (!slide) return;
-    const id = crypto.randomUUID();
-    const next: Element = type === 'text' ? { id, type, text: '' } : type === 'bullet-list' ? { id, type, items: [''] } : { id, type, sourceIds: slide.sourceIds.slice(0, 1) };
-    await commit({ type: 'slides', slideIds: [slide.id] }, [{ type: 'add-element', slideId: slide.id, element: next }], '新增元素');
-    setSelectedElement(id);
-  }
   const figure = element?.type === 'figure' ? paper.figures.find(item => item.id === element.figureId) : undefined;
   const sourceId = element?.type === 'figure' ? (element.panelId ? figure?.panels.find(panel => panel.id === element.panelId)?.sourceId : figure?.sourceId) : undefined;
   return <main className="mx-auto min-h-screen max-w-[1600px] p-3 font-sans text-ink sm:p-5">
@@ -147,12 +38,9 @@ export function Editor({ session, paper, image, name, initialSlideId, onLeave, o
       {onLeave && <IconButton label="返回首页" disabled={readOnly} onClick={onLeave}><ArrowLeft size={16} /></IconButton>}
       <Brand /><h1 className="min-w-0 flex-1 truncate text-sm font-medium">{name}</h1>
       <span role="status" className={`text-xs ${status === '未保存' ? 'text-red-700' : 'text-success'}`}>{status}</span>
-      <Button primary disabled={!deck.slides.length || exporting || (!resourceAvailable && deck.slides.some(item => item.elements.some(element => element.type === 'figure')))} onClick={() => void run(async () => {
-        setExporting(true);
-        try { await onExport(structuredClone(session.current)); } finally { if (active.current) setExporting(false); }
-      })}><Download size={15} />{exporting ? '正在导出…' : '导出 PPTX'}</Button>
+      <Button primary disabled={!deck.slides.length || exporting || (!resourceAvailable && deck.slides.some(item => item.elements.some(element => element.type === 'figure')))} onClick={() => void exportPresentation()}><Download size={15} />{exporting ? '正在导出…' : '导出 PPTX'}</Button>
       {onSettings && <IconButton label="模型设置" disabled={exporting || aiBusy || readOnly} onClick={() => void run(onSettings)}><Settings size={17} /></IconButton>}
-      {onRegenerate && <div className="relative"><IconButton label="更多操作" disabled={readOnly || aiBusy || exporting} onClick={() => setMenuOpen(value => !value)}><MoreHorizontal size={17} /></IconButton>{menuOpen && <div className="absolute top-11 right-0 z-20 grid min-w-48 gap-1 rounded border border-line bg-white p-1 shadow-sm"><Button disabled={!resourceAvailable} onClick={() => void run(() => { setMenuOpen(false); onRegenerate(); })}><RefreshCw size={15} />重新生成整套 PPT</Button>{onRestore && <Button onClick={() => void run(async () => { setMenuOpen(false); aiCancel.current?.(); await onRestore(session.current); })}><Undo2 size={15} />恢复上一版</Button>}</div>}</div>}
+      {onRegenerate && <div className="relative"><IconButton label="更多操作" disabled={readOnly || aiBusy || exporting} onClick={() => setMenuOpen(value => !value)}><MoreHorizontal size={17} /></IconButton>{menuOpen && <div className="absolute top-11 right-0 z-20 grid min-w-48 gap-1 rounded border border-line bg-white p-1 shadow-sm"><Button disabled={!resourceAvailable} onClick={() => void run(() => { setMenuOpen(false); onRegenerate(); })}><RefreshCw size={15} />重新生成整套 PPT</Button>{onRestore && <Button onClick={() => void run(async () => { setMenuOpen(false); cancelAi(); await onRestore(session.current); })}><Undo2 size={15} />恢复上一版</Button>}</div>}</div>}
     </header>
     {taskStatus && <div role="status" className="flex items-center justify-between gap-3 border-b border-line py-3 text-sm"><span>{taskStatus}</span>{onCancelTask && <Button onClick={onCancelTask}><X size={15} />取消重生成</Button>}</div>}
     {externalError && <p role="alert" className="border-b border-red-200 py-3 text-sm text-red-700">{externalError}</p>}
@@ -212,7 +100,6 @@ export function Editor({ session, paper, image, name, initialSlideId, onLeave, o
     </div>
   </main>;
 }
-
 function ResponsivePanel({ label, side, open, onClose, children }: { label: string; side: 'left' | 'right'; open: boolean; onClose: () => void; children: ReactNode }) {
   const panel = useRef<HTMLElement>(null);
   const close = useRef(onClose); close.current = onClose;

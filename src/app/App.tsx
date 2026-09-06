@@ -1,13 +1,13 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
-import { HomePage } from './HomePage';
+import { HomePage } from '../ui/HomePage';
 import { DEFAULT_SETTINGS, type ModelSettings } from '../shared/llm/model';
 import { loadSettings } from '../shared/llm/settingsRepository';
-import { beginActivity, isAppIdle, setDirty, subscribeActivity, type LeaveGuard } from '../activity';
-import { errorMessage } from './controls';
-import { PwaNotice } from './PwaNotice';
-const SettingsDialog = lazy(() => import('./SettingsDialog').then(module => ({ default: module.SettingsDialog })));
-const ProjectPage = lazy(() => import('./ProjectPage').then(module => ({ default: module.ProjectPage })));
-const FixturePage = import.meta.env.DEV ? lazy(() => import('./FixturePage')) : undefined;
+import { beginActivity, isAppIdle, setDirty, subscribeActivity, type LeaveGuard } from './activity';
+import { errorMessage } from '../ui/controls';
+import { PwaNotice } from '../ui/PwaNotice';
+const SettingsDialog = lazy(() => import('../ui/SettingsDialog').then(module => ({ default: module.SettingsDialog })));
+const ProjectPage = lazy(() => import('../ui/project/ProjectPage').then(module => ({ default: module.ProjectPage })));
+const FixturePage = import.meta.env.DEV ? lazy(() => import('../ui/FixturePage')) : undefined;
 export function App() {
   const [hash, setHash] = useState(location.hash);
   const [settings, setSettings] = useState<ModelSettings>(DEFAULT_SETTINGS);

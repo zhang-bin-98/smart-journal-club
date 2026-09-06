@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Check, KeyRound, Trash2, X } from 'lucide-react';
 import { checkConnection, type ModelSettings } from '../shared/llm/model';
 import { saveSettings } from '../shared/llm/settingsRepository';
-import { beginActivity } from '../activity';
+import { beginActivity } from '../app/activity';
 import { Button, errorMessage, IconButton, inputClass, useOnline } from './controls';
 
 export function SettingsDialog({ settings, onSaved, onClose }: { settings: ModelSettings; onSaved: (settings: ModelSettings) => void; onClose: () => void }) {

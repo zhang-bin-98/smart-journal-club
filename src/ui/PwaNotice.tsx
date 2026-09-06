@@ -1,7 +1,7 @@
 import { useEffect, useSyncExternalStore } from 'react';
 import { Download, RefreshCw } from 'lucide-react';
-import { isAppIdle, subscribeActivity } from '../activity';
-import { applyAppUpdate, getPwaState, initializePwa, installApp, retryPwa, subscribePwa } from '../pwa';
+import { isAppIdle, subscribeActivity } from '../app/activity';
+import { applyAppUpdate, getPwaState, initializePwa, installApp, retryPwa, subscribePwa } from '../app/pwa';
 import { Button } from './controls';
 
 export function PwaNotice() {
