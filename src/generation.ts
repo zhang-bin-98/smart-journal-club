@@ -1,11 +1,11 @@
 import { z } from 'zod';
-import { DeckPlanSchema, DeckSchema, SlideSchema, type Deck, type DeckPlan, type Paper, type Project } from './types';
+import { DeckPlanSchema, DeckSchema, SlideSchema, ProjectSchema, type Deck, type DeckPlan, type Paper, type Project } from './types';
 import { validateDeck, validatePlan } from './layout';
 import { requestJson, type ModelSettings } from './model';
 import { prompts, researchPrompt } from './prompts';
 import { analyzeFigures, understandPaper } from './analysis';
 import type { PdfResource } from './pdf';
-import { saveStage, type ProjectData } from './storage';
+import { captureVersion, commitRegeneration, saveStage, type ProjectData } from './storage';
 
 export const GENERATION_STEPS = ['解析论文', '分析 Figure / Panel', '理解研究内容', '规划汇报结构', '制作幻灯片'] as const;
 export const GenerationOutputSchema = z.strictObject({ slides: z.array(SlideSchema.pick({ id: true, elements: true })).min(1) });
@@ -15,13 +15,16 @@ export const layoutRules = {
   'two-figures': '两个 figure，无正文元素', 'panel-grid': '三个或四个 figure，无正文元素',
 };
 const paperContext = (paper: Paper) => ({ ...paper, pages: undefined });
+function assignPlanIds(raw: DeckPlan, paper: Paper) {
+  validatePlan(raw, paper);
+  return validatePlan({ ...raw, slides: raw.slides.map(slide => ({ ...slide, id: crypto.randomUUID() })) }, paper);
+}
 export async function planDeck(paper: Paper, preferences: Project['preferences'], settings: ModelSettings, signal: AbortSignal) {
   const { strategy } = researchPrompt(preferences.strategyId);
   const raw = await requestJson(settings, [prompts.common, strategy.body, prompts.stages.plan].join('\n\n'), {
     preferences, paper: paperContext(paper), layoutRules,
   }, DeckPlanSchema, signal, 'plan');
-  validatePlan(raw, paper);
-  return validatePlan({ ...raw, slides: raw.slides.map(slide => ({ ...slide, id: crypto.randomUUID() })) }, paper);
+  return assignPlanIds(raw, paper);
 }
 export function assembleDeck(plan: DeckPlan, raw: unknown, paper: Paper): Deck {
   validatePlan(plan, paper);
@@ -96,4 +99,31 @@ export async function generateProject(initial: ProjectData, resource: PdfResourc
     onSaved(data);
   }
   return data;
+}
+
+export const RegenerationPlanSchema = z.strictObject({ strategyId: z.enum(prompts.strategies.map(strategy => strategy.id) as [string, ...string[]]), plan: DeckPlanSchema });
+/** 重生成只在内存重新规划和制作；复用既有 Paper，并在全部成功后一次切换版本。 */
+export async function regenerateProject(initial: ProjectData, preferences: Project['preferences'], settings: ModelSettings, signal: AbortSignal,
+  onStage: (stage: string) => void, onWarning: (message: string) => void = () => {}, isTaskActive?: () => boolean): Promise<ProjectData> {
+  if (!initial.deck) throw new Error('当前项目尚未生成完整幻灯片。');
+  const captured = captureVersion(initial.project, initial.deck);
+  const paper = structuredClone(initial.paper);
+  const assertActive = () => { signal.throwIfAborted(); if (isTaskActive && !isTaskActive()) throw new Error('重生成请求已失效，原有版本仍保留。'); };
+  assertActive();
+  const candidatePreferences = ProjectSchema.shape.preferences.parse(structuredClone(preferences));
+  const { strategy, fallback } = researchPrompt(candidatePreferences.strategyId);
+  if (fallback) onWarning('原研究叙事策略已不可用，本次以通用策略为默认，结合新要求重新选择。');
+  candidatePreferences.strategyId = strategy.id;
+  onStage(GENERATION_STEPS[3]); assertActive();
+  const selected = await requestJson(settings, [prompts.common, prompts.stages.plan, '本次为整套重生成：在同一规划结果中从给定 strategies 选择一个 strategyId，并返回 plan；不要重新分析 Paper。'].join('\n\n'), {
+    preferences: candidatePreferences, strategies: prompts.strategies, paper: paperContext(paper), layoutRules,
+  }, RegenerationPlanSchema, signal, 'plan');
+  assertActive();
+  const plan = assignPlanIds(selected.plan, paper);
+  candidatePreferences.strategyId = selected.strategyId;
+  onStage(GENERATION_STEPS[4]); assertActive();
+  const deck = await generateDeck(plan, paper, candidatePreferences, settings, signal);
+  assertActive();
+  const saved = await commitRegeneration(captured, deck, candidatePreferences, signal, isTaskActive);
+  return { ...initial, ...saved, paper, plan: undefined };
 }

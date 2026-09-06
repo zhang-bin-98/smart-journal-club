@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 
 export const inputClass = 'w-full rounded border border-control bg-white px-3 py-2 text-sm text-ink outline-none focus:border-accent focus:ring-1 focus:ring-focus disabled:opacity-45';
@@ -11,3 +12,9 @@ export function Brand() {
   return <div className="flex shrink-0 items-center gap-2.5"><span className="grid size-8 place-items-center rounded bg-accent text-xs font-bold text-white">JC</span><span className="text-lg font-semibold">smartJC</span></div>;
 }
 export const errorMessage = (error: unknown) => error instanceof Error ? error.message : String(error);
+
+export function useOnline() {
+  const [online, setOnline] = useState(navigator.onLine);
+  useEffect(() => { const changed = () => setOnline(navigator.onLine); window.addEventListener('online', changed); window.addEventListener('offline', changed); return () => { window.removeEventListener('online', changed); window.removeEventListener('offline', changed); }; }, []);
+  return online;
+}

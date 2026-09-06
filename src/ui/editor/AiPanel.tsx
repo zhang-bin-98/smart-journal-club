@@ -1,18 +1,23 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { Bot, CircleStop, Send, Undo2 } from 'lucide-react';
 import type { ModelSettings } from '../../model';
 import type { ChatMessage, Paper, Project } from '../../types';
 import type { DeckSession } from '../../deck';
 import { runAiRevision } from '../../ai';
 import { loadHistory } from '../../storage';
-import { Button, errorMessage, inputClass } from '../controls';
+import { beginActivity, setDirty } from '../../activity';
+import { Button, errorMessage, inputClass, useOnline } from '../controls';
 
 export type CancelAi = (reason?: 'manual') => boolean;
-export function AiPanel({ session, paper, settings, projectId, preferences, selectedSlideId, selectedElementId, onChanged, beforeSend, beforeUndo, onBusyChange, registerCancel }: {
-  session: DeckSession; paper: Paper; settings: ModelSettings; projectId?: string; preferences?: Project['preferences']; selectedSlideId?: string; selectedElementId?: string;
+export function AiPanel({ session, paper, settings, projectId, preferences, selectedSlideId, selectedElementId, onChanged, beforeSend, beforeUndo, onBusyChange, registerCancel, disabled = false }: {
+  disabled?: boolean; session: DeckSession; paper: Paper; settings: ModelSettings; projectId?: string; preferences?: Project['preferences']; selectedSlideId?: string; selectedElementId?: string;
   onChanged: () => void; beforeSend: () => Promise<void>; beforeUndo: () => Promise<void>; onBusyChange: (busy: boolean) => void; registerCancel: (cancel?: CancelAi) => void;
 }) {
   const [input, setInput] = useState('');
+  const online = useOnline();
+  const inputKey = useId();
+  const changeInput = (value: string) => { setDirty(inputKey, !!value.trim()); setInput(value); };
+  useEffect(() => () => setDirty(inputKey, false), [inputKey]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [pendingMessage, setPendingMessage] = useState('');
   const [busy, setBusy] = useState(false);
@@ -47,13 +52,13 @@ export function AiPanel({ session, paper, settings, projectId, preferences, sele
     return true;
   }
   async function send() {
-    const request = input.trim(); if (!request || task.current || loading || historyError) return;
+    const request = input.trim(); if (!request || task.current || loading || historyError || disabled || !online) return;
     if (!settings.apiKey.trim()) { setError('请先在模型设置中配置 API Key。'); return; }
-    const controller = new AbortController(); task.current = controller; setBusy(true); onBusyChange(true); setError(''); setNotice('');
+    const done = beginActivity(); const controller = new AbortController(); task.current = controller; setBusy(true); onBusyChange(true); setError(''); setNotice('');
     try {
       await beforeSend();
       if (!mounted.current || task.current !== controller || controller.signal.aborted) return;
-      registerCancel(cancel); setInput(''); setPendingMessage(request);
+      registerCancel(cancel); changeInput(''); setPendingMessage(request);
       const result = await runAiRevision({
         settings, paper, deck: session.current, session, projectId, preferences, request, selectedSlideId, selectedElementId,
         recentMessages: messages, signal: controller.signal, isTaskActive: () => mounted.current && task.current === controller,
@@ -63,8 +68,9 @@ export function AiPanel({ session, paper, settings, projectId, preferences, sele
       setMessages(value => [...value.filter(message => !result.messages.some(next => next.id === message.id)), ...result.messages].slice(-100));
       if (result.committed) onChanged();
     } catch (cause) {
-      if (mounted.current && task.current === controller && !controller.signal.aborted) { setError(errorMessage(cause)); setInput(request); }
+      if (mounted.current && task.current === controller && !controller.signal.aborted) { setError(errorMessage(cause)); changeInput(request); }
     } finally {
+      done();
       if (mounted.current && task.current === controller) {
         task.current = undefined; registerCancel(); setBusy(false); onBusyChange(false); setPendingMessage('');
       }
@@ -74,12 +80,13 @@ export function AiPanel({ session, paper, settings, projectId, preferences, sele
     return message.revision !== undefined && message.deckId === session.current.id && message.revision === session.current.revision && session.canUndo;
   }
   async function undoRevision(message: ChatMessage) {
-    if (task.current || !canUndo(message)) return;
+    if (task.current || disabled || !canUndo(message)) return;
+    const done = beginActivity();
     try {
       await beforeUndo();
       if (!canUndo(message)) return;
       await session.undo(); onChanged(); setError('');
-    } catch (cause) { setError(errorMessage(cause)); }
+    } catch (cause) { setError(errorMessage(cause)); } finally { done(); }
   }
   return <section className="flex h-full min-h-0 min-w-0 flex-col bg-panel p-4" aria-label="AI 助手">
     <div className="flex items-center gap-2"><Bot size={17} /><h2 className="text-sm font-semibold">AI 助手</h2></div>
@@ -91,7 +98,7 @@ export function AiPanel({ session, paper, settings, projectId, preferences, sele
         <p className="whitespace-pre-wrap wrap-anywhere">{message.text}</p>
         {message.summary && <p className="mt-1 whitespace-pre-wrap wrap-anywhere text-muted">修改摘要：{message.summary}</p>}
         {!!message.affectedSlideIds?.length && <p className="mt-1 text-muted">受影响页：{message.affectedSlideIds.map(id => { const index = session.current.slides.findIndex(slide => slide.id === id); return index < 0 ? '已删除页' : `第 ${index + 1} 页`; }).join('、')}</p>}
-        {message.revision !== undefined && <Button className="mt-2" disabled={!canUndo(message) || busy} onClick={() => void undoRevision(message)}><Undo2 size={14} />撤销本次修改</Button>}
+        {message.revision !== undefined && <Button className="mt-2" disabled={!canUndo(message) || busy || disabled} onClick={() => void undoRevision(message)}><Undo2 size={14} />撤销本次修改</Button>}
       </div>)}
       {pendingMessage && <div className="border-l-2 border-accent pl-2 text-xs leading-relaxed"><p className="mb-1 text-[11px] text-muted">你</p><p className="whitespace-pre-wrap wrap-anywhere">{pendingMessage}</p></div>}
       {busy && <p role="status" className="flex items-center gap-2 text-xs text-muted"><CircleStop size={14} className="animate-pulse" />正在调整…</p>}
@@ -100,9 +107,10 @@ export function AiPanel({ session, paper, settings, projectId, preferences, sele
     {error && <p role="alert" className="mt-3 text-xs text-red-700">{error}</p>}
     {notice && <p role="status" className="mt-3 text-xs text-muted">{notice}</p>}
     <div className="mt-4 shrink-0 border-t border-line pt-3">
+      {!online && <p role="status" className="mb-2 text-xs text-muted">当前离线，联网后可使用 AI；本地编辑和导出仍可用。</p>}
       {!settings.apiKey.trim() && <p className="mb-2 text-xs text-muted">请先通过顶栏的“模型设置”配置 Key。</p>}
-      <textarea aria-label="AI 输入" className={`${inputClass} min-h-24 max-h-48 resize-y`} placeholder="告诉我怎么调整…" value={input} disabled={busy} onChange={event => setInput(event.target.value)} onKeyDown={event => { if ((event.ctrlKey || event.metaKey) && event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); void send(); } }} />
-      <div className="mt-2 flex justify-end gap-2">{busy ? <Button onClick={() => cancel()}><CircleStop size={15} />取消</Button> : <Button primary disabled={!input.trim() || !settings.apiKey.trim() || loading || !!historyError} onClick={() => void send()}><Send size={15} />发送</Button>}</div>
+      <textarea aria-label="AI 输入" className={`${inputClass} min-h-24 max-h-48 resize-y`} placeholder="告诉我怎么调整…" value={input} disabled={busy || disabled} onChange={event => changeInput(event.target.value)} onKeyDown={event => { if ((event.ctrlKey || event.metaKey) && event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); void send(); } }} />
+      <div className="mt-2 flex justify-end gap-2">{busy ? <Button onClick={() => cancel()}><CircleStop size={15} />取消</Button> : <Button primary disabled={!input.trim() || !settings.apiKey.trim() || loading || !!historyError || disabled || !online} onClick={() => void send()}><Send size={15} />发送</Button>}</div>
     </div>
   </section>;
 }

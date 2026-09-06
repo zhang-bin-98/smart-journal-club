@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "node scripts/check-prompts.ts && tsc --noEmit && vite build",
     "preview": "vite preview",
-    "check:browser": "node tests/browser.mjs"
+    "check:browser": "node tests/browser.mjs",
+    "check:pwa": "node tests/pwa.mjs"
   },
   "dependencies": {
     "@earendil-works/pi-ai": "^0.85.1",

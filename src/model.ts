@@ -22,6 +22,7 @@ function failure(stage: string, status?: number) {
 }
 export async function requestModel(settings: ModelSettings, context: Context, signal: AbortSignal, stage: string, json = false, maxTokens = 16384, outputTool?: string) {
   if (!settings.apiKey.trim()) throw new ModelError(stage, 'missing-key', '请先在模型设置中配置 API Key。');
+  if (typeof navigator !== 'undefined' && !navigator.onLine) throw new ModelError(stage, 'offline', '当前离线，联网后可继续使用 AI；本地查看和编辑仍可用。');
   signal.throwIfAborted(); let status: number | undefined;
   // DeepSeek 函数名不支持点号；只转换本轮已声明工具，应用内仍使用逻辑名称。
   const toolNames = new Map((context.tools ?? []).map(tool => [tool.name, tool.name.replaceAll('.', '__')]));
