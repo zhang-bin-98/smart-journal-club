@@ -100,11 +100,19 @@ export function loadProject(id: string): Promise<ProjectData> {
     let plan: DeckPlan | undefined;
     let discardLegacyPlan = false;
     let planWasLegacy = false;
+    let wrapPlan = false;
     if (project.checkpoint === 'deck-plan-ready') {
       const raw = await get(tx, 'plans', id);
       if (raw === undefined) throw new Error('汇报计划数据缺失，请保留项目并检查本地存储。');
       const wrapped = raw && typeof raw === 'object' && 'recordVersion' in raw;
-      const candidate = wrapped ? PlanRecordSchema.parse(raw).plan : raw;
+      const record = wrapped ? PlanRecordSchema.parse(raw) : undefined;
+      if (
+        record &&
+        (record.projectId !== project.id || record.plan.paperId !== project.paperId || record.mode !== 'initial')
+      )
+        throw new Error('汇报计划关联不一致，请保留项目并检查本地存储。');
+      wrapPlan = !wrapped;
+      const candidate = record ? record.plan : raw;
       planWasLegacy = schemaVersionOf(candidate) === 1;
       try {
         plan = validatePlan(
@@ -130,10 +138,7 @@ export function loadProject(id: string): Promise<ProjectData> {
       tx.objectStore('plans').delete(id);
       opened = ProjectSchema.parse({ ...project, checkpoint: 'paper-ready' });
       tx.objectStore('projects').put(opened, id);
-    } else if (
-      plan &&
-      (planWasLegacy || !((await get(tx, 'plans', id)) as { recordVersion?: number } | undefined)?.recordVersion)
-    ) {
+    } else if (plan && wrapPlan) {
       tx.objectStore('plans').put(planRecord(opened, plan), id);
     }
     return { project: opened, paper, asset: asset?.blob instanceof Blob ? asset : undefined, deck, plan };

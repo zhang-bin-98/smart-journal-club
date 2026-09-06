@@ -75,7 +75,7 @@ export async function runGenerationContracts() {
   project = await saveStage(project, { checkpoint: 'paper-ready', paper, strategyId: 'general' }, signal);
   const plan = fixedPlan(paper);
   const raw = fixedSlides(plan);
-  await rejected(() => validatePlan({ ...plan, slides: [] }, paper));
+  assert(validatePlan({ ...plan, slides: [] }, paper).slides.length === 0, '空页大纲可保存为草稿');
   await rejected(() => validatePlan({ ...plan, paperId: 'other' }, paper));
   const invalid = structuredClone(plan);
   invalid.slides[1].figures[0].panelId = 'missing';

@@ -11,7 +11,12 @@ import { applyPlanMutation } from './planMutations';
 import { validatePlan } from './validatePlan';
 import { OutlineError } from './outlineError';
 const clone = <T>(value: T): T => structuredClone(value);
-export type PlanSaveOptions = { signal?: AbortSignal; isTaskActive?: () => boolean; warningsAccepted?: boolean };
+export type PlanSaveOptions = {
+  signal?: AbortSignal;
+  isTaskActive?: () => boolean;
+  warningsAccepted?: boolean;
+  command?: 'edit' | 'confirm';
+};
 export type PersistPlan = (request: PlanRequest, next: DeckPlan, options: PlanSaveOptions) => Promise<DeckPlan>;
 type PlanSnapshot = Pick<DeckPlan, 'title' | 'language' | 'sections' | 'slides' | 'claimEmphasis'>;
 const snapshot = (plan: DeckPlan): PlanSnapshot =>
@@ -84,6 +89,7 @@ export class OutlineSession {
       await this.persist?.(request, clone(next), options);
       this.value = clone(next);
       this.requests.add(request.requestId);
+      if (this.requests.size > 100) this.requests.delete(this.requests.values().next().value!);
     } finally {
       this.saving = false;
     }
@@ -94,7 +100,7 @@ export class OutlineSession {
     const previous = snapshot(this.value);
     const next = draftOf(this.value);
     for (const mutation of mutations) applyPlanMutation(next, mutation);
-    await this.save(request, next, options);
+    await this.save(request, next, { ...options, command: 'edit' });
     this.undoStack.push(previous);
     if (this.undoStack.length > 20) this.undoStack.shift();
     this.redoStack = [];
@@ -112,7 +118,7 @@ export class OutlineSession {
       );
     if (result.warnings.length && !options.warningsAccepted)
       throw new OutlineError('warnings-unconfirmed', '请检查大纲警告并确认继续。');
-    await this.save(request, candidate, options);
+    await this.save(request, candidate, { ...options, command: 'confirm' });
     return this.current;
   }
   private async restore(direction: 'undo' | 'redo', options: PlanSaveOptions) {
@@ -121,7 +127,7 @@ export class OutlineSession {
     if (!from.length) return false;
     const previous = snapshot(this.value);
     const next = { ...draftOf(this.value), ...clone(from.at(-1)!) };
-    await this.save(this.capture(), next, options);
+    await this.save(this.capture(), next, { ...options, command: 'edit' });
     from.pop();
     to.push(previous);
     if (to.length > 20) to.shift();

@@ -244,8 +244,11 @@ export async function runMigrationContracts() {
       const opened = await loadProject('migration-plan');
       assert(opened.project.checkpoint === 'deck-plan-ready', '可迁移计划不回退 checkpoint');
       assert(opened.plan?.status === 'draft' && opened.plan?.id === 'plan-migration-plan', '旧计划迁移为 v2 draft');
-      const persisted = await readRecord<Record<string, unknown>>('plans', 'migration-plan');
-      assert(persisted?.schemaVersion === 2, '迁移计划应持久化');
+      const persisted = await readRecord<{ recordVersion: number; plan: { schemaVersion: number } }>(
+        'plans',
+        'migration-plan',
+      );
+      assert(persisted?.recordVersion === 1 && persisted.plan.schemaVersion === 2, '迁移计划应保存为 v2 PlanRecord');
       const snapshot = JSON.stringify(persisted);
       await loadProject('migration-plan');
       assert(JSON.stringify(await readRecord('plans', 'migration-plan')) === snapshot, '重复打开不得改写计划');
