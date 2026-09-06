@@ -11,7 +11,8 @@ import type { ModelSettings } from '../shared/llm/model';
 import { Checkpoints, type Project } from '../modules/project/project.schema';
 import type { Deck } from '../modules/deck/deck.schema';
 import { beginActivity, setDirty, type LeaveGuard, type RegisterLeaveGuard } from '../activity';
-import { generateProject, regenerateProject, GENERATION_STEPS } from '../generation';
+import { GENERATION_STEPS, generateProject } from '../modules/generation/runGeneration';
+import { regenerateProject } from '../modules/generation/regenerateDeck';
 
 type OpenProject = { data: ProjectData; resource?: PdfResource; controller: AbortController };
 export function ProjectPage({ id, onLeave, settings, onSettings, registerLeaveGuard }: { id: string; onLeave: () => void; settings: ModelSettings; onSettings: () => void; registerLeaveGuard?: RegisterLeaveGuard }) {

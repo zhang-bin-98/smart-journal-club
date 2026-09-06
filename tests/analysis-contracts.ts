@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { fixturePaper } from '../src/fixtures';
-import { mapUnderstanding, UnderstandingSchema } from '../src/analysis';
+import { mapUnderstanding, UnderstandingSchema } from '../src/modules/paper/analysis';
 import { prompts } from '../src/prompts';
 import { parsePromptFiles } from '../src/prompt-config';
 import { createProject, deleteProject, loadProject, saveStage } from '../src/modules/project/projectRepository';

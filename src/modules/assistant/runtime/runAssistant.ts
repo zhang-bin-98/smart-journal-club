@@ -8,7 +8,7 @@ import type { ChatMessage } from '../assistant.schema';
 import type { DeckSession } from '../../../deck';
 import { prompts, researchPrompt } from '../../../prompts';
 import { saveConversation } from '../conversationRepository';
-import { layoutRules } from '../../../generation';
+import { layoutRules } from '../../generation/layoutRules';
 import { modificationRequest, resolveAiTarget, type AiRecentMessage, type AiTarget } from '../target/resolveTarget';
 import { paperReadSchemas, paperReadDescriptions, paperReadTool } from '../tools/paperReadTools';
 import { deckReadSchemas, deckReadDescriptions, deckReadTool } from '../tools/deckReadTools';

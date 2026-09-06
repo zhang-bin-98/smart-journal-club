@@ -1,10 +1,10 @@
 import { z } from 'zod';
-import { ClaimSchema, EvidenceSchema, MetadataSchema, StorySchema, StudyProfileSchema, type Paper } from './modules/paper/paper.schema';
-import { BBoxSchema } from './shared/schema';
-import { requestJson, type ModelSettings } from './shared/llm/model';
-import { prompts } from './prompts';
-import { validatePaper } from './sources';
-import { PdfResource } from './pdf';
+import { ClaimSchema, EvidenceSchema, MetadataSchema, StorySchema, StudyProfileSchema, type Paper } from './paper.schema';
+import { BBoxSchema } from '../../shared/schema';
+import { requestJson, type ModelSettings } from '../../shared/llm/model';
+import { prompts } from '../../prompts';
+import { validatePaper } from '../../sources';
+import { PdfResource } from '../../pdf';
 
 export const FigurePageSchema = z.strictObject({ figures: z.array(z.strictObject({
   label: z.string().min(1), caption: z.string(), description: z.string(), bbox: BBoxSchema,

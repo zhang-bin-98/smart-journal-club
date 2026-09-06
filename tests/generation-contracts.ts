@@ -1,6 +1,6 @@
 import { fixtureDeck, fixturePaper } from '../src/fixtures';
 import { DeckSession } from '../src/deck';
-import { assembleDeck } from '../src/generation';
+import { assembleDeck } from '../src/modules/generation/buildDeck';
 import { validatePlan } from '../src/layout';
 import { captureVersion, commitRegeneration, restorePrevious, saveRevision } from '../src/modules/deck/deckRepository';
 import { createProject, deleteProject, loadProject, saveStage, type ProjectData } from '../src/modules/project/projectRepository';
