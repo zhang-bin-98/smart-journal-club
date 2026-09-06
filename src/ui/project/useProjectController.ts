@@ -17,6 +17,7 @@ import type { OpenProject } from './useProjectWorkspace';
 import { OutlineSession } from '../../modules/outline/OutlineSession';
 import { savePlanRevision } from '../../modules/outline/outlineRepository';
 import { validatePlanNarrative } from '../../modules/outline/validateNarrative';
+import type { PlanMutation } from '../../modules/outline/outline.schema';
 
 /** 项目工作区控制器：Deck 会话与修订持久化、偏好保存队列、生成/重生成/恢复/导出任务及对话框状态。 */
 export function useProjectController(
@@ -39,6 +40,10 @@ export function useProjectController(
   const instructionRef = useRef(instruction);
   const preferenceSave = useRef<Promise<Project> | undefined>(undefined);
   const editorLeave = useRef<LeaveGuard | undefined>(undefined);
+  const outlineLeave = useRef<LeaveGuard | undefined>(undefined);
+  const registerOutlineLeave = useCallback((guard?: LeaveGuard) => {
+    outlineLeave.current = guard;
+  }, []);
   const registerEditorLeave = useCallback((guard?: LeaveGuard) => {
     editorLeave.current = guard;
   }, []);
@@ -85,6 +90,7 @@ export function useProjectController(
   leave.current = async () => {
     if (parseTask.current) throw new Error('请先完成或取消当前任务');
     if (source || regeneration) throw new Error('请先应用或取消当前对话框中的操作');
+    await outlineLeave.current?.();
     if (session) await editorLeave.current?.();
     else await savePreferences();
   };
@@ -236,7 +242,7 @@ export function useProjectController(
         signal,
         () => !signal.aborted && parseTask.current === task,
       );
-      if (!controller.signal.aborted) acceptData({ ...dataRef.current, ...result, plan: undefined });
+      if (!controller.signal.aborted) acceptData(await loadProject(result.project.id));
     } catch (cause) {
       if (!controller.signal.aborted) setError(errorMessage(cause));
     } finally {
@@ -253,6 +259,35 @@ export function useProjectController(
   function cancelTask() {
     parseTask.current?.abort();
   }
+  async function editOutline(mutations: PlanMutation[] | 'undo' | 'redo') {
+    const outline = outlineRef.current;
+    if (!outline || parseTask.current || dataRef.current.candidateStale) return false;
+    const task = new AbortController();
+    parseTask.current = task;
+    const done = beginActivity();
+    setBusy(true);
+    setError('');
+    try {
+      const options = { signal: AbortSignal.any([task.signal, controller.signal]) };
+      if (mutations === 'undo' || mutations === 'redo') await outline[mutations](options);
+      else await outline.commit({ ...outline.capture(), mutations }, options);
+      if (controller.signal.aborted) return false;
+      const plan = outline.current;
+      acceptData({
+        ...dataRef.current,
+        plan,
+        planRecord: dataRef.current.planRecord ? { ...dataRef.current.planRecord, plan } : undefined,
+      });
+      return true;
+    } catch (cause) {
+      if (!controller.signal.aborted) setError(errorMessage(cause));
+      return false;
+    } finally {
+      if (parseTask.current === task) parseTask.current = undefined;
+      if (!controller.signal.aborted) setBusy(false);
+      done();
+    }
+  }
   async function confirmOutline(warningsAccepted: boolean) {
     const outline = outlineRef.current;
     if (!outline || parseTask.current) return;
@@ -262,6 +297,7 @@ export function useProjectController(
     setBusy(true);
     setError('');
     try {
+      await outlineLeave.current?.();
       const signal = AbortSignal.any([task.signal, controller.signal]);
       const plan = await outline.confirm(outline.capture(), { signal, warningsAccepted });
       if (!controller.signal.aborted) acceptData({ ...dataRef.current, plan });
@@ -335,6 +371,10 @@ export function useProjectController(
     discardOutline,
     refreshOutline,
     outlineIssues,
+    editOutline,
+    registerOutlineLeave,
+    outlineCanUndo: outlineRef.current?.canUndo ?? false,
+    outlineCanRedo: outlineRef.current?.canRedo ?? false,
     restore,
     cancelTask,
     exportPresentation,

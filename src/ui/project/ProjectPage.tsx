@@ -10,6 +10,7 @@ import { GENERATION_STEPS } from '../../modules/generation/runGeneration';
 import type { RegisterLeaveGuard } from '../../app/activity';
 import { useProjectWorkspace, type OpenProject } from './useProjectWorkspace';
 import { useProjectController } from './useProjectController';
+import { OutlineEditor } from '../../modules/outline/ui/OutlineEditor';
 
 export function ProjectPage({
   id,
@@ -133,7 +134,9 @@ function ProjectContent({
       />
     ) : data.plan ? (
       <OutlineSummary
+        key={data.plan.id}
         plan={data.plan}
+        controller={controller}
         busy={busy}
         onGenerate={() => void generate()}
         onBack={onLeave}
@@ -334,6 +337,7 @@ function ProjectContent({
 
 function OutlineSummary({
   plan,
+  controller,
   busy,
   onGenerate,
   onBack,
@@ -347,6 +351,7 @@ function OutlineSummary({
   onCurrent,
 }: {
   plan: import('../../modules/outline/outline.schema').DeckPlan;
+  controller: ReturnType<typeof useProjectController>;
   busy: boolean;
   onGenerate: () => void;
   onBack: () => void;
@@ -359,63 +364,72 @@ function OutlineSummary({
   onDiscard?: () => Promise<void>;
   onCurrent?: () => void;
 }) {
-  const [warningsAccepted, setWarningsAccepted] = useState(false);
+  const [acceptedRevision, setAcceptedRevision] = useState<number>();
+  const [dirty, setDirty] = useState(false);
+  const [selectedIssue, setSelectedIssue] = useState<import('../../modules/outline/narrativeRules').NarrativeIssue>();
+  const warningsAccepted = acceptedRevision === plan.revision;
   const confirmed = plan.status === 'confirmed';
   return (
     <main className="mx-auto max-w-[1080px] px-5 py-6">
       <header className="flex items-center gap-3 border-b border-line pb-5">
-        <IconButton label="返回首页" disabled={busy} onClick={onBack}>
+        <IconButton label="返回首页" disabled={busy || dirty} onClick={onBack}>
           <ArrowLeft size={16} />
         </IconButton>
         <Brand />
         <h1 className="min-w-0 flex-1 truncate text-sm">学术大纲</h1>
-        {onCurrent && <Button onClick={onCurrent}>当前文稿</Button>}
+        {onCurrent && (
+          <Button disabled={busy || dirty} onClick={onCurrent}>
+            当前文稿
+          </Button>
+        )}
       </header>
-      <section className="mx-auto max-w-[760px] py-10">
+      <section className="py-6">
         <h2 className="text-lg font-semibold">{plan.title}</h2>
         {onDiscard && <p className="mt-2 text-sm">{stale ? '候选大纲已过期' : '候选重生成大纲'}</p>}
         <p className="mt-2 text-sm text-muted">
           {confirmed ? '大纲已确认，可以生成幻灯片。' : '请检查并确认大纲后再生成幻灯片。'}
         </p>
-        <ol className="mt-6 space-y-3">
-          {plan.sections.map((section) => (
-            <li key={section.id} className="border-b border-line pb-3 text-sm">
-              <div className="flex justify-between gap-3">
-                <strong>{section.title}</strong>
-                <span className="text-muted">
-                  {plan.slides.filter((slide) => slide.sectionId === section.id).length}/{section.slideBudget} 页
-                </span>
-              </div>
-              <p className="mt-1 text-muted">{section.purpose}</p>
-            </li>
-          ))}
-        </ol>
+        <OutlineEditor
+          plan={plan}
+          paper={controller.data.paper}
+          disabled={busy || stale}
+          edit={controller.editOutline}
+          canUndo={controller.outlineCanUndo}
+          canRedo={controller.outlineCanRedo}
+          onDirty={setDirty}
+          registerLeave={controller.registerOutlineLeave}
+          onSource={(sourceId) => controller.openSource({ sourceId, crop: false })}
+          issue={selectedIssue}
+        />
         {error && (
           <p role="alert" className="mt-4 text-sm text-red-700">
             {error}
           </p>
         )}
         {[...issues.errors, ...issues.warnings].map((issue) => (
-          <p
+          <button
+            type="button"
+            disabled={dirty}
+            onClick={() => setSelectedIssue(issue)}
             key={`${issue.code}-${issue.slideId ?? issue.sectionId ?? issue.claimId ?? issue.figureId ?? issue.message}`}
-            className="mt-2 text-sm text-muted"
+            className={`mt-2 block text-left text-sm ${issue.severity === 'error' ? 'text-red-700' : 'text-amber-700'}`}
           >
             {issue.message}
-          </p>
+          </button>
         ))}
         {!!issues.warnings.length && !confirmed && (
           <label className="mt-4 flex items-center gap-2 text-sm">
             <input
               type="checkbox"
               checked={warningsAccepted}
-              onChange={(event) => setWarningsAccepted(event.target.checked)}
+              onChange={(event) => setAcceptedRevision(event.target.checked ? plan.revision : undefined)}
             />
             已核对警告，继续确认
           </label>
         )}
-        <div className="mt-7 flex justify-end gap-3">
+        <div className="mt-7 flex flex-wrap justify-end gap-3">
           {onDiscard && (
-            <Button disabled={busy} onClick={() => void onDiscard()}>
+            <Button disabled={busy || dirty} onClick={() => void onDiscard()}>
               <X size={15} />
               放弃候选
             </Button>
@@ -429,14 +443,16 @@ function OutlineSummary({
           {!confirmed && (
             <Button
               primary
-              disabled={busy || stale || !!issues.errors.length || (!!issues.warnings.length && !warningsAccepted)}
+              disabled={
+                busy || dirty || stale || !!issues.errors.length || (!!issues.warnings.length && !warningsAccepted)
+              }
               onClick={() => void onConfirm(warningsAccepted)}
             >
               <Check size={15} />
               确认大纲
             </Button>
           )}
-          <Button primary disabled={!confirmed || busy || stale || !canGenerate} onClick={onGenerate}>
+          <Button primary disabled={!confirmed || busy || dirty || stale || !canGenerate} onClick={onGenerate}>
             <Play size={15} />
             生成幻灯片
           </Button>
