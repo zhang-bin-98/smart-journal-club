@@ -544,6 +544,37 @@ try {
   assert.deepEqual(errors, []);
   console.log('PASS: PDF upload/parse/canvas/source/crop-isolation/save/reopen/rebuild/export/mobile');
   await page.setViewportSize({ width: 1440, height: 1000 });
+  await editingTitle.fill('步骤导航前的手工修改');
+  await page.getByRole('tab', { name: '2 · 学术大纲', exact: true }).click();
+  const finalOutline = page.getByRole('region', { name: '当前文稿最终大纲', exact: true });
+  await finalOutline.getByRole('heading', { name: /步骤导航前的手工修改/ }).waitFor();
+  assert.equal(await finalOutline.getByRole('textbox').count(), 0);
+  await page.screenshot({ path: join(output, 'final-outline-desktop.png'), fullPage: true });
+  await page.getByRole('tab', { name: '1 · 论文理解', exact: true }).click();
+  const understandingRegion = page.getByRole('region', { name: '论文理解', exact: true });
+  await understandingRegion.getByText('查看证据（1）', { exact: true }).click();
+  const evidenceImage = understandingRegion.getByRole('img', { name: '论文证据图', exact: true }).first();
+  await evidenceImage.waitFor();
+  assert.equal(await evidenceImage.evaluate((img) => img.complete && img.naturalWidth > 0), true);
+  await understandingRegion
+    .getByRole('button', { name: /^原文第/ })
+    .first()
+    .click();
+  await page.getByRole('dialog', { name: '论文来源', exact: true }).waitFor();
+  await page.getByRole('button', { name: '关闭来源', exact: true }).click();
+  await page.screenshot({ path: join(output, 'paper-understanding-desktop.png'), fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: join(output, 'paper-understanding-mobile.png'), fullPage: true });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await page.getByRole('tab', { name: '3 · 幻灯片', exact: true }).click();
+  await editingTitle.waitFor({ state: 'visible' });
+  assert.equal(await editingTitle.innerText(), '步骤导航前的手工修改');
+  await page.getByRole('button', { name: '撤销', exact: true }).click().catch(() => undefined);
+  await page.getByRole('status').filter({ hasText: '已保存' }).waitFor();
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  console.log(
+    'PASS: workspace navigation/flush draft/read-only current outline/evidence image/source/mobile/retained undo',
+  );
   const originalForReanalysis = await page.evaluate(
     async (id) => JSON.stringify(await (await import('/src/modules/project/projectRepository.ts')).loadProject(id)),
     id,

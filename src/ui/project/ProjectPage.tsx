@@ -11,6 +11,8 @@ import type { RegisterLeaveGuard } from '../../app/activity';
 import { useProjectWorkspace, type OpenProject } from './useProjectWorkspace';
 import { useProjectController } from './useProjectController';
 import { OutlineEditor } from '../../modules/outline/ui/OutlineEditor';
+import { PaperUnderstanding } from './PaperUnderstanding';
+import { FinalOutline } from './FinalOutline';
 
 export function ProjectPage({
   id,
@@ -71,6 +73,7 @@ function ProjectContent({
   const online = useOnline();
   const controller = useProjectController(opened, settings, online, registerLeaveGuard);
   const [currentView, setCurrentView] = useState(false);
+  const [view, setView] = useState<'paper' | 'final-outline'>();
   const {
     data,
     instruction,
@@ -102,6 +105,25 @@ function ProjectContent({
     resource,
   } = controller;
   const completed = Checkpoints.indexOf(data.project.checkpoint);
+  async function switchStep(next: 'paper' | 'outline' | 'slides') {
+    if (busy || source || regeneration || reanalysis || !(await refreshOutline())) return;
+    if (next === 'paper') setView('paper');
+    else if (next === 'outline' && session) setView('final-outline');
+    else {
+      setView(undefined);
+      setCurrentView(next === 'slides');
+    }
+  }
+  const selectedStep =
+    view === 'paper'
+      ? 'paper'
+      : view === 'final-outline'
+        ? 'outline'
+        : session && (!data.plan || currentView)
+          ? 'slides'
+          : data.plan
+            ? 'outline'
+            : 'paper';
   const content =
     session && (!data.plan || currentView) ? (
       <Editor
@@ -178,26 +200,13 @@ function ProjectContent({
             已保存：{data.asset?.name ?? '原 PDF 缺失'}
           </p>
           {data.project.checkpoint === 'paper-ready' && (
-            <section className="mt-8 space-y-5" aria-label="论文理解">
-              <h2 className="text-lg font-semibold">论文理解</h2>
-              <h3 className="text-base font-medium">{data.paper.metadata.title}</h3>
-              {(['question', 'studyDesign', 'mainFindings', 'limitations'] as const).map((topic) => (
-                <div key={topic}>
-                  <h4 className="text-sm font-semibold">
-                    {
-                      { question: '研究问题', studyDesign: '研究设计', mainFindings: '主要发现', limitations: '局限' }[
-                        topic
-                      ]
-                    }
-                  </h4>
-                  {data.paper.story?.[topic].map((point) => (
-                    <p key={`${topic}-${point.text}`} className="mt-2 text-sm">
-                      {point.text}
-                    </p>
-                  ))}
-                </div>
-              ))}
-            </section>
+            <PaperUnderstanding
+              paper={data.paper}
+              strategyId={data.project.preferences.strategyId}
+              image={image}
+              sourceAvailable={!!resource}
+              onSource={(sourceId) => openSource({ sourceId, crop: false })}
+            />
           )}
           <label className="mt-10 block text-sm font-medium" htmlFor="instruction">
             你希望怎么汇报这篇论文？（可选）
@@ -315,7 +324,26 @@ function ProjectContent({
     );
   return (
     <>
-      {session && data.plan && currentView && (
+      {completed >= 3 && (
+        <nav aria-label="项目步骤" className="border-b border-line bg-white px-5 py-2">
+          <div role="tablist" aria-label="项目步骤" className="mx-auto flex max-w-[1080px] flex-wrap gap-1">
+            {(['paper', 'outline', 'slides'] as const).map((step, index) => (
+              <button
+                key={step}
+                type="button"
+                role="tab"
+                aria-selected={selectedStep === step}
+                disabled={busy || (step === 'outline' && !data.plan && !session) || (step === 'slides' && !session)}
+                onClick={() => void switchStep(step)}
+                className={`min-h-10 rounded px-3 py-2 text-sm disabled:opacity-45 ${selectedStep === step ? 'bg-accent/10 font-medium text-accent' : 'text-muted'}`}
+              >
+                {index + 1} · {{ paper: '论文理解', outline: '学术大纲', slides: '幻灯片' }[step]}
+              </button>
+            ))}
+          </div>
+        </nav>
+      )}
+      {session && data.plan && currentView && !view && (
         <div className="flex items-center justify-end gap-3 border-b border-line px-5 py-2 text-sm">
           <span>候选大纲已保存</span>
           <Button
@@ -329,7 +357,75 @@ function ProjectContent({
           </Button>
         </div>
       )}
-      {content}
+      <div hidden={!!view}>{content}</div>
+      {view && (
+        <main className="mx-auto max-w-[1080px] px-5 py-6">
+          <header className="flex items-center gap-3 border-b border-line pb-5">
+            <IconButton label="返回首页" disabled={busy} onClick={onLeave}>
+              <ArrowLeft size={16} />
+            </IconButton>
+            <Brand />
+            <h1 className="min-w-0 flex-1 truncate text-sm">{data.project.name}</h1>
+            <IconButton label="模型设置" disabled={busy} onClick={onSettings}>
+              <Settings size={17} />
+            </IconButton>
+          </header>
+          <div className="mx-auto max-w-[760px] py-6">
+            {view === 'paper' ? (
+              <PaperUnderstanding
+                paper={data.paper}
+                strategyId={data.project.preferences.strategyId}
+                image={image}
+                sourceAvailable={!!resource}
+                onSource={(sourceId) => openSource({ sourceId, crop: false })}
+              />
+            ) : (
+              session && <FinalOutline deck={session.current} paper={data.paper} />
+            )}
+            {error && (
+              <p role="alert" className="mt-4 text-sm text-red-700">
+                {error}
+              </p>
+            )}
+            <div className="mt-6 flex flex-wrap justify-end gap-2">
+              <Button
+                disabled={busy || !resource || !online || !settings.apiKey.trim()}
+                onClick={() => openReanalysis(true)}
+              >
+                {session ? '在新项目中重新分析同一论文' : '重新分析'}
+              </Button>
+              {data.plan && (
+                <Button
+                  disabled={busy}
+                  onClick={() => {
+                    setView(undefined);
+                    setCurrentView(false);
+                  }}
+                >
+                  {session ? '查看候选大纲' : '查看学术大纲'}
+                </Button>
+              )}
+              {session ? (
+                <Button onClick={() => void switchStep('slides')}>返回幻灯片</Button>
+              ) : (
+                !data.plan && (
+                  <Button
+                    primary
+                    disabled={busy || !resource || !online || !settings.apiKey.trim()}
+                    onClick={() => {
+                      setView(undefined);
+                      void generate();
+                    }}
+                  >
+                    <Play size={15} />
+                    生成学术大纲
+                  </Button>
+                )
+              )}
+            </div>
+          </div>
+        </main>
+      )}
       {source && (
         <SourceDialog
           paper={data.paper}
@@ -358,6 +454,7 @@ function ProjectContent({
           onStart={(value) =>
             void reanalyze(value).then((id) => {
               if (id) onOpenProject(id);
+              else setView(undefined);
             })
           }
           reanalysis

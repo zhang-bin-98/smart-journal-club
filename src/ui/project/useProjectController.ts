@@ -372,15 +372,23 @@ export function useProjectController(
     }
   }
   async function refreshOutline() {
+    if (parseTask.current) return false;
     try {
+      await outlineLeave.current?.();
       await editorLeave.current?.();
+      await savePreferences();
       const latest = await loadProject(dataRef.current.project.id);
       if (controller.signal.aborted) return false;
       if (latest.plan && outlineRef.current?.current.revision !== latest.plan.revision)
         outlineRef.current = new OutlineSession(latest.plan, latest.paper, latest.project.id, savePlanRevision);
       acceptData({
         ...latest,
-        deck: latest.deck?.id === dataRef.current.deck?.id ? dataRef.current.deck : latest.deck,
+        deck:
+          latest.deck?.id === session?.current.id && latest.deck?.revision === session?.current.revision
+            ? session
+              ? structuredClone(session.current)
+              : latest.deck
+            : latest.deck,
       });
       return true;
     } catch (cause) {
