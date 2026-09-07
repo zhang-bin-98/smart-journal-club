@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { narrativePaper, narrativePlan } from '../narrative-fixture';
-import { assignPlanIds, planDeck, PlanningContentSchema } from '../../src/modules/generation/planDeck';
+import {
+  assignPlanIds,
+  normalizePlanningContent,
+  planDeck,
+  PlanningContentSchema,
+} from '../../src/modules/generation/planDeck';
 import { DEFAULT_SETTINGS, ModelError, ModelOutputError, requestJson } from '../../src/shared/llm/model';
 
 vi.mock('../../src/shared/llm/model', async (original) => ({
@@ -46,6 +51,36 @@ describe('规划内容与一次修复', () => {
     expect(call[1]).toContain('不要改写叙事质量');
   });
 
+  it('唯一 Figure/Panel 展示标签映射回内部 ID，并纠正确定的布局容量', () => {
+    const paper = narrativePaper();
+    const raw = content();
+    const result = raw.slides.find((slide) => slide.figures.length)!;
+    const figure = paper.figures[0];
+    result.figures = [{ figureId: 'Figure 3', panelId: 'Panel A' }];
+    result.layoutId = 'panel-grid';
+    const normalized = normalizePlanningContent(raw, paper);
+    const normalizedResult = normalized.slides.find((slide) => slide.id === result.id)!;
+    expect(normalizedResult.figures).toEqual([{ figureId: figure.id, panelId: figure.panels[0].id }]);
+    expect(normalizedResult.layoutId).toBe('figure-text');
+  });
+
+  it('中文 Figure 展示标签也可映射到唯一英文标签', () => {
+    const paper = narrativePaper();
+    const raw = content();
+    raw.slides.find((slide) => slide.figures.length)!.figures = [{ figureId: '图 3' }];
+    expect(assignPlanIds(raw, paper).slides.find((slide) => slide.figures.length)!.figures[0].figureId).toBe(
+      paper.figures[0].id,
+    );
+  });
+
+  it('展示标签有歧义时不猜测 Figure 引用', () => {
+    const paper = narrativePaper();
+    paper.figures.push({ ...structuredClone(paper.figures[0]), id: 'duplicate-figure' });
+    const raw = content();
+    raw.slides.find((slide) => slide.figures.length)!.figures = [{ figureId: 'Figure 3' }];
+    expect(() => assignPlanIds(raw, paper)).toThrow('汇报计划无效');
+  });
+
   it('schema 失败保留诊断且第二次失败不循环', async () => {
     const failure = new ModelOutputError('plan', { slides: null }, [
       { code: 'invalid_type', path: 'slides', message: '须为数组' },
@@ -57,6 +92,18 @@ describe('规划内容与一次修复', () => {
       failedOutput: failure.failedOutput,
       diagnostics: failure.diagnostics,
     });
+  });
+
+  it('repair 返回的结构仍无效时隐藏底层长串并返回阶段错误', async () => {
+    const raw = content();
+    raw.slides[0].sectionId = 'missing';
+    vi.mocked(requestJson).mockResolvedValue(raw);
+    await expect(run()).rejects.toMatchObject({
+      stage: 'plan-repair',
+      code: 'invalid-output',
+      message: '模型输出不符合本阶段数据要求，最近保存的成果仍保留，请重试。',
+    });
+    expect(requestJson).toHaveBeenCalledTimes(2);
   });
 
   it.each(['authentication', 'rate-limit', 'timeout', 'model-request', 'truncated'])(
