@@ -30,19 +30,32 @@ const ANALYSIS_EDGE = 1800;
 export function candidatePages(paper: Paper) {
   return paper.pages.filter((page) => /\b(?:Fig(?:ure)?\.?\s*\d+\s*[.:])|图\s*\d+\s*[.：:]/i.test(page.text));
 }
+export type FigureProgress = {
+  pageNumber: number;
+  completed: number;
+  total: number;
+  phase: 'preparing' | 'analyzing' | 'repairing';
+};
 export async function analyzeFigures(
   paper: Paper,
   resource: PdfResource,
   settings: ModelSettings,
   signal: AbortSignal,
+  onProgress: (progress: FigureProgress) => void = () => {},
 ): Promise<Paper> {
   const working: Paper = {
     ...structuredClone(paper),
     sources: paper.sources.filter((source) => source.kind !== 'figure' && source.kind !== 'panel'),
     figures: [],
   };
-  for (const page of candidatePages(paper)) {
+  const pages = candidatePages(paper);
+  for (const [index, page] of pages.entries()) {
     signal.throwIfAborted();
+    const report = (phase: FigureProgress['phase']) => {
+      signal.throwIfAborted();
+      onProgress({ pageNumber: page.pageNumber, completed: index, total: pages.length, phase });
+    };
+    report('preparing');
     const canvas = document.createElement('canvas');
     let image: string;
     try {
@@ -53,12 +66,15 @@ export async function analyzeFigures(
       canvas.height = 0;
     }
     const imageRegions = await resource.imageRegions(page.pageNumber);
+    report('analyzing');
     const output = await requestFigurePage({
       settings,
       context: { pageNumber: page.pageNumber, pageText: page.text, imageRegions },
       signal,
       image,
+      onRepair: () => report('repairing'),
     });
+    signal.throwIfAborted();
     for (const figure of output.figures) {
       const sourceId = crypto.randomUUID();
       working.sources.push({ id: sourceId, kind: 'figure', pageNumber: page.pageNumber, bbox: figure.bbox });
@@ -77,6 +93,7 @@ export async function analyzeFigures(
       });
     }
   }
+  signal.throwIfAborted();
   return validatePaper(working);
 }
 export function mapUnderstanding(paper: Paper, raw: unknown) {

@@ -15,3 +15,5 @@
 - https://journals.plos.org/plosmedicine/article/file?id=10.1371/journal.pmed.1004329&type=printable
 
 下载日期：2026-09-06。校验命令：`pdfinfo test-fixtures/papers/*.pdf`、`Get-FileHash -Algorithm SHA256`。PDF 不属于发布构建输入；若检查需要测试数据，应通过本地选择文件或 fixture 脚本注入，不把 PDF 复制到应用静态资源。
+
+发布后图页等待问题的定向回归使用用户本地的《Longitudinal dynamics of gene expression and metabolomics in an aging population cohort》18 页 PDF。文件名包含 `Longitudinal dynamics` 且放在本目录时，`tests/figure-stalls.mjs` 会随浏览器主链执行；缺失时明确报告该项 SKIP，不影响原有三篇样例主链。这个样例不进入仓库或部署，也不新增论文/模型组合矩阵；其真实调用须单独取得论文发送授权，常规回归仍拦截为固定响应。

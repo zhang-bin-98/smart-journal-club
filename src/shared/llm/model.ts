@@ -53,6 +53,20 @@ function failure(stage: string, status?: number) {
   if (status === 429) return new ModelError(stage, 'rate-limit', '模型请求受到限流，请稍后重试当前步骤。');
   return new ModelError(stage, 'model-request', '模型请求失败，请检查网络及模型设置后重试当前步骤。');
 }
+/** 请求预算约束应用自己的等待，不依赖 SDK 及时结束迭代器或结果 Promise。 */
+async function withRequestAbort<T>(signal: AbortSignal, run: () => Promise<T>): Promise<T> {
+  signal.throwIfAborted();
+  let onAbort!: () => void;
+  const aborted = new Promise<never>((_, reject) => {
+    onAbort = () => reject(signal.reason);
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
+  try {
+    return await Promise.race([run(), aborted]);
+  } finally {
+    signal.removeEventListener('abort', onAbort);
+  }
+}
 export async function requestModel(
   settings: ModelSettings,
   context: Context,
@@ -97,32 +111,36 @@ export async function requestModel(
   const timeout = AbortSignal.timeout(180000);
   const requestSignal = AbortSignal.any([signal, timeout]);
   try {
-    const { stream } = await import('@earendil-works/pi-ai/api/openai-completions');
-    const responseStream = stream(model, wireContext, {
-      apiKey: settings.apiKey,
-      signal: requestSignal,
-      temperature: 0.2,
-      maxTokens,
-      maxRetries: 0,
-      timeoutMs: 180000,
-      ...(outputTool ? { toolChoice: { type: 'function' as const, function: { name: wireName(outputTool) } } } : {}),
-      onResponse: (response) => {
-        status = response.status;
-      },
-      onPayload: (payload) => {
-        const body = {
-          ...(payload as Record<string, unknown>),
-          ...(json ? { response_format: { type: 'json_object' } } : {}),
-        };
-        if (new TextEncoder().encode(JSON.stringify(body)).byteLength > MAX_REQUEST_BYTES)
-          throw new ModelError(stage, 'request-size', '本阶段内容超过请求预算，请减少输入内容后重试。');
-        return body;
-      },
+    const response = await withRequestAbort(requestSignal, async () => {
+      const { stream } = await import('@earendil-works/pi-ai/api/openai-completions');
+      requestSignal.throwIfAborted();
+      const responseStream = stream(model, wireContext, {
+        apiKey: settings.apiKey,
+        signal: requestSignal,
+        temperature: 0.2,
+        maxTokens,
+        maxRetries: 0,
+        timeoutMs: 180000,
+        ...(outputTool ? { toolChoice: { type: 'function' as const, function: { name: wireName(outputTool) } } } : {}),
+        onResponse: (response) => {
+          status = response.status;
+        },
+        onPayload: (payload) => {
+          const body = {
+            ...(payload as Record<string, unknown>),
+            ...(json ? { response_format: { type: 'json_object' } } : {}),
+          };
+          if (new TextEncoder().encode(JSON.stringify(body)).byteLength > MAX_REQUEST_BYTES)
+            throw new ModelError(stage, 'request-size', '本阶段内容超过请求预算，请减少输入内容后重试。');
+          return body;
+        },
+      });
+      for await (const event of responseStream) {
+        requestSignal.throwIfAborted();
+        if (event.type === 'text_delta') onText?.(event.delta);
+      }
+      return responseStream.result();
     });
-    for await (const event of responseStream) {
-      if (event.type === 'text_delta') onText?.(event.delta);
-    }
-    const response = await responseStream.result();
     signal.throwIfAborted();
     if (timeout.aborted)
       throw new ModelError(stage, 'timeout', '模型响应超时，已停止本次请求。完整阶段仍保留，请稍后重试。');

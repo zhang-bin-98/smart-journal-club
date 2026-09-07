@@ -53,10 +53,11 @@ type FigurePageRequest = {
   };
   image: string;
   signal: AbortSignal;
+  onRepair?: () => void;
 };
 
 /** 仅对当前图页的非法输出修复一次，复用原图与校验诊断；不重试请求错误或提交部分图源。 */
-export async function requestFigurePage({ settings, context, image, signal }: FigurePageRequest) {
+export async function requestFigurePage({ settings, context, image, signal, onRepair }: FigurePageRequest) {
   const prompt = `${prompts.common}\n\n${prompts.stages.figures}`;
   signal.throwIfAborted();
   try {
@@ -64,6 +65,7 @@ export async function requestFigurePage({ settings, context, image, signal }: Fi
   } catch (cause) {
     signal.throwIfAborted();
     if (!(cause instanceof ModelOutputError)) throw cause;
+    onRepair?.();
     try {
       return await requestJson(
         settings,

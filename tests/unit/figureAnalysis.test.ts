@@ -138,4 +138,58 @@ describe('图页输出、有限修复与阶段原子性', () => {
     expect(paper).toEqual(before);
     expect(resource.render).toHaveBeenCalledTimes(2);
   });
+
+  it('多页各修复一次后有限结束，进度包含原页码、已完成数与修复状态', async () => {
+    const paper = structuredClone(fixturePaper);
+    const candidates = [3, 4, 5, 7, 8, 9];
+    paper.pages = Array.from({ length: 18 }, (_, index) => index + 1).map((pageNumber) => ({
+      ...paper.pages[0],
+      pageNumber,
+      text: candidates.includes(pageNumber) ? 'Fig. 3: 固定图注' : '正文',
+    }));
+    paper.claims = [];
+    paper.evidences = [];
+    delete paper.story;
+    delete paper.studyProfile;
+    vi.stubGlobal('document', { createElement: () => ({ width: 0, height: 0, toDataURL: () => input().image }) });
+    const resource = { render: vi.fn(), imageRegions: vi.fn().mockResolvedValue([]) } as unknown as PdfResource;
+    for (const _page of candidates) {
+      vi.mocked(requestJson).mockRejectedValueOnce(invalidOutput()).mockResolvedValueOnce(pageResult());
+    }
+    const progress = vi.fn();
+    const result = await analyzeFigures(paper, resource, DEFAULT_SETTINGS, input().signal, progress);
+    expect(result.figures).toHaveLength(6);
+    expect(requestJson).toHaveBeenCalledTimes(12);
+    expect(progress.mock.calls.map(([value]) => value)).toEqual(
+      candidates.flatMap((pageNumber, completed) =>
+        ['preparing', 'analyzing', 'repairing'].map((phase) => ({
+          pageNumber,
+          completed,
+          total: 6,
+          phase,
+        })),
+      ),
+    );
+  });
+
+  it('等待图像区域时取消，返回后不能再发请求或报告分析进度', async () => {
+    const paper = structuredClone(fixturePaper);
+    paper.pages[0].text = 'Fig. 3: 固定图注';
+    const controller = new AbortController();
+    vi.stubGlobal('document', { createElement: () => ({ width: 0, height: 0, toDataURL: () => input().image }) });
+    const resource = {
+      render: vi.fn(),
+      imageRegions: vi.fn().mockImplementation(async () => {
+        controller.abort();
+        return [];
+      }),
+    } as unknown as PdfResource;
+    const progress = vi.fn();
+    await expect(analyzeFigures(paper, resource, DEFAULT_SETTINGS, controller.signal, progress)).rejects.toMatchObject({
+      name: 'AbortError',
+    });
+    expect(requestJson).not.toHaveBeenCalled();
+    expect(progress).toHaveBeenCalledTimes(1);
+    expect(progress.mock.calls[0][0].phase).toBe('preparing');
+  });
 });

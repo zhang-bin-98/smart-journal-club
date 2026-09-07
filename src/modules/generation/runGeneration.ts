@@ -38,7 +38,12 @@ export async function preparePaper(
   }
   if (data.project.checkpoint === 'pdf-parsed') {
     onStage(GENERATION_STEPS[1]);
-    const paper = await analyzeFigures(data.paper, resource, settings, signal);
+    const paper = await analyzeFigures(data.paper, resource, settings, signal, (progress) => {
+      const phase = { preparing: '准备图页', analyzing: '分析中', repairing: '修复格式（仅一次）' }[progress.phase];
+      onStage(
+        `${GENERATION_STEPS[1]}：PDF 第 ${progress.pageNumber} 页，已完成 ${progress.completed}/${progress.total} 个候选图页 · ${phase}`,
+      );
+    });
     const project = await saveStage(data.project, { checkpoint: 'figures-ready', paper }, signal);
     data = { ...data, project, paper };
     onSaved(data);
