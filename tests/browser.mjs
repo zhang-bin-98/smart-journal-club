@@ -102,6 +102,9 @@ try {
   console.log('PASS: React draft/focus/composition/selection/reorder/undo/redo/empty/export');
 
   const generationCalls = [];
+  let failFigurePage = true;
+  let figureRepairCalls = 0;
+  let figurePageImage;
   let holdDeck = true;
   let heldRoute;
   await page.route('https://api.deepseek.com/chat/completions', async (route) => {
@@ -154,6 +157,15 @@ try {
       },
       { stage, data },
     );
+    if (stage === 'figures' && data.pageNumber === 8) {
+      const image = content.find((item) => item.type === 'image_url').image_url.url;
+      if (data.diagnostics) {
+        figureRepairCalls++;
+        assert.equal(image, figurePageImage);
+        assert.ok(data.diagnostics.some((issue) => issue.path === 'figures.0.bbox'));
+      } else figurePageImage = image;
+      if (failFigurePage || !data.diagnostics) delete result.figures[0].bbox;
+    }
     const body = `data: ${JSON.stringify({ id: 'fixed', object: 'chat.completion.chunk', choices: [{ index: 0, delta: { role: 'assistant', tool_calls: [{ index: 0, id: 'call-fixed', type: 'function', function: { name: 'submit_result', arguments: JSON.stringify({ result }) } }] }, finish_reason: null }] })}\n\ndata: ${JSON.stringify({ id: 'fixed', object: 'chat.completion.chunk', choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] })}\n\ndata: [DONE]\n\n`;
     await route.fulfill({ status: 200, contentType: 'text/event-stream', body });
   });
@@ -167,7 +179,21 @@ try {
   await page.getByLabel('选择论文 PDF').setInputFiles(resolve('test-fixtures/papers/mechanism-modt-cdifficile.pdf'));
   await page.waitForURL(/project/);
   await page.getByRole('button', { name: '分析论文', exact: true }).click();
+  await page.getByRole('alert').filter({ hasText: 'PDF 第 8 页图源分析失败' }).waitFor({ timeout: 120000 });
+  assert.equal(figureRepairCalls, 1);
+  const failedFigureProject = await page.evaluate(async () => {
+    const projectId = location.hash.split('/project/')[1];
+    const data = await (await import('/src/modules/project/projectRepository.ts')).loadProject(projectId);
+    return { checkpoint: data.project.checkpoint, figures: data.paper.figures, hasPlan: !!data.plan };
+  });
+  assert.deepEqual(failedFigureProject, { checkpoint: 'pdf-parsed', figures: [], hasPlan: false });
+  failFigurePage = false;
+  await page.getByRole('button', { name: '重试当前步骤', exact: true }).click();
   await page.getByRole('button', { name: '生成学术大纲', exact: true }).waitFor({ timeout: 120000 });
+  assert.equal(figureRepairCalls, 2);
+  console.log(
+    'PASS: figure-page schema failure/one repair with same image/page-specific error/atomic checkpoint/retry recovery',
+  );
   const analysisCalls = generationCalls.length;
   assert.equal(generationCalls.includes('plan'), false);
   await page.reload();

@@ -7,31 +7,13 @@ import {
   StudyProfileSchema,
   type Paper,
 } from './paper.schema';
-import { BBoxSchema } from '../../shared/schema';
 import { requestJson, type ModelSettings } from '../../shared/llm/model';
 import { prompts } from '../../shared/llm/prompts';
 import { validatePaper } from './sources';
 import type { PdfResource } from '../../shared/pdf/pdfResource';
+import { requestFigurePage } from './figurePage';
 
-export const FigurePageSchema = z.strictObject({
-  figures: z.array(
-    z.strictObject({
-      label: z.string().min(1),
-      caption: z.string(),
-      description: z.string(),
-      bbox: BBoxSchema,
-      panels: z.array(
-        z.strictObject({
-          label: z.string().min(1),
-          description: z.string(),
-          bbox: BBoxSchema.describe(
-            '必填：此 Panel 在完整 PDF 页中的 x/y/width/height 归一化矩形。无法确定坐标则不返回该 Panel。',
-          ),
-        }),
-      ),
-    }),
-  ),
-});
+export { FigurePageSchema } from './figurePage';
 export const UnderstandingSchema = z.discriminatedUnion('supported', [
   z.strictObject({ supported: z.literal(false), reason: z.string().min(1) }),
   z.strictObject({
@@ -71,15 +53,12 @@ export async function analyzeFigures(
       canvas.height = 0;
     }
     const imageRegions = await resource.imageRegions(page.pageNumber);
-    const output = await requestJson(
+    const output = await requestFigurePage({
       settings,
-      `${prompts.common}\n\n${prompts.stages.figures}`,
-      { pageNumber: page.pageNumber, pageText: page.text, imageRegions },
-      FigurePageSchema,
+      context: { pageNumber: page.pageNumber, pageText: page.text, imageRegions },
       signal,
-      'figures',
       image,
-    );
+    });
     for (const figure of output.figures) {
       const sourceId = crypto.randomUUID();
       working.sources.push({ id: sourceId, kind: 'figure', pageNumber: page.pageNumber, bbox: figure.bbox });
