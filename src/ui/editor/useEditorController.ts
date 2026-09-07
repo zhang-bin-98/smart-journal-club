@@ -7,7 +7,8 @@ import type { Paper } from '../../modules/paper/paper.schema';
 import { beginActivity, setDirty, type LeaveGuard, type RegisterLeaveGuard } from '../../app/activity';
 import { errorMessage } from '../controls';
 import type { TextEdit } from './SlidePreview';
-import type { CancelAi } from './AiPanel';
+import type { CancelAi } from './useAssistantController';
+import type { PresentationExportOptions } from '../../app/presentation/checkPresentation';
 
 /** 编辑器控制器：Deck 会话命令、选择状态、草稿保存队列、AI 接线与导出任务；组件只保留渲染与面板 UI 状态。 */
 export function useEditorController({
@@ -35,7 +36,7 @@ export function useEditorController({
     apply: (element: Extract<Element, { type: 'figure' }>) => Promise<void>,
     onDraft: () => void,
   ) => void;
-  onExport: (deck: Deck) => Promise<void>;
+  onExport: (deck: Deck, options?: PresentationExportOptions) => Promise<void>;
   registerLeaveGuard?: RegisterLeaveGuard;
 }) {
   const [, refresh] = useState(0);
@@ -114,7 +115,7 @@ export function useEditorController({
   }
   async function saveText(key: string, value: string) {
     if (!slide) return;
-    if (key === 'title' || key === 'message')
+    if (key === 'title' || key === 'purpose' || key === 'message')
       await commit(
         { type: 'slides', slideIds: [slide.id] },
         [{ type: 'update-slide', slideId: slide.id, changes: { [key]: value } }],
@@ -230,11 +231,11 @@ export function useEditorController({
     await commit({ type: 'deck' }, [{ type: 'add-slide', slide: next, afterSlideId: slide?.id ?? null }], '新增幻灯片');
     await select(next.id);
   }
-  async function move(id: string, afterSlideId: string | null) {
+  async function move(id: string, afterSlideId: string | null, explicitSectionId?: string) {
     if (id === afterSlideId) return;
     // 重排仍按锚点落位；目标章节取锚点页（或首页）所属章节，跨章由领域层改写归属并清理空章。
     const anchor = afterSlideId ? deck.slides.find((item) => item.id === afterSlideId) : deck.slides[0];
-    const targetSectionId = anchor?.sectionId ?? '';
+    const targetSectionId = explicitSectionId ?? anchor?.sectionId ?? '';
     await commit({ type: 'deck' }, [{ type: 'move-slide', slideId: id, targetSectionId, afterSlideId }], '调整页顺序');
   }
   async function history(direction: 'undo' | 'redo') {
@@ -260,14 +261,17 @@ export function useEditorController({
     );
     setSelectedElement(id);
   }
-  const exportPresentation = () =>
+  const startExport = async (options?: PresentationExportOptions) => {
+    setExporting(true);
+    try {
+      await onExport(structuredClone(session.current), options);
+    } finally {
+      if (active.current) setExporting(false);
+    }
+  };
+  const exportPresentation = (options?: PresentationExportOptions) =>
     run(async () => {
-      setExporting(true);
-      try {
-        await onExport(structuredClone(session.current));
-      } finally {
-        if (active.current) setExporting(false);
-      }
+      await startExport(options);
     });
   return {
     deck,
@@ -280,6 +284,7 @@ export function useEditorController({
     error,
     setError,
     exporting,
+    startExport,
     exportPresentation,
     aiBusy,
     manualNotice,

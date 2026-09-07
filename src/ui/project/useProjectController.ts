@@ -24,6 +24,7 @@ import { OutlineSession } from '../../modules/outline/OutlineSession';
 import { savePlanRevision } from '../../modules/outline/outlineRepository';
 import { validatePlanNarrative } from '../../modules/outline/validateNarrative';
 import type { PlanMutation } from '../../modules/outline/outline.schema';
+import { checkPresentation, type PresentationExportOptions } from '../../app/presentation/checkPresentation';
 
 /** 项目工作区控制器：Deck 会话与修订持久化、偏好保存队列、生成/重生成/恢复/导出任务及对话框状态。 */
 export function useProjectController(
@@ -38,6 +39,8 @@ export function useProjectController(
   const [source, setSource] = useState<SourceSelection>();
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const exportTask = useRef(false);
   const [stage, setStage] = useState('');
   const [regeneration, setRegeneration] = useState(false);
   const [reanalysis, setReanalysis] = useState(false);
@@ -398,19 +401,38 @@ export function useProjectController(
       return false;
     }
   }
-  async function exportPresentation(deck: Deck) {
-    if (!resource && deck.slides.some((slide) => slide.elements.some((element) => element.type === 'figure')))
-      throw new Error('原 PDF 缺失，无法导出图源');
-    const { exportDeck, downloadDeck } = await import('../../modules/deck/export');
-    const blob = await exportDeck(
-      deck,
-      data.paper,
-      (element) => figureImage(resource!, data.paper, element, element.cropOverride, PDF_EXPORT_EDGE),
-      controller.signal,
-    );
-    await loadProject(data.project.id);
-    controller.signal.throwIfAborted();
-    downloadDeck(blob, data.project.name);
+  async function exportPresentation(deck: Deck, options?: PresentationExportOptions) {
+    if (exportTask.current) throw new Error('已有导出任务正在运行，请稍候。');
+    const done = beginActivity();
+    exportTask.current = true;
+    setExporting(true);
+    setError('');
+    try {
+      const latest = await loadProject(data.project.id);
+      if (latest.project.currentDeckId !== deck.id || latest.deck?.revision !== deck.revision)
+        throw new Error('文稿内容已变化，请重新检查当前已保存版本后导出。');
+      const check = checkPresentation(deck, data.paper, !!resource);
+      if (check.errors.length) throw new Error(`检查发现 ${check.errors.length} 个错误，请定位修复后再导出。`);
+      if (check.warnings.length && options?.warningsAcceptedFor !== check.version)
+        throw new Error('请先检查并确认当前版本的警告；内容变化后需要重新确认。');
+      const { exportDeck, downloadDeck } = await import('../../modules/deck/export');
+      const blob = await exportDeck(
+        deck,
+        data.paper,
+        (element) => figureImage(resource!, data.paper, element, element.cropOverride, PDF_EXPORT_EDGE),
+        controller.signal,
+      );
+      await loadProject(data.project.id);
+      controller.signal.throwIfAborted();
+      downloadDeck(blob, data.project.name);
+    } catch (cause) {
+      setError(errorMessage(cause));
+      throw cause;
+    } finally {
+      exportTask.current = false;
+      setExporting(false);
+      done();
+    }
   }
   return {
     data,
@@ -423,6 +445,7 @@ export function useProjectController(
     openRegeneration,
     error,
     busy,
+    exporting,
     stage,
     operationKind,
     session,

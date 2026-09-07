@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Check, Circle, FileText, LoaderCircle, Play, Settings, X } from 'lucide-react';
 import { Brand, Button, IconButton, inputClass, useOnline } from '../controls';
-import { Editor } from '../editor/Editor';
+import { Editor, type EditorFocusTarget } from '../editor/Editor';
 import { SourceDialog } from '../SourceDialog';
 import type { ModelSettings } from '../../shared/llm/model';
 import { Checkpoints } from '../../modules/project/project.schema';
@@ -14,6 +14,7 @@ import { OutlineEditor } from '../../modules/outline/ui/OutlineEditor';
 import { PaperUnderstanding } from './PaperUnderstanding';
 import { FinalOutline } from './FinalOutline';
 import { CheckExport } from './CheckExport';
+import { checkPresentation, type CheckLocation } from '../../app/presentation/checkPresentation';
 
 export function ProjectPage({
   id,
@@ -75,6 +76,7 @@ function ProjectContent({
   const controller = useProjectController(opened, settings, online, registerLeaveGuard);
   const [currentView, setCurrentView] = useState(false);
   const [view, setView] = useState<'paper' | 'final-outline' | 'check'>();
+  const [editorTarget, setEditorTarget] = useState<EditorFocusTarget>();
   const {
     data,
     instruction,
@@ -86,6 +88,7 @@ function ProjectContent({
     openRegeneration,
     error,
     busy,
+    exporting,
     stage,
     operationKind,
     session,
@@ -107,7 +110,7 @@ function ProjectContent({
   } = controller;
   const completed = Checkpoints.indexOf(data.project.checkpoint);
   async function switchStep(next: 'paper' | 'outline' | 'slides' | 'check') {
-    if (busy || source || regeneration || reanalysis || !(await refreshOutline())) return;
+    if (busy || exporting || source || regeneration || reanalysis || !(await refreshOutline())) return;
     if (next === 'paper') setView('paper');
     else if (next === 'outline' && session) setView('final-outline');
     else if (next === 'check') {
@@ -170,6 +173,8 @@ function ProjectContent({
           openSource({ sourceId, element, crop, apply, onDraft })
         }
         onExport={exportPresentation}
+        onCheck={(deck) => checkPresentation(deck, data.paper, !!resource)}
+        focusTarget={editorTarget}
       />
     ) : data.plan ? (
       <OutlineSummary
@@ -341,6 +346,7 @@ function ProjectContent({
                 aria-selected={selectedStep === step}
                 disabled={
                   busy ||
+                  exporting ||
                   (step === 'outline' && !data.plan && !session) ||
                   ((step === 'slides' || step === 'check') && !session)
                 }
@@ -386,8 +392,15 @@ function ProjectContent({
                 deck={session.current}
                 paper={data.paper}
                 resourceAvailable={!!resource}
-                exporting={busy}
-                onExport={() => void exportPresentation(session.current)}
+                exporting={exporting}
+                onExport={(options) =>
+                  void exportPresentation(structuredClone(session.current), options).catch(() => {})
+                }
+                onLocate={(location: CheckLocation) => {
+                  setEditorTarget({ ...location, requestId: Date.now() });
+                  setView(undefined);
+                  setCurrentView(true);
+                }}
               />
             ) : view === 'paper' ? (
               <PaperUnderstanding

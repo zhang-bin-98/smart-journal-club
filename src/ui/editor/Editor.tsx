@@ -3,12 +3,12 @@ import {
   ArrowDown,
   ArrowLeft,
   ArrowUp,
-  Bot,
   Crop,
   Download,
   FileText,
   List,
   MoreHorizontal,
+  PanelRightOpen,
   Plus,
   Quote,
   RefreshCw,
@@ -19,16 +19,26 @@ import {
   X,
 } from 'lucide-react';
 import type { DeckSession } from '../../modules/deck/DeckSession';
-import { LayoutIds, type Deck, type Element, type Slide } from '../../modules/deck/deck.schema';
+import type { Deck, Element, LayoutId } from '../../modules/deck/deck.schema';
 import type { Paper } from '../../modules/paper/paper.schema';
 import { Brand, Button, errorMessage, IconButton } from '../controls';
-import { SlidePreview, type FigureImage } from './SlidePreview';
+import { SlidePreview, type Editing, type FigureImage } from './SlidePreview';
 import { computeLayout } from '../../modules/deck/layout/computeLayout';
 import { AiPanel } from './AiPanel';
 import { setDirty, type RegisterLeaveGuard } from '../../app/activity';
 import { useEditorController } from './useEditorController';
+import { DEFAULT_SETTINGS } from '../../shared/llm/model';
+import { useAssistantController } from './useAssistantController';
+import { AiCommandBar } from './AiCommandBar';
+import { Inspector, type InspectorTab } from './Inspector';
+import { SectionNavigator } from './SectionNavigator';
+import type {
+  CheckLocation,
+  PresentationCheck,
+  PresentationExportOptions,
+} from '../../app/presentation/checkPresentation';
 
-const layoutNames = ['标题', '文字', '单图', '图文', '双图', 'Panel 网格'];
+export type EditorFocusTarget = CheckLocation & { requestId: number };
 export function Editor({
   session,
   paper,
@@ -55,6 +65,8 @@ export function Editor({
   taskStatus,
   onCancelTask,
   externalError,
+  onCheck,
+  focusTarget,
 }: {
   session: DeckSession;
   paper: Paper;
@@ -62,7 +74,9 @@ export function Editor({
   name: string;
   initialSlideId?: string;
   onLeave?: () => void;
-  onExport: (deck: Deck) => Promise<void>;
+  onExport: (deck: Deck, options?: PresentationExportOptions) => Promise<void>;
+  onCheck?: (deck: Deck) => PresentationCheck;
+  focusTarget?: EditorFocusTarget;
   onSelection?: (id?: string) => Promise<void>;
   onSettings?: () => void;
   aiSettings?: import('../../shared/llm/model').ModelSettings;
@@ -89,7 +103,10 @@ export function Editor({
     onDraft: () => void,
   ) => void;
 }) {
-  const [aiOpen, setAiOpen] = useState(false);
+  const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
+  const [inspectorTab, setInspectorTab] = useState<InspectorTab>('content');
+  const [exportConfirmVersion, setExportConfirmVersion] = useState<string>();
   const [menuOpen, setMenuOpen] = useState(false);
   const controller = useEditorController({
     session,
@@ -114,6 +131,7 @@ export function Editor({
     setError,
     exporting,
     exportPresentation,
+    startExport,
     aiBusy,
     manualNotice,
     manualEdit,
@@ -136,6 +154,22 @@ export function Editor({
     navigationOpen,
     setNavigationOpen,
   } = controller;
+  const assistant = useAssistantController({
+    session,
+    paper: aiPaper ?? paper,
+    settings: aiSettings ?? DEFAULT_SETTINGS,
+    projectId: aiProjectId,
+    preferences: aiPreferences,
+    persistRevision: aiPersistRevision,
+    selectedSlideId: slide?.id,
+    selectedElementId: selectedElement,
+    onChanged: changed,
+    beforeSend: flush,
+    beforeUndo: flush,
+    onBusyChange: aiBusyChanged,
+    registerCancel: registerAiCancel,
+    disabled: readOnly || !aiSettings,
+  });
   const geometry = slide && computeLayout(slide);
   const crowded =
     geometry &&
@@ -143,8 +177,20 @@ export function Editor({
       geometry.messageText.overflow ||
       geometry.elements.some((item) => item.text.overflow));
   useEffect(() => {
-    setDirty(`${dirtyKey}-panels`, navigationOpen || aiOpen || menuOpen);
-  }, [dirtyKey, navigationOpen, aiOpen, menuOpen]);
+    setDirty(`${dirtyKey}-panels`, navigationOpen || inspectorOpen || menuOpen);
+  }, [dirtyKey, navigationOpen, inspectorOpen, menuOpen]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: requestId 是检查页定位命令的唯一触发标识，controller 函数每次渲染都会重建
+  useEffect(() => {
+    if (!focusTarget?.slideId) return;
+    void run(async () => {
+      await select(focusTarget.slideId);
+      setSelectedElement(focusTarget.elementId);
+      setInspectorTab(focusTarget.inspectorTab);
+      setInspectorCollapsed(false);
+    });
+  }, [focusTarget?.requestId]);
+  const check = onCheck?.(deck);
+  const issues = check ? [...check.errors, ...check.warnings] : [];
   const figure = element?.type === 'figure' ? paper.figures.find((item) => item.id === element.figureId) : undefined;
   const sourceId =
     element?.type === 'figure'
@@ -152,6 +198,53 @@ export function Editor({
         ? figure?.panels.find((panel) => panel.id === element.panelId)?.sourceId
         : figure?.sourceId
       : undefined;
+  const editing: Editing | undefined = readOnly
+    ? undefined
+    : {
+        onDraft: (value) => {
+          if (value.value !== value.original) manualEdit();
+          setDirty(dirtyKey, value.composing || value.value !== value.original);
+          draft.current = value;
+          setStatus(value.value === value.original ? '已保存' : '未保存');
+        },
+        onBlur: () => {
+          void flush().catch((cause) => setError(errorMessage(cause)));
+        },
+        onSave: saveText,
+        hasDraft: (key) => draft.current?.key === key,
+      };
+  const deleteElement = async () => {
+    if (!slide || !element) return;
+    await commit(
+      { type: 'slides', slideIds: [slide.id] },
+      [{ type: 'delete-element', slideId: slide.id, elementId: element.id }],
+      '删除元素',
+    );
+    setSelectedElement(undefined);
+  };
+  const changeLayout = (layoutId: LayoutId) => {
+    if (!slide) return;
+    void run(() =>
+      commit(
+        { type: 'slides', slideIds: [slide.id] },
+        [{ type: 'update-slide', slideId: slide.id, changes: { layoutId } }],
+        '切换布局',
+      ),
+    );
+  };
+  const requestExport = () =>
+    run(async () => {
+      const currentCheck = onCheck?.(session.current);
+      if (currentCheck?.errors.length) {
+        setError(`检查发现 ${currentCheck.errors.length} 个错误，请先修复后导出。`);
+        return;
+      }
+      if (currentCheck?.warnings.length) {
+        setExportConfirmVersion(currentCheck.version);
+        return;
+      }
+      await startExport();
+    });
   return (
     <main className="mx-auto min-h-screen max-w-[1600px] p-3 font-sans text-ink sm:p-5">
       <header className="flex flex-wrap items-center gap-3 border-b border-line pb-4">
@@ -170,10 +263,11 @@ export function Editor({
           disabled={
             !deck.slides.length ||
             exporting ||
+            !!check?.errors.length ||
             (!resourceAvailable &&
               deck.slides.some((item) => item.elements.some((element) => element.type === 'figure')))
           }
-          onClick={() => void exportPresentation()}
+          onClick={() => void requestExport()}
         >
           <Download size={15} />
           {exporting ? '正在导出…' : '导出 PPTX'}
@@ -272,64 +366,59 @@ export function Editor({
           {draft.current && <Button onClick={() => void run(async () => {})}>重试保存</Button>}
         </div>
       )}
+      {exportConfirmVersion && (
+        <div className="flex flex-wrap items-center gap-3 border-b border-amber-200 bg-amber-50 py-3 text-sm text-amber-900">
+          <span className="min-w-0 flex-1">
+            当前已保存版本有 {check?.warnings.length ?? 0} 个警告；确认查看后可继续导出。内容改变后本次确认自动失效。
+          </span>
+          <Button onClick={() => setExportConfirmVersion(undefined)}>取消</Button>
+          <Button
+            primary
+            disabled={exporting}
+            onClick={() => {
+              const accepted = exportConfirmVersion;
+              setExportConfirmVersion(undefined);
+              void exportPresentation({ warningsAcceptedFor: accepted });
+            }}
+          >
+            确认警告并导出
+          </Button>
+        </div>
+      )}
       <div className="mt-3 flex gap-2 xl:hidden">
         <span className="md:hidden">
           <Button onClick={() => setNavigationOpen(true)}>
             <List size={15} />
-            幻灯片列表
+            章节与页面
           </Button>
         </span>
-        {aiSettings && (
-          <Button onClick={() => setAiOpen(true)}>
-            <Bot size={15} />
-            AI 助手{aiBusy ? ' · 正在调整…' : ''}
-          </Button>
-        )}
+        <Button
+          onClick={() => {
+            setInspectorCollapsed(false);
+            setInspectorOpen(true);
+          }}
+        >
+          <PanelRightOpen size={15} />
+          Inspector{aiBusy ? ' · AI 运行中' : ''}
+        </Button>
       </div>
-      <div className="mt-4 grid min-h-[680px] grid-cols-1 border border-line bg-white md:grid-cols-[170px_minmax(0,1fr)] lg:grid-cols-[190px_minmax(0,1fr)] xl:grid-cols-[190px_minmax(0,1fr)_300px]">
-        <ResponsivePanel label="幻灯片列表" side="left" open={navigationOpen} onClose={() => setNavigationOpen(false)}>
-          <div className="min-w-0 p-3">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold">幻灯片</h2>
-              <IconButton label="新增页" disabled={readOnly} onClick={() => void run(addSlide)}>
-                <Plus size={16} />
-              </IconButton>
-            </div>
-            <div className="mt-3 grid max-h-[72vh] gap-2 overflow-auto lg:grid-cols-1">
-              {deck.slides.map((item, index) => (
-                <div
-                  key={item.id}
-                  role="button"
-                  tabIndex={0}
-                  draggable={!readOnly}
-                  data-slide-id={item.id}
-                  aria-label={`第 ${index + 1} 页 ${item.title}`}
-                  aria-current={item.id === slide?.id ? 'page' : undefined}
-                  className="cursor-pointer rounded border border-line bg-white p-2 outline-none hover:border-accent focus-visible:ring-2 focus-visible:ring-focus aria-[current=page]:border-accent aria-[current=page]:bg-accent-soft"
-                  onClick={() => void run(() => select(item.id))}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') void run(() => select(item.id));
-                  }}
-                  onDragStart={(event) => event.dataTransfer.setData('text/plain', item.id)}
-                  onDragOver={(event) => event.preventDefault()}
-                  onDrop={(event) => {
-                    event.preventDefault();
-                    if (readOnly) return;
-                    const id = event.dataTransfer.getData('text/plain');
-                    if (id !== item.id) void run(() => move(id, index === 0 ? null : item.id));
-                  }}
-                >
-                  <div className="pointer-events-none">
-                    <SlidePreview thumbnail slide={item} paper={paper} image={image} />
-                  </div>
-                  <div className="mt-1 flex gap-2 text-xs">
-                    <span className="text-accent">{String(index + 1).padStart(2, '0')}</span>
-                    <span className="truncate">{item.title || '无标题'}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+      <div
+        className={`mt-4 grid min-h-[680px] grid-cols-1 border border-line bg-white md:grid-cols-[170px_minmax(0,1fr)] lg:grid-cols-[190px_minmax(0,1fr)] ${
+          inspectorCollapsed ? 'xl:grid-cols-[190px_minmax(0,1fr)_48px]' : 'xl:grid-cols-[190px_minmax(0,1fr)_320px]'
+        }`}
+      >
+        <ResponsivePanel label="章节与页面" side="left" open={navigationOpen} onClose={() => setNavigationOpen(false)}>
+          <SectionNavigator
+            deck={deck}
+            paper={paper}
+            image={image}
+            selectedSlideId={slide?.id}
+            issues={issues}
+            readOnly={readOnly}
+            onAdd={() => void run(addSlide)}
+            onSelect={(id) => void run(() => select(id))}
+            onMove={(id, afterSlideId, targetSectionId) => void run(() => move(id, afterSlideId, targetSectionId))}
+          />
         </ResponsivePanel>
         <section className="min-w-0 p-3 sm:p-5">
           <div className="flex items-center justify-between gap-3">
@@ -359,23 +448,7 @@ export function Editor({
                 selectedElement={selectedElement}
                 onSelect={setSelectedElement}
                 onSource={(id) => source(id)}
-                editing={
-                  readOnly
-                    ? undefined
-                    : {
-                        onDraft: (value) => {
-                          if (value.value !== value.original) manualEdit();
-                          setDirty(dirtyKey, value.composing || value.value !== value.original);
-                          draft.current = value;
-                          setStatus(value.value === value.original ? '已保存' : '未保存');
-                        },
-                        onBlur: () => {
-                          void flush().catch((cause) => setError(errorMessage(cause)));
-                        },
-                        onSave: saveText,
-                        hasDraft: (key) => draft.current?.key === key,
-                      }
-                }
+                editing={editing}
               />
             ) : (
               <Button disabled={readOnly} onClick={() => void run(addSlide)}>
@@ -390,29 +463,6 @@ export function Editor({
                 本页文字可能溢出，请精简文字或拆页后核对导出。
               </p>
             )}
-            <select
-              aria-label="选择布局"
-              value={slide?.layoutId ?? 'text-only'}
-              disabled={!slide || readOnly}
-              className="h-9 max-w-full rounded border border-control bg-white px-2 text-xs disabled:opacity-45"
-              onChange={(event) => {
-                const layoutId = event.target.value as Slide['layoutId'];
-                if (slide)
-                  void run(() =>
-                    commit(
-                      { type: 'slides', slideIds: [slide.id] },
-                      [{ type: 'update-slide', slideId: slide.id, changes: { layoutId } }],
-                      '切换布局',
-                    ),
-                  );
-              }}
-            >
-              {LayoutIds.map((id, index) => (
-                <option key={id} value={id}>
-                  {layoutNames[index]}
-                </option>
-              ))}
-            </select>
             <IconButton
               label="新增文字"
               disabled={!slide || readOnly}
@@ -435,20 +485,7 @@ export function Editor({
               <Quote size={15} />
             </IconButton>
             {element && (
-              <IconButton
-                label="删除选中元素"
-                disabled={readOnly}
-                onClick={() =>
-                  void run(async () => {
-                    await commit(
-                      { type: 'slides', slideIds: [slide!.id] },
-                      [{ type: 'delete-element', slideId: slide!.id, elementId: element.id }],
-                      '删除元素',
-                    );
-                    setSelectedElement(undefined);
-                  })
-                }
-              >
+              <IconButton label="删除选中元素" disabled={readOnly} onClick={() => void run(deleteElement)}>
                 <Trash2 size={15} />
               </IconButton>
             )}
@@ -508,38 +545,50 @@ export function Editor({
             </div>
           </div>
         </section>
-        {aiSettings && (
-          <ResponsivePanel label="AI 助手" side="right" open={aiOpen} onClose={() => setAiOpen(false)}>
-            <AiPanel
-              disabled={readOnly}
-              session={session}
-              paper={aiPaper ?? paper}
-              settings={aiSettings}
-              projectId={aiProjectId}
-              preferences={aiPreferences}
-              persistRevision={aiPersistRevision}
-              selectedSlideId={slide?.id}
-              selectedElementId={selectedElement}
-              onChanged={changed}
-              beforeSend={flush}
-              beforeUndo={flush}
-              onBusyChange={aiBusyChanged}
-              registerCancel={registerAiCancel}
+        <ResponsivePanel label="Inspector" side="right" open={inspectorOpen} onClose={() => setInspectorOpen(false)}>
+          {inspectorCollapsed ? (
+            <div className="hidden h-full flex-col items-center bg-panel py-2 xl:flex">
+              <IconButton label="展开 Inspector" onClick={() => setInspectorCollapsed(false)}>
+                <PanelRightOpen size={16} />
+              </IconButton>
+              <span className="mt-2 [writing-mode:vertical-rl] text-[11px] tracking-wider text-muted">Inspector</span>
+            </div>
+          ) : (
+            <Inspector
+              slide={slide}
+              element={element}
+              paper={paper}
+              tab={inspectorTab}
+              onTab={setInspectorTab}
+              onCollapse={() => {
+                setInspectorCollapsed(true);
+                setInspectorOpen(false);
+              }}
+              onSource={(id) => source(id)}
+              onCrop={(id) => source(id, true)}
+              onDeleteElement={() => void run(deleteElement)}
+              onLayout={changeLayout}
+              editing={editing}
+              resourceAvailable={resourceAvailable}
+              readOnly={readOnly}
+              ai={
+                aiSettings ? (
+                  <AiPanel controller={assistant} session={session} paper={aiPaper ?? paper} disabled={readOnly} />
+                ) : undefined
+              }
             />
-          </ResponsivePanel>
-        )}
-        {!aiSettings && (
-          <aside className="hidden min-w-0 border-l border-line bg-panel p-4 xl:block">
-            <h2 className="text-sm font-semibold">{deck.title}</h2>
-            <p className="mt-3 text-xs text-muted">
-              {deck.slides.length} 页 · {deck.language}
-            </p>
-            <p className="mt-5 border-t border-line pt-3 text-xs leading-relaxed wrap-anywhere text-muted">
-              {paper.metadata.title}
-            </p>
-          </aside>
-        )}
+          )}
+        </ResponsivePanel>
       </div>
+      {aiSettings && (
+        <AiCommandBar
+          controller={assistant}
+          session={session}
+          settings={aiSettings}
+          selectedElementId={selectedElement}
+          disabled={readOnly}
+        />
+      )}
     </main>
   );
 }

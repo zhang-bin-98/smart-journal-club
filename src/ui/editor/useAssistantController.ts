@@ -11,7 +11,8 @@ import { resolveAiTarget, type AiTarget, type AssistantScope } from '../../modul
 import { loadHistory } from '../../modules/assistant/conversationRepository';
 import { beginActivity, setDirty } from '../../app/activity';
 import { errorMessage, useOnline } from '../controls';
-import type { CancelAi } from './AiPanel';
+
+export type CancelAi = (reason?: 'manual') => boolean;
 
 /** AI 助手面板控制器：输入、历史加载、请求任务与取消；runtime 编排仍在 modules/assistant。 */
 export function useAssistantController({
@@ -316,3 +317,5 @@ export function useAssistantController({
     messageList,
   };
 }
+
+export type AssistantController = ReturnType<typeof useAssistantController>;

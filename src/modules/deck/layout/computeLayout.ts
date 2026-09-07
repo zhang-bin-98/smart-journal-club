@@ -14,14 +14,13 @@ export type ComputedLayout = {
 const r = (x: number, y: number, width: number, height: number): Rect => ({ x, y, width, height });
 let measurement: CanvasRenderingContext2D | null | undefined;
 function textMetrics(value: string, rect: Rect, preferred: number, minimum: number, lineHeight = 1.3): TextMetrics {
-  measurement ??= document.createElement('canvas').getContext('2d');
+  measurement ??= typeof document === 'undefined' ? null : document.createElement('canvas').getContext('2d');
   const fits = (size: number) => {
-    if (!measurement) return true;
-    measurement.font = `${size}px Arial`;
+    if (measurement) measurement.font = `${size}px Arial`;
     let lines = 1;
     let width = 0;
     for (const char of value) {
-      const next = measurement.measureText(char).width;
+      const next = measurement?.measureText(char).width ?? size * ((char.codePointAt(0) ?? 0) > 0xff ? 1 : 0.56);
       if (char === '\n' || width + next > rect.width * 960) {
         lines++;
         width = char === '\n' ? 0 : next;

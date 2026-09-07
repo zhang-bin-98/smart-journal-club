@@ -1,63 +1,22 @@
-import { Bot, Check, CircleStop, MessageCircle, Pencil, Send, Undo2, X } from 'lucide-react';
-import type { ModelSettings } from '../../shared/llm/model';
+import { Bot, Check, CircleStop, Undo2, X } from 'lucide-react';
 import type { Paper } from '../../modules/paper/paper.schema';
-import type { Project } from '../../modules/project/project.schema';
-import type { PersistAssistantRevision } from '../../modules/assistant/revision/applyRevision';
-import type { DeckSession } from '../../modules/deck/DeckSession';
-import { Button, inputClass } from '../controls';
-import { useAssistantController } from './useAssistantController';
 import { proposalDiff } from '../../modules/assistant/revision/proposalDiff';
+import type { DeckSession } from '../../modules/deck/DeckSession';
+import { Button } from '../controls';
+import type { AssistantController } from './useAssistantController';
 
-export type CancelAi = (reason?: 'manual') => boolean;
 export function AiPanel({
+  controller,
   session,
   paper,
-  settings,
-  projectId,
-  preferences,
-  persistRevision,
-  selectedSlideId,
-  selectedElementId,
-  onChanged,
-  beforeSend,
-  beforeUndo,
-  onBusyChange,
-  registerCancel,
   disabled = false,
 }: {
-  disabled?: boolean;
+  controller: AssistantController;
   session: DeckSession;
   paper: Paper;
-  settings: ModelSettings;
-  projectId?: string;
-  preferences?: Project['preferences'];
-  persistRevision?: PersistAssistantRevision;
-  selectedSlideId?: string;
-  selectedElementId?: string;
-  onChanged: () => void;
-  beforeSend: () => Promise<void>;
-  beforeUndo: () => Promise<void>;
-  onBusyChange: (busy: boolean) => void;
-  registerCancel: (cancel?: CancelAi) => void;
+  disabled?: boolean;
 }) {
-  const controller = useAssistantController({
-    session,
-    paper,
-    settings,
-    projectId,
-    preferences,
-    persistRevision,
-    selectedSlideId,
-    selectedElementId,
-    onChanged,
-    beforeSend,
-    beforeUndo,
-    onBusyChange,
-    registerCancel,
-    disabled,
-  });
   const {
-    online,
     messages,
     pendingMessage,
     busy,
@@ -66,28 +25,20 @@ export function AiPanel({
     setHistoryAttempt,
     error,
     notice,
-    input,
-    changeInput,
-    send,
     cancel,
     canUndo,
     undoRevision,
     messageList,
-    mode,
-    setMode,
-    scope,
-    setScope,
     proposal,
     apply,
     progress,
     streamedText,
-    target,
   } = controller;
   return (
-    <section className="flex h-full min-h-0 min-w-0 flex-col bg-panel p-4" aria-label="AI 助手">
+    <section className="flex h-full min-h-0 min-w-0 flex-col bg-panel p-4" aria-label="AI 对话与提案">
       <div className="flex items-center gap-2">
         <Bot size={17} />
-        <h2 className="text-sm font-semibold">AI 助手</h2>
+        <h2 className="text-sm font-semibold">AI 对话与提案</h2>
       </div>
       <div
         ref={messageList}
@@ -150,7 +101,15 @@ export function AiPanel({
           <section aria-label="待应用修改" className="space-y-3 border-t border-line pt-3 text-xs">
             <h3 className="font-semibold">待应用修改</h3>
             <p className="wrap-anywhere">{proposal.summary}</p>
-            <p>影响 {proposal.affectedSlideIds.length} 页</p>
+            <p>
+              影响页：
+              {proposal.affectedSlideIds
+                .map((id) => {
+                  const index = session.current.slides.findIndex((slide) => slide.id === id);
+                  return index < 0 ? '新增或已删除页' : `第 ${index + 1} 页`;
+                })
+                .join('、')}
+            </p>
             <details>
               <summary className="cursor-pointer">查看差异</summary>
               {proposal.affectedSlideIds.map((id) => {
@@ -204,76 +163,6 @@ export function AiPanel({
           {notice}
         </p>
       )}
-      <div className="mt-4 shrink-0 border-t border-line pt-3">
-        <div role="group" aria-label="AI 模式" className="mb-2 flex gap-1">
-          <Button aria-pressed={mode === 'answer'} disabled={busy || !!proposal} onClick={() => setMode('answer')}>
-            <MessageCircle size={14} />
-            提问
-          </Button>
-          <Button aria-pressed={mode === 'revision'} disabled={busy || !!proposal} onClick={() => setMode('revision')}>
-            <Pencil size={14} />
-            修改
-          </Button>
-        </div>
-        <label className="mb-2 flex items-center gap-2 text-xs">
-          范围
-          <select
-            aria-label="AI 作用范围"
-            className={inputClass}
-            value={scope}
-            disabled={busy || !!proposal}
-            onChange={(event) => setScope(event.target.value as typeof scope)}
-          >
-            <option value="element" disabled={!selectedElementId}>
-              元素
-            </option>
-            <option value="slides">页面</option>
-            <option value="section">章节</option>
-            <option value="deck">整套 PPT</option>
-          </select>
-        </label>
-        <p aria-label="实际作用范围" className="mb-2 text-xs wrap-anywhere text-muted">
-          {target.clarification ??
-            `${target.global ? '整套 PPT' : target.sectionId ? '当前章节' : target.elementId ? '选定元素' : '页面'}：${target.slideIds.map((id) => session.current.slides.findIndex((slide) => slide.id === id) + 1).join('、') || '无'}`}
-        </p>
-        {!online && (
-          <p role="status" className="mb-2 text-xs text-muted">
-            当前离线，联网后可使用 AI；本地编辑和导出仍可用。
-          </p>
-        )}
-        {!settings.apiKey.trim() && <p className="mb-2 text-xs text-muted">请先通过顶栏的“模型设置”配置 Key。</p>}
-        <textarea
-          aria-label="AI 输入"
-          className={`${inputClass} min-h-24 max-h-48 resize-y`}
-          placeholder="告诉我怎么调整…"
-          value={input}
-          disabled={busy || disabled}
-          onChange={(event) => changeInput(event.target.value)}
-          onKeyDown={(event) => {
-            if ((event.ctrlKey || event.metaKey) && event.key === 'Enter' && !event.nativeEvent.isComposing) {
-              event.preventDefault();
-              void send();
-            }
-          }}
-        />
-        <div className="mt-2 flex justify-end gap-2">
-          {busy ? (
-            <Button onClick={() => cancel()}>
-              <CircleStop size={15} />
-              取消
-            </Button>
-          ) : (
-            <Button
-              primary
-              disabled={!input.trim() || !settings.apiKey.trim() || loading || !!historyError || disabled || !online}
-              onClick={() => void send()}
-            >
-              <Send size={15} />
-              发送
-            </Button>
-          )}
-        </div>
-      </div>
     </section>
   );
 }

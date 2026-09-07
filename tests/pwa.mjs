@@ -5,6 +5,57 @@ import { mkdir, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { extname, join, resolve, sep } from 'node:path';
 import { fixtureDeck, fixturePaper } from './fixtures.ts';
+const pwaPaper = structuredClone(fixturePaper);
+const [fixtureTitle, fixtureResult, fixtureSummary] = structuredClone(fixtureDeck.slides);
+const pwaDeck = {
+  ...structuredClone(fixtureDeck),
+  sections: [
+    fixtureDeck.sections[0],
+    { id: 'sec-background', kind: 'background', title: '背景', purpose: '交代研究背景' },
+    { id: 'sec-question', kind: 'question', title: '研究问题', purpose: '明确研究问题' },
+    { id: 'sec-study-design', kind: 'study-design', title: '研究设计', purpose: '说明研究设计' },
+    fixtureDeck.sections[1],
+    fixtureDeck.sections[2],
+  ],
+  slides: [
+    fixtureTitle,
+    {
+      id: 'slide-background',
+      sectionId: 'sec-background',
+      kind: 'background',
+      title: '研究背景',
+      message: '该研究从可追溯证据出发组织汇报。',
+      layoutId: 'text-only',
+      elements: [{ id: 'text-background', type: 'text', text: '固定背景说明' }],
+      claimIds: [],
+      sourceIds: [],
+    },
+    {
+      id: 'slide-question',
+      sectionId: 'sec-question',
+      kind: 'question',
+      title: '研究问题',
+      message: '研究问题聚焦处理组差异及其证据。',
+      layoutId: 'text-only',
+      elements: [{ id: 'text-question', type: 'text', text: '固定研究问题' }],
+      claimIds: [],
+      sourceIds: [],
+    },
+    {
+      id: 'slide-study-design',
+      sectionId: 'sec-study-design',
+      kind: 'method',
+      title: '研究设计',
+      message: '固定研究设计支持对结果的准确解释。',
+      layoutId: 'text-only',
+      elements: [{ id: 'text-study-design', type: 'text', text: '固定设计说明' }],
+      claimIds: [],
+      sourceIds: [],
+    },
+    { ...fixtureResult, claimIds: ['claim-fixture'] },
+    { ...fixtureSummary, message: '结论回到固定发现及其证据链。' },
+  ],
+};
 const MODEL_ID = (await readFile(resolve('src/shared/llm/model.ts'), 'utf8')).match(
   /export const MODEL_ID = '([^']+)'/,
 )[1];
@@ -155,7 +206,7 @@ try {
           pdfAssetId,
           checkpoint: 'deck-ready',
           currentDeckId: deck.id,
-          lastOpenedSlideId: deck.slides[1].id,
+          lastOpenedSlideId: deck.slides.find((slide) => slide.elements.some((element) => element.id === 'f1')).id,
           preferences: { instruction: '', strategyId: 'general' },
           createdAt: now,
           updatedAt: now,
@@ -179,7 +230,7 @@ try {
       db.close();
       await (await caches.open('other-app-fixed-cache')).put('/other-app-marker', new Response('keep me'));
     },
-    { projectId, deck: fixtureDeck, paper: fixturePaper, pdf, modelId: MODEL_ID },
+    { projectId, deck: pwaDeck, paper: pwaPaper, pdf, modelId: MODEL_ID },
   );
 
   // 首次只打开首页；PDF 和导出模块必须来自构建缓存，而非之前的在线操作。
@@ -209,15 +260,24 @@ try {
   await title.fill('离线修改仍可保存');
   await page.getByRole('textbox', { name: 'AI 输入', exact: true }).click();
   await page.getByRole('status').filter({ hasText: '已保存' }).waitFor();
-  const download = page.waitForEvent('download');
+  const download = page.waitForEvent('download').catch(async (cause) => {
+    console.error({ body: await page.locator('body').innerText(), errors });
+    throw cause;
+  });
   await page.getByRole('button', { name: '导出 PPTX', exact: true }).click();
+  await page.getByRole('button', { name: '确认警告并导出', exact: true }).click();
   const artifact = join(output, 'pwa-offline.pptx');
   await (await download).saveAs(artifact);
   assert.equal((await readFile(artifact)).subarray(0, 2).toString(), 'PK');
   const offlineState = await readState(page);
-  assert.ok(offlineState.deck.slides[1].elements.find((element) => element.id === 'f1').cropOverride);
+  assert.ok(
+    offlineState.deck.slides.flatMap((slide) => slide.elements).find((element) => element.id === 'f1').cropOverride,
+  );
   assert.equal(
-    offlineState.deck.slides[2].elements.some((element) => element.cropOverride),
+    offlineState.deck.slides
+      .flatMap((slide) => slide.elements)
+      .filter((element) => element.id === 'f2' || element.id === 'f3')
+      .some((element) => element.cropOverride),
     false,
   );
   await page.close();

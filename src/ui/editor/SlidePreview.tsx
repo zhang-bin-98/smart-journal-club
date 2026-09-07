@@ -12,7 +12,7 @@ export const position = (rect: Rect): CSSProperties => ({
 });
 export type FigureImage = (element: Extract<Element, { type: 'figure' }>) => Promise<string>;
 export type TextEdit = { key: string; value: string; original: string; composing: boolean; save: () => Promise<void> };
-type Editing = {
+export type Editing = {
   onDraft: (draft: TextEdit) => void;
   onBlur: () => void;
   onSave: (key: string, value: string) => Promise<void>;

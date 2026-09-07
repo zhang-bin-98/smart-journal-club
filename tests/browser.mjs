@@ -85,6 +85,7 @@ try {
   await page.locator('[data-slide-id="slide-2"]').click();
   await page.locator('[data-slide-preview="current"] [data-element-id="f1"]').click();
   await page.getByRole('button', { name: '删除选中元素', exact: true }).click();
+  await page.getByRole('tab', { name: '版式', exact: true }).click();
   assert.equal(await page.getByRole('combobox', { name: '选择布局' }).inputValue(), 'text-only');
   await page.getByRole('button', { name: '撤销', exact: true }).click();
   const fixtureDownload = page.waitForEvent('download');
@@ -321,6 +322,7 @@ try {
     await route.fulfill({ status: 200, contentType: 'text/event-stream', body });
   });
   const aiInput = page.getByRole('textbox', { name: 'AI 输入', exact: true });
+  await page.getByRole('tab', { name: 'AI', exact: true }).click();
   await page.getByRole('button', { name: '修改', exact: true }).click();
   const beforeAi = await page.evaluate(
     async (id) => (await (await import('/src/modules/project/projectRepository.ts')).loadProject(id)).deck,
@@ -410,6 +412,7 @@ try {
   assert.equal(afterCancelledAi.slides[2].title, '手工草稿优先');
   assert.equal(afterCancelledAi.revision, beforeCancelledAi.revision + 1);
   await page.reload();
+  await page.getByRole('tab', { name: 'AI', exact: true }).click();
   await page.getByText('修改摘要：精简第一页标题', { exact: true }).waitFor();
   await page.getByText('修改摘要：再次调整第一页标题', { exact: true }).waitFor();
   assert.equal(
@@ -556,14 +559,18 @@ try {
   );
   const download = page.waitForEvent('download');
   await page.getByRole('button', { name: '导出 PPTX', exact: true }).click();
+  const confirmExport = page.getByRole('button', { name: '确认警告并导出', exact: true });
+  if (await confirmExport.isVisible()) await confirmExport.click();
   await (await download).saveAs(join(output, 'paper.pptx'));
   await page.screenshot({ path: join(output, 'editor-desktop.png'), fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.getByRole('button', { name: 'AI 助手', exact: true }).click();
-  await page.getByRole('dialog', { name: 'AI 助手', exact: true }).waitFor();
   assert.equal(await aiInput.isVisible(), true);
-  await page.getByRole('button', { name: '关闭AI 助手', exact: true }).click();
-  await page.getByRole('dialog', { name: 'AI 助手', exact: true }).waitFor({ state: 'hidden' });
+  await page.getByRole('button', { name: 'Inspector', exact: true }).click();
+  await page.getByRole('dialog', { name: 'Inspector', exact: true }).waitFor();
+  await page.getByRole('tab', { name: 'AI', exact: true }).click();
+  await page.getByRole('region', { name: 'AI 对话与提案', exact: true }).waitFor();
+  await page.getByRole('button', { name: '关闭Inspector', exact: true }).click();
+  await page.getByRole('dialog', { name: 'Inspector', exact: true }).waitFor({ state: 'hidden' });
   await page.screenshot({ path: join(output, 'editor-mobile.png'), fullPage: true });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   assert.deepEqual(errors, []);
@@ -629,6 +636,137 @@ try {
   await page.setViewportSize({ width: 1440, height: 1000 });
   console.log(
     'PASS: workspace navigation/flush draft/read-only current outline/evidence image/source/mobile/retained undo',
+  );
+  const firstSection = page.locator('[data-section-id]').first();
+  const firstSectionToggle = firstSection.getByRole('button').first();
+  assert.equal(await firstSectionToggle.getAttribute('aria-expanded'), 'true');
+  await firstSectionToggle.click();
+  assert.equal(await firstSectionToggle.getAttribute('aria-expanded'), 'false');
+  await firstSectionToggle.click();
+  assert.equal(await firstSectionToggle.getAttribute('aria-expanded'), 'true');
+  await page.getByRole('tab', { name: '内容', exact: true }).click();
+  const m11SlideId = await page.locator('[data-slide-id][aria-current="page"]').getAttribute('data-slide-id');
+  assert.ok(m11SlideId);
+  const purpose = page.getByRole('textbox', { name: '本页目的', exact: true });
+  const purposeText = '在检查前明确本页承担的叙事职责';
+  await purpose.fill(purposeText);
+  await purpose.blur();
+  await page.waitForFunction(
+    async ({ id, slideId, purpose }) =>
+      (await (await import('/src/modules/project/projectRepository.ts')).loadProject(id)).deck.slides.find(
+        (slide) => slide.id === slideId,
+      ).purpose === purpose,
+    { id, slideId: m11SlideId, purpose: purposeText },
+  );
+  assert.equal(
+    await page.evaluate(
+      async ({ id, slideId }) =>
+        (await (await import('/src/modules/project/projectRepository.ts')).loadProject(id)).deck.slides.find(
+          (slide) => slide.id === slideId,
+        ).purpose,
+      { id, slideId: m11SlideId },
+    ),
+    purposeText,
+  );
+  await page.getByRole('button', { name: '收起 Inspector', exact: true }).click();
+  await page.getByRole('button', { name: '展开 Inspector', exact: true }).waitFor();
+  await page.screenshot({ path: join(output, 'm11-inspector-collapsed.png'), fullPage: true });
+  await page.getByRole('button', { name: '展开 Inspector', exact: true }).click();
+  const longTitle = '这是一个用于验证标题过长警告、问题定位以及版本确认失效机制的研究结果页面标题';
+  await editingTitle.fill(longTitle);
+  await editingTitle.blur();
+  await page.getByRole('status').filter({ hasText: '已保存' }).first().waitFor();
+  await page.getByRole('button', { name: '导出 PPTX', exact: true }).click();
+  await page.getByRole('button', { name: '确认警告并导出', exact: true }).waitFor();
+  await page.getByRole('button', { name: '取消', exact: true }).click();
+  await page.getByRole('tab', { name: '4 · 检查与导出', exact: true }).click();
+  const checkPage = page.getByRole('main', { name: '检查与导出', exact: true });
+  await checkPage.waitFor();
+  await checkPage.getByRole('region', { name: '科学表达人工复核', exact: true }).waitFor();
+  await checkPage.getByText('标题较长，请确认在预览和导出中仍清晰可读。', { exact: true }).waitFor();
+  await page.screenshot({ path: join(output, 'm11-check.png'), fullPage: true });
+  const warningAcceptance = checkPage.getByRole('checkbox');
+  await warningAcceptance.check();
+  assert.equal(await warningAcceptance.isChecked(), true);
+  assert.equal(await checkPage.getByRole('button', { name: '确认警告并导出 PPTX', exact: true }).isEnabled(), true);
+  await page.getByRole('tab', { name: '3 · 幻灯片', exact: true }).click();
+  await page.getByRole('tab', { name: '内容', exact: true }).click();
+  await purpose.fill(`${purposeText}（已更新）`);
+  await purpose.blur();
+  await page.getByRole('status').filter({ hasText: '已保存' }).first().waitFor();
+  await page.getByRole('tab', { name: '4 · 检查与导出', exact: true }).click();
+  assert.equal(await checkPage.getByRole('checkbox').isChecked(), false);
+  assert.equal(await checkPage.getByRole('button', { name: '确认警告并导出 PPTX', exact: true }).isDisabled(), true);
+  const titleWarning = checkPage.getByText('标题较长，请确认在预览和导出中仍清晰可读。', { exact: true }).locator('..');
+  await titleWarning.getByRole('button', { name: '定位到编辑器', exact: true }).click();
+  assert.equal(await page.getByRole('tab', { name: '3 · 幻灯片', exact: true }).getAttribute('aria-selected'), 'true');
+  assert.equal(await page.getByRole('tab', { name: '版式', exact: true }).getAttribute('aria-selected'), 'true');
+
+  const validDeckForGate = await page.evaluate(
+    async (id) => (await (await import('/src/modules/project/projectRepository.ts')).loadProject(id)).deck,
+    id,
+  );
+  const invalidSlide = validDeckForGate.slides.find((slide) => slide.kind !== 'title' && slide.kind !== 'custom');
+  assert.ok(invalidSlide);
+  await page.evaluate(
+    async ({ deck, slideId }) => {
+      const { transaction } = await import('/src/shared/persistence/indexedDb.ts');
+      const invalid = structuredClone(deck);
+      invalid.revision += 1;
+      invalid.updatedAt = Date.now();
+      invalid.slides.find((slide) => slide.id === slideId).message = '';
+      await transaction(['decks'], 'readwrite', async (tx) => {
+        tx.objectStore('decks').put(invalid, invalid.id);
+      });
+    },
+    { deck: validDeckForGate, slideId: invalidSlide.id },
+  );
+  await page.reload();
+  assert.equal(await page.getByRole('button', { name: '导出 PPTX', exact: true }).isDisabled(), true);
+  await page.getByRole('tab', { name: '4 · 检查与导出', exact: true }).click();
+  const messageError = checkPage.getByText('内容页需要本页结论（take-home）。', { exact: true }).first();
+  await messageError.waitFor();
+  assert.equal(await checkPage.getByRole('region', { name: '错误', exact: true }).isVisible(), true);
+  assert.equal(await checkPage.getByRole('button', { name: '确认警告并导出 PPTX', exact: true }).isDisabled(), true);
+  await messageError.locator('..').getByRole('button', { name: '定位到编辑器', exact: true }).click();
+  assert.equal(await page.getByRole('tab', { name: '内容', exact: true }).getAttribute('aria-selected'), 'true');
+  assert.equal(
+    await page.locator('[data-slide-id][aria-current="page"]').getAttribute('data-slide-id'),
+    invalidSlide.id,
+  );
+  assert.ok(invalidSlide.message);
+  const messageEditor = page.getByRole('textbox', { name: '本页结论', exact: true });
+  await messageEditor.fill(invalidSlide.message);
+  await messageEditor.blur();
+  await page.waitForFunction(
+    async ({ id, slideId, message }) =>
+      (await (await import('/src/modules/project/projectRepository.ts')).loadProject(id)).deck.slides.find(
+        (slide) => slide.id === slideId,
+      ).message === message,
+    { id, slideId: invalidSlide.id, message: invalidSlide.message },
+  );
+  assert.equal(await page.getByRole('button', { name: '导出 PPTX', exact: true }).isEnabled(), true);
+
+  await page.evaluate(() => {
+    window.__smartjcOriginalCreateObjectURL = URL.createObjectURL;
+    URL.createObjectURL = () => {
+      throw new Error('固定导出失败');
+    };
+  });
+  await page.getByRole('button', { name: '导出 PPTX', exact: true }).click();
+  await page.getByRole('button', { name: '确认警告并导出', exact: true }).click();
+  await page.getByRole('alert').filter({ hasText: '固定导出失败' }).first().waitFor();
+  assert.equal(await page.getByRole('button', { name: '导出 PPTX', exact: true }).isEnabled(), true);
+  await page.evaluate(() => {
+    URL.createObjectURL = window.__smartjcOriginalCreateObjectURL;
+    delete window.__smartjcOriginalCreateObjectURL;
+  });
+  const retryDownload = page.waitForEvent('download');
+  await page.getByRole('button', { name: '导出 PPTX', exact: true }).click();
+  await page.getByRole('button', { name: '确认警告并导出', exact: true }).click();
+  await (await retryDownload).saveAs(join(output, 'm11-export-retry.pptx'));
+  console.log(
+    'PASS: M11 section groups/Inspector/purpose/check localization/versioned warning confirmation/hard-error repair/export failure retry',
   );
   const originalForReanalysis = await page.evaluate(
     async (id) => JSON.stringify(await (await import('/src/modules/project/projectRepository.ts')).loadProject(id)),
