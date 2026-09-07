@@ -44,7 +44,7 @@ export function validatePlanNarrative(plan: DeckPlan, paper: Paper): NarrativeVa
 
 /** Deck 叙事校验：只依据 Deck 实际内容；不含计划预算、focus 偏好，也不检查构建忠实性。 */
 export function validateDeckNarrative(deck: Deck, paper: Paper): NarrativeValidation {
-  const view = deckNarrativeView(deck);
+  const view = deckNarrativeView(deck, paper);
   if (!view.slides.length) return partition([{ code: 'empty-plan', severity: 'error', message: '文稿至少需要一页。' }]);
   return partition([
     ...structureIssues(view),

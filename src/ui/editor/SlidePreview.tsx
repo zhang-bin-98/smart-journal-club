@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from
 import { computeLayout, type Rect } from '../../modules/deck/layout/computeLayout';
 import type { Element, Slide } from '../../modules/deck/deck.schema';
 import type { Paper } from '../../modules/paper/paper.schema';
-import { sourceText } from '../../modules/paper/sources';
+import { sourceIdsExcludingPages, sourceText } from '../../modules/paper/sources';
 
 export const position = (rect: Rect): CSSProperties => ({
   left: `${rect.x * 100}%`,
@@ -132,6 +132,9 @@ export function SlidePreview({
   thumbnail?: boolean;
 }) {
   const layout = computeLayout(slide);
+  const citationSourceIds = slide.elements.flatMap((element) => (element.type === 'citation' ? element.sourceIds : []));
+  const footerSourceIds = sourceIdsExcludingPages(paper, slide.sourceIds, citationSourceIds);
+  const footerSourceText = sourceLabel(paper, footerSourceIds);
   return (
     <div
       data-slide-preview={thumbnail ? 'thumbnail' : 'current'}
@@ -195,15 +198,17 @@ export function SlidePreview({
           )}
         </div>
       ))}
-      <button
-        type="button"
-        tabIndex={thumbnail ? -1 : 0}
-        className="overflow-hidden text-left text-[1.1cqw] leading-none whitespace-nowrap text-muted hover:underline"
-        style={position(layout.sourceLabel)}
-        onClick={() => onSource?.(slide.sourceIds[0])}
-      >
-        {sourceLabel(paper, slide.sourceIds)}
-      </button>
+      {footerSourceText && (
+        <button
+          type="button"
+          tabIndex={thumbnail ? -1 : 0}
+          className="overflow-hidden text-left text-[1.1cqw] leading-none whitespace-nowrap text-muted hover:underline"
+          style={position(layout.sourceLabel)}
+          onClick={() => onSource?.(footerSourceIds[0])}
+        >
+          {footerSourceText}
+        </button>
+      )}
     </div>
   );
 }

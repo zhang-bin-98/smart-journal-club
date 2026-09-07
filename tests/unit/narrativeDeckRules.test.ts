@@ -46,6 +46,12 @@ describe('Deck 叙事校验', () => {
     expect(issue.claimId).toBe('claim-fixture');
   });
 
+  it('Deck 中实际显示的 Figure 本身计入页面来源，不要求在 sourceIds 重复登记', () => {
+    const deck = narrativeDeck();
+    slide(deck, 'n-slide-result-1').sourceIds = [];
+    expect(validate(deck).errors).toEqual([]);
+  });
+
   it('四个 Panel 的合法页仅提示 many-panels，五个图超出布局容量报错', () => {
     const panels = narrativeDeck();
     const result = slide(panels, 'n-slide-result-1');

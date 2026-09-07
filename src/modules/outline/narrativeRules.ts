@@ -66,7 +66,7 @@ export function planNarrativeView(plan: DeckPlan): NarrativeView {
     slides: plan.slides.map((slide) => ({ ...slide })),
   };
 }
-export function deckNarrativeView(deck: Deck): NarrativeView {
+export function deckNarrativeView(deck: Deck, paper: Paper): NarrativeView {
   return {
     sections: deck.sections.map(({ id, kind, title, purpose, transitionToNext }) => ({
       id,
@@ -75,12 +75,23 @@ export function deckNarrativeView(deck: Deck): NarrativeView {
       purpose,
       transitionToNext,
     })),
-    slides: deck.slides.map(({ elements, ...slide }) => ({
-      ...slide,
-      figures: elements.flatMap((element) =>
+    slides: deck.slides.map(({ elements, ...slide }) => {
+      const figures = elements.flatMap((element) =>
         element.type === 'figure' ? [{ figureId: element.figureId, panelId: element.panelId }] : [],
-      ),
-    })),
+      );
+      const displayedSources = figures.flatMap((figure) => {
+        const referencedFigure = paper.figures.find((item) => item.id === figure.figureId);
+        if (!referencedFigure) return [];
+        const panel = figure.panelId ? referencedFigure.panels.find((item) => item.id === figure.panelId) : undefined;
+        if (figure.panelId && !panel) return [];
+        return [panel?.sourceId ?? referencedFigure.sourceId];
+      });
+      return {
+        ...slide,
+        sourceIds: [...new Set([...slide.sourceIds, ...displayedSources])],
+        figures,
+      };
+    }),
   };
 }
 

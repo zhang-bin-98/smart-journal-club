@@ -91,3 +91,17 @@ export function sourceText(paper: Paper, sourceIds: string[]) {
     .map((page) => `论文第 ${page} 页`)
     .join(' · ');
 }
+
+/** 自动页脚不重复 Citation 已覆盖的论文页；不同 Source 指向同页时同样视为已覆盖。 */
+export function sourceIdsExcludingPages(paper: Paper, sourceIds: string[], excludedSourceIds: string[]) {
+  const excludedPages = new Set(
+    excludedSourceIds.flatMap((id) => {
+      const page = paper.sources.find((source) => source.id === id)?.pageNumber;
+      return page === undefined ? [] : [page];
+    }),
+  );
+  return sourceIds.filter((id) => {
+    const page = paper.sources.find((source) => source.id === id)?.pageNumber;
+    return page === undefined || !excludedPages.has(page);
+  });
+}

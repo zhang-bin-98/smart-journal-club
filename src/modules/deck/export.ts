@@ -3,7 +3,7 @@ import { computeLayout } from './layout/computeLayout';
 import { validateDeck } from './validateDeck';
 import type { Deck, Element } from './deck.schema';
 import type { Paper } from '../paper/paper.schema';
-import { figureSource, sourceText } from '../paper/sources';
+import { figureSource, sourceIdsExcludingPages, sourceText } from '../paper/sources';
 function contain(sourceWidth: number, sourceHeight: number, x: number, y: number, width: number, height: number) {
   const scale = Math.min(width / sourceWidth, height / sourceHeight);
   const w = sourceWidth * scale;
@@ -58,6 +58,7 @@ export async function exportDeck(
         color: '526575',
       });
     const sourceIds = new Set(slide.sourceIds);
+    const citationSourceIds = new Set<string>();
     for (const { element, rect, text } of layout.elements) {
       const opts = { ...box(rect), fontSize: text.fontSize, lineSpacingMultiple: text.lineHeight };
       if (element.type === 'figure') {
@@ -79,12 +80,13 @@ export async function exportDeck(
         );
       else {
         element.sourceIds.forEach((id) => {
-          sourceIds.add(id);
+          citationSourceIds.add(id);
         });
         out.addText(sourceText(paper, element.sourceIds), { ...opts, fontSize: 8, color: '526575' });
       }
     }
-    out.addText(sourceText(paper, [...sourceIds]), { ...box(layout.sourceLabel), fontSize: 8, color: '526575' });
+    const footerText = sourceText(paper, sourceIdsExcludingPages(paper, [...sourceIds], [...citationSourceIds]));
+    if (footerText) out.addText(footerText, { ...box(layout.sourceLabel), fontSize: 8, color: '526575' });
   }
   signal?.throwIfAborted();
   const blob = (await pptx.write({ outputType: 'blob' })) as Blob;
