@@ -3,6 +3,7 @@ import { mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { checkFigureStalls } from './figure-stalls.mjs';
+import { checkOutlineGuidance } from './outline-guidance.mjs';
 
 const { chromium } = await import(process.env.SMARTJC_PLAYWRIGHT_MODULE || 'playwright');
 const base = process.env.SMARTJC_BASE_URL || 'http://127.0.0.1:5174/';
@@ -61,6 +62,7 @@ try {
   }
   await page.unroute('https://api.deepseek.com/chat/completions');
   console.log('PASS: Pi AI fixed SSE/JSON/authentication/invalid output');
+  await checkOutlineGuidance(page, base, output);
   await checkFigureStalls(page, base);
   await page.goto(`${base}#/fixture`);
   const title = page.getByRole('textbox', { name: '幻灯片标题', exact: true });

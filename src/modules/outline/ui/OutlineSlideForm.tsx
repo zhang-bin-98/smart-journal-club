@@ -5,6 +5,7 @@ import { LayoutIds, SlideKinds } from '../../deck/deck.schema';
 import type { Paper } from '../../paper/paper.schema';
 import type { DeckPlan, PlannedSlide, PlanMutation, ClaimEmphasisEntry } from '../outline.schema';
 import type { OutlineEdit } from './OutlineEditor';
+import { missingFigureSourceIds, type OutlineIssueFocus } from './issueGuidance';
 
 const kinds = {
   title: '封面',
@@ -34,6 +35,7 @@ export function OutlineSlideForm({
   edit,
   onDirty,
   onSource,
+  focus,
 }: {
   slide: PlannedSlide;
   plan: DeckPlan;
@@ -42,6 +44,7 @@ export function OutlineSlideForm({
   edit: OutlineEdit;
   onDirty: (dirty: boolean) => void;
   onSource: (sourceId: string) => void;
+  focus?: OutlineIssueFocus;
 }) {
   const [draft, setDraft] = useState(slide);
   const [emphasis, setEmphasis] = useState(plan.claimEmphasis);
@@ -50,6 +53,7 @@ export function OutlineSlideForm({
     JSON.stringify(draft) !== JSON.stringify(slide) || JSON.stringify(emphasis) !== JSON.stringify(plan.claimEmphasis);
   const pages = plan.slides.filter((item) => item.sectionId === slide.sectionId);
   const index = pages.findIndex((item) => item.id === slide.id);
+  const missingSources = missingFigureSourceIds(draft, paper);
   function change(next: PlannedSlide, nextEmphasis = emphasis) {
     setDraft(next);
     setEmphasis(nextEmphasis);
@@ -85,10 +89,31 @@ export function OutlineSlideForm({
       }}
       className="space-y-4"
     >
+      <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 border-b border-line bg-white py-3">
+        <Button type="submit" disabled={disabled || !dirty}>
+          <Save size={15} /> 保存草稿
+        </Button>
+        <Button disabled={disabled || !dirty} onClick={() => change(slide, plan.claimEmphasis)}>
+          <X size={15} /> 取消页面修改
+        </Button>
+        {!!missingSources.length && (
+          <Button
+            disabled={disabled}
+            onClick={() => change({ ...draft, sourceIds: [...new Set([...draft.sourceIds, ...missingSources])] })}
+          >
+            补全本页图源引用
+          </Button>
+        )}
+        {focus && <p className="w-full text-xs text-ink">当前问题：{focus.hint}</p>}
+        <span className="text-xs text-muted">
+          {dirty ? '有未保存修改，保存后重新检查问题' : '编辑内容后在这里保存'}
+        </span>
+      </div>
       {(['title', 'purpose', 'message'] as const).map((field) => (
         <label key={field} className="block text-sm">
           {{ title: '页面标题', purpose: '页面目的', message: '本页结论' }[field]}
           <textarea
+            data-outline-field={field}
             className={`${inputClass} mt-2 min-h-16`}
             value={draft[field]}
             disabled={disabled}
@@ -100,6 +125,7 @@ export function OutlineSlideForm({
         <label className="text-sm">
           页面职责
           <select
+            data-outline-field="kind"
             className={`${inputClass} mt-2`}
             value={draft.kind}
             disabled={disabled}
@@ -128,7 +154,12 @@ export function OutlineSlideForm({
           </select>
         </label>
       </div>
-      <fieldset disabled={disabled} className="space-y-3 border-t border-line pt-3">
+      <fieldset
+        data-outline-field="claims"
+        tabIndex={-1}
+        disabled={disabled}
+        className="space-y-3 border-t border-line pt-3"
+      >
         <legend className="text-sm font-medium">Claim 与讲述重点</legend>
         {paper.claims.map((claim) => {
           const value = emphasis.find((entry) => entry.claimId === claim.id)?.emphasis ?? 'brief';
@@ -136,7 +167,12 @@ export function OutlineSlideForm({
             draft.claimIds.includes(claim.id) ||
             plan.slides.some((item) => item.id !== slide.id && item.claimIds.includes(claim.id));
           return (
-            <div key={claim.id} className="space-y-2 text-sm">
+            <div
+              key={claim.id}
+              data-outline-claim={claim.id}
+              tabIndex={-1}
+              className={`space-y-2 rounded p-2 text-sm ${focus?.issue.claimId === claim.id ? 'bg-accent/5 ring-2 ring-accent/40' : ''}`}
+            >
               <label className="flex items-start gap-2">
                 <input
                   type="checkbox"
@@ -181,8 +217,21 @@ export function OutlineSlideForm({
           );
         })}
       </fieldset>
-      <fieldset disabled={disabled} className="space-y-2 border-t border-line pt-3">
+      <fieldset
+        data-outline-field="figures"
+        tabIndex={-1}
+        disabled={disabled}
+        className="space-y-2 border-t border-line pt-3"
+      >
         <legend className="text-sm font-medium">Figure / Panel</legend>
+        {!!missingSources.length && (
+          <div className="rounded border border-amber-300 bg-amber-50 p-3">
+            <p className="mb-2 text-sm">
+              本页已选图源中有 {missingSources.length} 个来源尚未登记。只补全已有图源的引用，不会更换图或改动论文。
+            </p>
+            <p className="mt-2 text-xs text-muted">使用顶部“补全本页图源引用”，核对后保存草稿；保存前可取消修改。</p>
+          </div>
+        )}
         {!figures.length && <p className="text-sm text-muted">未识别到可用图源</p>}
         {figures.map((figure) => {
           const selected = draft.figures.some(
@@ -191,7 +240,10 @@ export function OutlineSlideForm({
           return (
             <div
               key={`${figure.selection.figureId}-${figure.selection.panelId ?? ''}`}
-              className="flex items-center gap-2 text-sm"
+              data-outline-figure={figure.selection.figureId}
+              data-outline-panel={figure.selection.panelId}
+              tabIndex={-1}
+              className={`flex items-center gap-2 rounded p-2 text-sm ${focus?.issue.figureId === figure.selection.figureId && focus?.issue.panelId === figure.selection.panelId ? 'bg-accent/5 ring-2 ring-accent/40' : ''}`}
             >
               <label className="flex min-w-0 flex-1 items-center gap-2">
                 <input
@@ -223,7 +275,12 @@ export function OutlineSlideForm({
           );
         })}
       </fieldset>
-      <details className="border-t border-line pt-3 text-sm">
+      <details
+        data-outline-field="sources"
+        tabIndex={-1}
+        open={focus?.field === 'sources' || undefined}
+        className="border-t border-line pt-3 text-sm"
+      >
         <summary>原文来源（{draft.sourceIds.length}）</summary>
         <div className="mt-3 max-h-48 space-y-2 overflow-y-auto">
           {paper.sources.map((source) => (
@@ -250,17 +307,6 @@ export function OutlineSlideForm({
         </div>
       </details>
       <div className="flex flex-wrap gap-2">
-        <Button type="submit" disabled={disabled || !dirty}>
-          <Save size={15} />
-          保存草稿
-        </Button>
-        <IconButton
-          label="取消页面修改"
-          disabled={disabled || !dirty}
-          onClick={() => change(slide, plan.claimEmphasis)}
-        >
-          <X size={16} />
-        </IconButton>
         <IconButton
           label="上移大纲页"
           disabled={disabled || dirty || index < 1}

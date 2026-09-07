@@ -11,6 +11,8 @@ import type { RegisterLeaveGuard } from '../../app/activity';
 import { useProjectWorkspace, type OpenProject } from './useProjectWorkspace';
 import { useProjectController } from './useProjectController';
 import { OutlineEditor } from '../../modules/outline/ui/OutlineEditor';
+import { OutlineIssues } from '../../modules/outline/ui/OutlineIssues';
+import { outlineIssueGuidance, outlineIssueKey, type OutlineIssueFocus } from '../../modules/outline/ui/issueGuidance';
 import { PaperUnderstanding } from './PaperUnderstanding';
 import { FinalOutline } from './FinalOutline';
 import { CheckExport } from './CheckExport';
@@ -528,7 +530,14 @@ function OutlineSummary({
 }) {
   const [acceptedRevision, setAcceptedRevision] = useState<number>();
   const [dirty, setDirty] = useState(false);
-  const [selectedIssue, setSelectedIssue] = useState<import('../../modules/outline/narrativeRules').NarrativeIssue>();
+  const [selectedIssue, setSelectedIssue] = useState<OutlineIssueFocus>();
+  const activeIssue =
+    selectedIssue &&
+    [...issues.errors, ...issues.warnings].some(
+      (issue) => outlineIssueKey(issue) === outlineIssueKey(selectedIssue.issue),
+    )
+      ? selectedIssue
+      : undefined;
   const warningsAccepted = acceptedRevision === plan.revision;
   const confirmed = plan.status === 'confirmed';
   return (
@@ -551,6 +560,23 @@ function OutlineSummary({
         <p className="mt-2 text-sm text-muted">
           {confirmed ? '大纲已确认，可以生成幻灯片。' : '请检查并确认大纲后再生成幻灯片。'}
         </p>
+        <p className="mt-2 text-sm text-muted">
+          修改方法：点左侧章节编辑标题和预算；点带页码的页面编辑内容、结论和图源。修改后在编辑区顶部保存草稿，再处理下一项。
+        </p>
+        <OutlineIssues
+          plan={plan}
+          paper={controller.data.paper}
+          issues={issues}
+          blocked={dirty || busy || stale}
+          dirty={dirty}
+          onLocate={(issue) =>
+            setSelectedIssue((previous) => ({
+              issue,
+              sequence: (previous?.sequence ?? 0) + 1,
+              ...outlineIssueGuidance(issue, plan, controller.data.paper),
+            }))
+          }
+        />
         <OutlineEditor
           plan={plan}
           paper={controller.data.paper}
@@ -561,24 +587,13 @@ function OutlineSummary({
           onDirty={setDirty}
           registerLeave={controller.registerOutlineLeave}
           onSource={(sourceId) => controller.openSource({ sourceId, crop: false })}
-          issue={selectedIssue}
+          focus={activeIssue}
         />
         {error && (
           <p role="alert" className="mt-4 text-sm text-red-700">
             {error}
           </p>
         )}
-        {[...issues.errors, ...issues.warnings].map((issue) => (
-          <button
-            type="button"
-            disabled={dirty}
-            onClick={() => setSelectedIssue(issue)}
-            key={`${issue.code}-${issue.slideId ?? issue.sectionId ?? issue.claimId ?? issue.figureId ?? issue.message}`}
-            className={`mt-2 block text-left text-sm ${issue.severity === 'error' ? 'text-red-700' : 'text-amber-700'}`}
-          >
-            {issue.message}
-          </button>
-        ))}
         {!!issues.warnings.length && !confirmed && (
           <label className="mt-4 flex items-center gap-2 text-sm">
             <input

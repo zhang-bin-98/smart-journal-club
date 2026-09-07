@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, FilePlus, Plus, Redo2, Save, Trash2, Undo2, X } from 'lucide-react';
 import { Button, IconButton, inputClass } from '../../../ui/controls';
 import { setDirty, type RegisterLeaveGuard } from '../../../app/activity';
@@ -6,7 +6,7 @@ import { SectionKinds, type SectionKind } from '../../deck/deck.schema';
 import type { Paper } from '../../paper/paper.schema';
 import type { DeckPlan, PlanMutation, PlannedSection } from '../outline.schema';
 import { OutlineSlideForm } from './OutlineSlideForm';
-import type { NarrativeIssue } from '../narrativeRules';
+import { beforeResultsSection, type OutlineIssueFocus } from './issueGuidance';
 
 export type OutlineEdit = (mutations: PlanMutation[] | 'undo' | 'redo') => Promise<boolean>;
 export const sectionLabels: Record<SectionKind, string> = {
@@ -32,7 +32,7 @@ export function OutlineEditor({
   onDirty,
   registerLeave,
   onSource,
-  issue,
+  focus,
 }: {
   plan: DeckPlan;
   paper: Paper;
@@ -43,11 +43,13 @@ export function OutlineEditor({
   onDirty: (dirty: boolean) => void;
   registerLeave: RegisterLeaveGuard;
   onSource: (sourceId: string) => void;
-  issue?: NarrativeIssue;
+  focus?: OutlineIssueFocus;
 }) {
   const [selected, select] = useState(plan.sections[0]?.id ?? '');
   const [dirty, changeDirty] = useState(false);
   const [newKind, setNewKind] = useState<SectionKind>('custom');
+  const editorRef = useRef<HTMLDivElement>(null);
+  const navRef = useRef<HTMLElement>(null);
   const section = plan.sections.find((item) => item.id === selected);
   const slide = plan.slides.find((item) => item.id === selected);
   const currentSection = section ?? plan.sections.find((item) => item.id === slide?.sectionId);
@@ -64,9 +66,33 @@ export function OutlineEditor({
     };
   }, [dirty, key, onDirty, registerLeave]);
   useEffect(() => {
-    if (!dirty && issue) select(issue.slideId ?? issue.sectionId ?? plan.sections[0]?.id ?? '');
-  }, [issue, dirty, plan.sections]);
+    if (focus) select(focus.targetId ?? '');
+  }, [focus]);
+  useEffect(() => {
+    const item = [
+      ...(navRef.current?.querySelectorAll<HTMLElement>('[data-outline-slide], [data-outline-section]') ?? []),
+    ].find((node) => (node.dataset.outlineSlide ?? node.dataset.outlineSection) === selected);
+    item?.scrollIntoView({ block: 'nearest' });
+    if (!focus || selected !== (focus.targetId ?? '')) return;
+    const root = editorRef.current;
+    const located = [
+      ...(root?.querySelectorAll<HTMLElement>('[data-outline-claim], [data-outline-figure]') ?? []),
+    ].find((node) =>
+      focus.issue.claimId
+        ? node.dataset.outlineClaim === focus.issue.claimId
+        : !!focus.issue.figureId &&
+          node.dataset.outlineFigure === focus.issue.figureId &&
+          (node.dataset.outlinePanel || undefined) === focus.issue.panelId,
+    );
+    const field = root?.querySelector<HTMLElement>(`[data-outline-field="${focus.field}"]`);
+    const target = located ?? field ?? root;
+    target?.scrollIntoView({ block: 'center' });
+    target?.focus({ preventScroll: true });
+  }, [selected, focus]);
   const blocked = disabled || dirty;
+  const questionAnchor = beforeResultsSection(plan);
+  const questionBoundary = questionAnchor ? plan.sections.findIndex((item) => item.id === questionAnchor) : -1;
+  const existingQuestion = plan.sections.find((item, index) => item.kind === 'question' && index <= questionBoundary);
   async function addSection() {
     const id = crypto.randomUUID();
     const saved = await edit([
@@ -90,7 +116,8 @@ export function OutlineEditor({
           title: '新页面',
           purpose: '',
           message: '',
-          kind: currentSection.kind === 'results' ? 'result' : 'custom',
+          kind:
+            currentSection.kind === 'results' ? 'result' : currentSection.kind === 'question' ? 'question' : 'custom',
           layoutId: 'text-only',
           claimIds: [],
           sourceIds: [],
@@ -101,6 +128,23 @@ export function OutlineEditor({
       },
     ]);
     if (saved) select(id);
+  }
+  async function addQuestionSection() {
+    if (existingQuestion) {
+      select(existingQuestion.id);
+      return;
+    }
+    const id = crypto.randomUUID();
+    if (
+      await edit([
+        {
+          type: 'add-section',
+          section: { id, kind: 'question', title: '研究问题', purpose: '', slideBudget: 0 },
+          afterSectionId: questionAnchor,
+        },
+      ])
+    )
+      select(id);
   }
   return (
     <div className="mt-6 border-y border-line">
@@ -120,6 +164,7 @@ export function OutlineEditor({
       </div>
       <div className="grid min-w-0 md:grid-cols-[230px_minmax(0,1fr)]">
         <nav
+          ref={navRef}
           aria-label="大纲章节与页面"
           className="max-h-[540px] overflow-y-auto border-b border-line py-3 md:border-r md:border-b-0 md:pr-3"
         >
@@ -130,6 +175,7 @@ export function OutlineEditor({
                 <button
                   type="button"
                   data-outline-section={item.id}
+                  aria-current={selected === item.id ? 'true' : undefined}
                   disabled={blocked}
                   onClick={() => select(item.id)}
                   className={`w-full rounded px-2 py-2 text-left text-sm ${selected === item.id ? 'bg-accent/10 text-accent' : ''}`}
@@ -144,6 +190,7 @@ export function OutlineEditor({
                   <button
                     type="button"
                     data-outline-slide={page.id}
+                    aria-current={selected === page.id ? 'page' : undefined}
                     key={page.id}
                     disabled={blocked}
                     onClick={() => select(page.id)}
@@ -174,7 +221,34 @@ export function OutlineEditor({
             </IconButton>
           </div>
         </nav>
-        <div className="min-w-0 py-5 md:pl-5">
+        <div
+          ref={editorRef}
+          role="region"
+          aria-label="大纲编辑区"
+          tabIndex={-1}
+          className="min-w-0 scroll-mt-6 py-5 outline-none md:pl-5"
+        >
+          <h3 className="mb-3 text-sm font-semibold">
+            {slide
+              ? `正在编辑：第 ${plan.slides.indexOf(slide) + 1} 页 · ${slide.title || '未命名页面'}`
+              : section
+                ? `正在编辑章节：${section.title || '未命名章节'}`
+                : '选择要修改的章节或页面'}
+          </h3>
+          {focus && (!focus.targetId || focus.targetId === selected) && (
+            <aside
+              aria-label="当前问题修改说明"
+              className="mb-4 rounded border border-accent/30 bg-accent/5 p-3 text-sm"
+            >
+              <p className="font-medium">{focus.issue.message}</p>
+              <p className="mt-2">{focus.hint}</p>
+              {focus.issue.code === 'question-required' && (
+                <Button disabled={blocked} onClick={() => void addQuestionSection()} className="mt-3">
+                  {existingQuestion ? '编辑已有研究问题章节' : '在结果前添加研究问题章节'}
+                </Button>
+              )}
+            </aside>
+          )}
           {section && (
             <SectionForm
               key={`${plan.id}-${plan.revision}-${section.id}`}
@@ -195,6 +269,7 @@ export function OutlineEditor({
               edit={edit}
               onDirty={changeDirty}
               onSource={onSource}
+              focus={focus?.targetId === slide.id ? focus : undefined}
             />
           )}
           {!section && !slide && <p className="text-sm text-muted">请选择章节或页面</p>}
@@ -269,11 +344,24 @@ function SectionForm({
       }}
       className="space-y-4"
     >
+      <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 border-b border-line bg-white py-3">
+        <Button type="submit" disabled={disabled || !dirty}>
+          <Save size={15} /> 保存草稿
+        </Button>
+        <Button disabled={disabled || !dirty} onClick={() => change(section, String(section.slideBudget))}>
+          <X size={15} /> 取消章节修改
+        </Button>
+        <span className="text-xs text-muted">{dirty ? '有未保存修改' : '编辑章节后在这里保存'}</span>
+      </div>
       <h3 className="text-sm font-semibold">{sectionLabels[section.kind]}</h3>
+      <p className="text-xs text-muted">
+        章节编辑用于组织标题、目的和页数。要修改页面内容，请点左侧带页码的页面；本章还没有页面时，点击下方“添加页面”。
+      </p>
       {(['title', 'purpose', 'transitionToNext'] as const).map((field) => (
         <label key={field} className="block text-sm">
           {{ title: '章节标题', purpose: '章节目的', transitionToNext: '过渡到下一章' }[field]}
           <input
+            data-outline-field={field}
             className={`${inputClass} mt-2`}
             value={draft[field] ?? ''}
             disabled={disabled}
@@ -284,6 +372,7 @@ function SectionForm({
       <label className="block text-sm">
         页数预算
         <input
+          data-outline-field="budget"
           className={`${inputClass} mt-2`}
           type="number"
           min={0}
@@ -295,17 +384,6 @@ function SectionForm({
         />
       </label>
       <div className="flex flex-wrap gap-2">
-        <Button type="submit" disabled={disabled || !dirty}>
-          <Save size={15} />
-          保存草稿
-        </Button>
-        <IconButton
-          label="取消章节修改"
-          disabled={disabled || !dirty}
-          onClick={() => change(section, String(section.slideBudget))}
-        >
-          <X size={16} />
-        </IconButton>
         <IconButton
           label="上移章节"
           disabled={disabled || dirty || index < 1}

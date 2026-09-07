@@ -12,6 +12,7 @@ export interface NarrativeIssue {
   elementId?: string;
   claimId?: string;
   figureId?: string;
+  panelId?: string;
 }
 export interface NarrativeValidation {
   errors: NarrativeIssue[];
@@ -271,6 +272,7 @@ export function referenceIssues(view: NarrativeView, paper: Paper): NarrativeIss
           issue('unknown-panel', 'error', `引用的子图不存在：${figure.panelId}`, {
             slideId: slide.id,
             figureId: figure.figureId,
+            panelId: figure.panelId,
           }),
         );
         return;
@@ -281,6 +283,7 @@ export function referenceIssues(view: NarrativeView, paper: Paper): NarrativeIss
           issue('figure-source-mismatch', 'error', '页面来源未包含该图的原始来源。', {
             slideId: slide.id,
             figureId: figure.figureId,
+            panelId: figure.panelId,
           }),
         );
     });
