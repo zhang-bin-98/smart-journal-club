@@ -272,6 +272,9 @@
 .hidden {
   display: none;
 }
+.table {
+  display: table;
+}
 .aspect-video {
   aspect-ratio: var(--aspect-video);
 }
@@ -301,6 +304,9 @@
 }
 .h-full {
   height: 100%;
+}
+.max-h-28 {
+  max-height: calc(var(--spacing) * 28);
 }
 .max-h-\[85dvh\] {
   max-height: 85dvh;
@@ -357,6 +363,9 @@
 .resize-none {
   resize: none;
 }
+.resize-y {
+  resize: vertical;
+}
 .grid-cols-2 {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -371,6 +380,9 @@
 }
 .items-center {
   align-items: center;
+}
+.items-end {
+  align-items: flex-end;
 }
 .items-start {
   align-items: flex-start;
@@ -538,6 +550,9 @@
 .py-3 {
   padding-block: calc(var(--spacing) * 3);
 }
+.pt-4 {
+  padding-top: calc(var(--spacing) * 4);
+}
 .pb-4 {
   padding-bottom: calc(var(--spacing) * 4);
 }
@@ -576,6 +591,9 @@
 .font-medium {
   --tw-font-weight: var(--font-weight-medium);
   font-weight: var(--font-weight-medium);
+}
+.whitespace-pre-wrap {
+  white-space: pre-wrap;
 }
 .text-ink {
   color: var(--color-ink);
@@ -755,13 +773,15 @@
 <main id="center" class="flex min-h-0 min-w-0 flex-col" aria-label="幻灯片连续画布"><div class="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-line bg-white px-4 py-2.5"><div class="flex items-center gap-2"><button id="undo" class="px-1 py-1 disabled:opacity-30">↶ 撤销</button><button id="redo" aria-label="重做" class="px-1 py-1 disabled:opacity-30">↷</button><span class="text-line">│</span><button id="pageUp" class="text-xs disabled:opacity-30">上移</button><button id="pageDown" class="text-xs disabled:opacity-30">下移</button><button id="mergePage" class="text-xs disabled:opacity-30">合并下一页</button><button id="removePage" class="text-xs disabled:opacity-30">删除本页</button></div><div class="flex items-center gap-3"><button id="focusMode" class="rounded border border-control px-2 py-1.5 text-xs">专注当前页</button><button id="toggleInspector" class="text-xs underline">收起右栏</button></div></div>
 <div id="canvasScroll" class="min-h-0 flex-1 overflow-y-auto p-5"><div id="slideList" class="space-y-7"></div></div>
 <div id="notesShell" class="relative flex shrink-0 flex-col border-t border-line bg-white" style="height:210px"><div id="notesResize" role="separator" aria-label="调整讲稿高度" aria-orientation="horizontal" tabindex="0" title="拖动调整高度，方向键微调" class="absolute -top-1 left-0 z-20 flex h-2 w-full cursor-row-resize touch-none items-center justify-center hover:bg-accent-soft"><span class="h-1 w-10 rounded bg-control"></span></div><div class="flex shrink-0 items-center justify-between gap-2 border-b border-line px-4 py-2.5"><h2 id="notesTitle" class="text-xs font-medium">本页讲稿</h2><div class="flex gap-3 text-xs"><button id="editNotes" class="underline">编辑讲稿</button><button id="assignNotes" class="underline">调整分页</button><button id="collapseNotes" class="text-muted underline">收起</button></div></div><div id="notesContent" class="min-h-0 flex-1 overflow-y-auto px-4 py-3 text-sm leading-relaxed"></div></div></main>
-<aside id="inspector" class="relative flex min-h-0 min-w-0 flex-col border-l border-line bg-white" aria-label="页面与图组设置"><div id="splitter" role="separator" aria-label="调整右侧栏宽度" aria-orientation="vertical" tabindex="0" class="absolute -left-1.5 top-0 z-20 flex h-full w-3 cursor-col-resize touch-none items-center justify-center hover:bg-accent-soft"><span class="h-10 w-1 rounded bg-control"></span></div><div role="tablist" aria-label="页面设置" class="flex shrink-0 gap-5 border-b border-line px-4"><button id="groupTab" role="tab" aria-controls="inspectorContent" aria-selected="true" class="border-b-2 border-ink py-3 font-medium">图组</button><button id="speechTab" role="tab" aria-controls="inspectorContent" aria-selected="false" class="border-b-2 border-transparent py-3 text-muted">讲述分配</button><button id="pageTab" role="tab" aria-controls="inspectorContent" aria-selected="false" class="border-b-2 border-transparent py-3 text-muted">页面</button></div><div id="inspectorContent" role="tabpanel" aria-labelledby="groupTab" class="min-h-0 flex-1 overflow-y-auto p-4"></div></aside>
+<aside id="inspector" class="relative flex min-h-0 min-w-0 flex-col border-l border-line bg-white" aria-label="页面与图组设置"><div id="splitter" role="separator" aria-label="调整右侧栏宽度" aria-orientation="vertical" tabindex="0" class="absolute -left-1.5 top-0 z-20 flex h-full w-3 cursor-col-resize touch-none items-center justify-center hover:bg-accent-soft"><span class="h-10 w-1 rounded bg-control"></span></div><div role="tablist" aria-label="页面设置" class="flex shrink-0 gap-5 border-b border-line px-4"><button id="groupTab" role="tab" aria-controls="inspectorContent" aria-selected="true" class="border-b-2 border-ink py-3 font-medium">图组</button><button id="speechTab" role="tab" aria-controls="inspectorContent" aria-selected="false" class="border-b-2 border-transparent py-3 text-muted">讲述分配</button><button id="aiTab" role="tab" aria-controls="inspectorContent" aria-selected="false" class="border-b-2 border-transparent py-3 text-muted">AI</button><button id="pageTab" role="tab" aria-controls="inspectorContent" aria-selected="false" class="border-b-2 border-transparent py-3 text-muted">页面</button></div><div id="inspectorContent" role="tabpanel" aria-labelledby="groupTab" class="min-h-0 flex-1 overflow-y-auto p-4"></div></aside>
 </div>
-<footer class="flex shrink-0 items-center justify-between border-t border-line bg-white px-4 py-2 text-xs text-muted"><span id="footerStatus"></span><div class="flex items-center gap-4"><span>本地示例 · 未调用模型</span><button id="reset" class="underline">重置 Demo</button></div></footer>
+<div id="aiComposer" class="hidden shrink-0 border-t border-line bg-white px-5 py-3"><div class="mb-2 flex items-center justify-between gap-3"><div class="flex items-center gap-3"><span class="font-medium">AI 助手</span><select id="aiScope" aria-label="AI 修改范围" class="rounded border border-control px-2 py-1 text-xs"><option value="current">当前页</option><option value="selected">所选页面</option><option value="all">整份幻灯片</option></select><select id="aiMode" aria-label="AI 操作模式" class="rounded border border-control px-2 py-1 text-xs"><option value="modify">修改</option><option value="ask">提问</option></select><span id="aiScopeLabel" class="text-xs text-muted"></span></div><button id="hideAi" class="text-xs text-muted underline">收起输入</button></div><div class="flex items-end gap-3"><textarea id="aiInput" rows="2" aria-label="给 AI 的问题或修改要求" placeholder="例如：把图改为上下排列，缩小间距。Ctrl+Enter 发送" class="max-h-28 min-h-0 min-w-0 flex-1 resize-y rounded border border-control px-3 py-2 text-sm leading-relaxed"></textarea><button id="cancelAi" class="hidden rounded border border-control px-3 py-2">取消</button><button id="sendAi" class="rounded bg-ink px-4 py-2 text-white disabled:opacity-30">发送</button></div></div>
+<footer class="flex shrink-0 items-center justify-between border-t border-line bg-white px-4 py-2 text-xs text-muted"><span id="footerStatus"></span><div class="flex items-center gap-4"><button id="showAi" class="font-medium text-ink underline">展开 AI 输入</button><span>本地示例 · 未调用模型</span><button id="reset" class="underline">重置 Demo</button></div></footer>
 </div><div id="toast" role="status" class="pointer-events-none fixed bottom-14 left-1/2 z-50 hidden -translate-x-1/2 rounded bg-ink px-4 py-2 text-white"></div>
 <dialog id="dialog" class="m-auto max-h-[85dvh] w-[760px] max-w-[90vw] overflow-y-auto rounded-lg border border-line bg-white p-6 text-ink shadow-xl backdrop:bg-black/25"><div class="mb-4 flex items-center justify-between"><h2 id="dialogTitle" class="text-lg font-medium"></h2><button id="closeDialog" aria-label="关闭对话框" class="px-2 py-1">✕</button></div><div id="dialogBody"></div><div id="dialogActions" class="mt-5 flex justify-end gap-3"></div></dialog>
 <script>
 'use strict';
+let aiMessages=[],aiProposal=null,aiBusy=false,aiTimer=null,aiEpoch=0;
 const $=id=>document.getElementById(id);
 const esc=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const clone=value=>structuredClone(value);
@@ -811,10 +831,10 @@ function validate(s){
 }
 function notify(message){$('toast').textContent=message;$('toast').classList.remove('hidden');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.add('hidden'),2600);}
 function persist(){try{localStorage.setItem(key,JSON.stringify({version:1,state}));$('saveStatus').textContent='✓ 已保存在此浏览器';}catch{$('saveStatus').textContent='仅本次有效 · 无法写入浏览器';}}
-function beginDraft(){if(!draft)draft=clone(state);$('saveStatus').textContent='编辑中…';}
+function beginDraft(){invalidateAiForEdit();if(!draft)draft=clone(state);$('saveStatus').textContent='编辑中…';}
 function saveDraft(){if(!draft)return;const before=draft;draft=null;if(JSON.stringify(before)!==JSON.stringify(state)){validate(state);undo.push(before);if(undo.length>30)undo.shift();redo=[];persist();renderNav();renderStatus();}else $('saveStatus').textContent='内容未改变';}
-function mutate(action){saveDraft();const before=clone(state);action();validate(state);undo.push(before);if(undo.length>30)undo.shift();redo=[];if(!page())current=state.slides[0]?.id;checked=new Set([...checked].filter(id=>state.slides.some(s=>s.id===id)));persist();renderAll();}
-function replay(from,to){saveDraft();if(!from.length)return;to.push(clone(state));state=from.pop();if(!page())current=state.slides[0]?.id;checked.clear();persist();renderAll();}
+function mutate(action){invalidateAiForEdit();saveDraft();const before=clone(state);action();validate(state);undo.push(before);if(undo.length>30)undo.shift();redo=[];if(!page())current=state.slides[0]?.id;checked=new Set([...checked].filter(id=>state.slides.some(s=>s.id===id)));persist();renderAll();}
+function replay(from,to){invalidateAiForEdit();saveDraft();if(!from.length)return;to.push(clone(state));state=from.pop();if(!page())current=state.slides[0]?.id;checked.clear();persist();renderAll();}
 function activate(id){if(!state.slides.some(s=>s.id===id)||id===current)return;saveDraft();current=id;selectedPanel=null;renderNav();renderNotes();renderInspector();renderStatus();document.querySelectorAll('[data-slide]').forEach(el=>{el.classList.toggle('border-focus',el.dataset.slide===current);el.classList.toggle('border-line',el.dataset.slide!==current);});}
 function navigate(id){activate(id);if(focusOnly)renderSlides();const target=document.querySelector('[data-slide="'+id+'"]');if(target){const root=$('canvasScroll');root.scrollTop+=target.getBoundingClientRect().top-root.getBoundingClientRect().top-8;}}
 function chart(ref){
@@ -835,11 +855,12 @@ function renderSlides(){
  const next=document.querySelector('[data-slide="'+current+'"]');if(next&&offset!==null)root.scrollTop+=next.getBoundingClientRect().top-root.getBoundingClientRect().top-offset;
 }
 function renderNotes(){const p=page();$('notesTitle').textContent=p?'第 '+(pageIndex(p.id)+1)+' 页讲稿 · '+new Set(p.speechIds.map(id=>fragment(id).paragraphId)).size+' 段来源':'本页讲稿';$('notesContent').innerHTML=p?.speechIds.length?p.speechIds.map(id=>'<span data-notes-fragment="'+id+'">'+esc(fragment(id).text)+' </span>').join(''):'<p class="text-muted">尚未分配讲述。可从“待安排讲述”中选择。</p>';for(const id of ['editNotes','assignNotes'])$(id).disabled=!p;}
-function renderStatus(){const p=page();$('pageUp').disabled=!p||pageIndex(p.id)===0;$('pageDown').disabled=!p||pageIndex(p.id)===state.slides.length-1;$('undo').disabled=!undo.length;$('redo').disabled=!redo.length;$('mergePage').disabled=!p||pageIndex(p.id)===state.slides.length-1;$('removePage').disabled=!p;$('focusMode').disabled=!p;$('footerStatus').textContent=(p?'第 '+(pageIndex(p.id)+1)+' / '+state.slides.length+' 页':'暂无页面')+' · '+(focusOnly?'专注当前页':'连续滚动')+' · '+unassigned().length+' 句待安排';$('unassigned').textContent='待安排讲述 · '+unassigned().length+' 句';$('deleteSelected').disabled=!checked.size;$('deleteSelected').textContent='删除所选 '+checked.size+' 页';$('focusMode').textContent=focusOnly?'返回连续浏览':'专注当前页';}
+function renderStatus(){updateAiScope();const p=page();$('pageUp').disabled=!p||pageIndex(p.id)===0;$('pageDown').disabled=!p||pageIndex(p.id)===state.slides.length-1;$('undo').disabled=!undo.length;$('redo').disabled=!redo.length;$('mergePage').disabled=!p||pageIndex(p.id)===state.slides.length-1;$('removePage').disabled=!p;$('focusMode').disabled=!p;$('footerStatus').textContent=(p?'第 '+(pageIndex(p.id)+1)+' / '+state.slides.length+' 页':'暂无页面')+' · '+(focusOnly?'专注当前页':'连续滚动')+' · '+unassigned().length+' 句待安排';$('unassigned').textContent='待安排讲述 · '+unassigned().length+' 句';$('deleteSelected').disabled=!checked.size;$('deleteSelected').textContent='删除所选 '+checked.size+' 页';$('focusMode').textContent=focusOnly?'返回连续浏览':'专注当前页';}
 function renderAll(){renderNav();renderSlides();renderNotes();renderInspector();renderStatus();}
 function renderInspector(){
- for(const name of ['group','speech','page']){const el=$(name+'Tab');el.setAttribute('aria-selected',String(tab===name));el.classList.toggle('border-ink',tab===name);el.classList.toggle('font-medium',tab===name);el.classList.toggle('text-muted',tab!==name);}
+ for(const name of ['group','speech','page','ai']){const el=$(name+'Tab');el.setAttribute('aria-selected',String(tab===name));el.classList.toggle('border-ink',tab===name);el.classList.toggle('border-transparent',tab!==name);el.classList.toggle('font-medium',tab===name);el.classList.toggle('text-muted',tab!==name);}
  $('inspectorContent').setAttribute('aria-labelledby',tab+'Tab');
+ if(tab==='ai'){renderAi();return;}
  const p=page();if(!p){$('inspectorContent').innerHTML='<p class="text-muted">新增或选择页面后调整。</p>';return;}
  if(tab==='group'){
   $('inspectorContent').innerHTML='<div class="mb-4 flex items-center justify-between"><h2 class="font-medium">本页图组 · '+p.panels.length+' 图</h2><button id="choosePanels" class="text-xs underline">选择 Panel</button></div><label class="mb-2 block text-xs text-muted" for="arrangement">排列方式</label><select id="arrangement" class="mb-4 w-full rounded border border-control px-2 py-2">'+[['auto','自动排列'],['row','横向并排'],['stack','上下排列'],['grid','两列网格']].map(([v,t])=>'<option value="'+v+'" '+(p.arrangement===v?'selected':'')+'>'+t+'</option>').join('')+'</select><label class="mb-2 flex justify-between text-xs text-muted" for="groupGap">图间距 <span>'+p.gap+'</span></label><input id="groupGap" aria-label="图间距" type="range" min="0" max="24" step="2" value="'+p.gap+'" class="mb-5 w-full"><div id="panelOrder" class="space-y-3">'+p.panels.map((t,i)=>'<article data-panel-row="'+t.ref+'" draggable="true" class="rounded border '+(selectedPanel===t.ref?'border-focus':'border-line')+' p-3"><div class="flex items-start justify-between gap-2"><button data-pick-panel="'+t.ref+'" class="text-left text-xs font-medium"><span class="cursor-grab text-muted">⠿ </span>'+esc(evidence[t.ref].label)+'</button><button data-remove-panel="'+t.ref+'" class="shrink-0 text-xs text-muted underline">移除</button></div><div class="mt-3 h-24">'+chart(t.ref)+'</div><div class="mt-2 flex items-center justify-between gap-2 text-xs"><div class="flex gap-3"><button data-panel-up="'+t.ref+'" '+(i===0?'disabled':'')+' class="disabled:opacity-30">←</button><button data-panel-down="'+t.ref+'" '+(i===p.panels.length-1?'disabled':'')+' class="disabled:opacity-30">→</button><button data-source="'+t.ref+'" class="underline">来源</button></div><select data-weight="'+t.ref+'" aria-label="'+esc(evidence[t.ref].label)+' 列宽比例" class="rounded border border-control px-1 py-1">'+[0.7,1,1.5,2].map(w=>'<option value="'+w+'" '+(t.weight===w?'selected':'')+'>'+w+' 倍</option>').join('')+'</select></div></article>').join('')+'</div><p class="mt-4 text-xs leading-relaxed text-muted">拖动调整图序；倍数调整该列宽度，网格同列共用。原图等比显示，保留科学标注。</p>'+(p.panels.length>=4?'<p class="mt-3 text-xs leading-relaxed">图较多时建议分多页讲述。可在“讲述分配”选择换页位置。</p>':'');
@@ -874,7 +895,7 @@ $('mergePage').onclick=mergeNext;$('removePage').onclick=()=>removePages([curren
 $('addPage').onclick=()=>{mutate(()=>{const p=makePage('d'+Date.now(),page()?.sectionId||'s0','新页面','',[],[]);state.slides.splice(current?pageIndex(current)+1:0,0,p);current=p.id;});navigate(current);};
 $('focusMode').onclick=()=>{saveDraft();focusOnly=!focusOnly;renderSlides();renderStatus();navigate(current);};
 $('unassigned').onclick=showUnassigned;$('editNotes').onclick=editNotes;$('assignNotes').onclick=()=>{tab='speech';renderInspector();};
-for(const name of ['group','speech','page'])$(name+'Tab').onclick=()=>{saveDraft();tab=name;renderInspector();};
+for(const name of ['group','speech','page','ai'])$(name+'Tab').onclick=()=>{saveDraft();tab=name;if(name==='ai')openAi();else renderInspector();};
 $('pageNav').onclick=e=>{const b=e.target.closest('[data-nav]');if(b)navigate(b.dataset.nav);};
 $('pageNav').onchange=e=>{const id=e.target.dataset.check;if(!id)return;e.target.checked?checked.add(id):checked.delete(id);renderStatus();};
 $('pageNav').ondragstart=e=>{const node=e.target.closest('[data-drag-page]');if(!node)return;saveDraft();dragPage=node.dataset.dragPage;e.dataTransfer.setData('text/plain',dragPage);e.dataTransfer.effectAllowed='move';};
@@ -890,7 +911,7 @@ $('slideList').addEventListener('input',handleTextInput);$('inspectorContent').a
 $('slideList').addEventListener('focusin',e=>{const id=e.target.dataset.title||e.target.dataset.message;if(id)activate(id);});
 $('slideList').addEventListener('focusout',e=>{if(e.target.dataset.title||e.target.dataset.message){saveDraft();if(tab==='page')renderInspector();}});
 $('inspectorContent').addEventListener('focusout',e=>{if(e.target.dataset.rightTitle||e.target.dataset.rightMessage){saveDraft();renderSlides();}});
-$('inspectorContent').onclick=e=>{const b=e.target.closest('button');if(!b)return;const d=b.dataset;if(b.id==='choosePanels')choosePanels();if(b.id==='addUnassigned')showUnassigned();if(d.source)showSource(d.source);if(d.break)splitAt(d.break);if(d.pickPanel){selectedPanel=d.pickPanel;renderInspector();}if(d.removePanel)mutate(()=>page().panels=page().panels.filter(p=>p.ref!==d.removePanel));if(d.panelUp||d.panelDown){const id=d.panelUp||d.panelDown;const delta=d.panelUp?-1:1;mutate(()=>{const list=page().panels;const at=list.findIndex(p=>p.ref===id);if(at+delta<0||at+delta>=list.length)return;const [p]=list.splice(at,1);list.splice(at+delta,0,p);});}};
+$('inspectorContent').onclick=e=>{const b=e.target.closest('button');if(!b)return;const d=b.dataset;if(b.id==='applyAi'){applyAi();return;}if(b.id==='discardAi'){aiProposal=null;aiMessages.push({role:'assistant',text:'已放弃这次建议，页面未改变。'});renderAi();return;}if(b.id==='openAiInput'){openAi();return;}if(b.id==='choosePanels')choosePanels();if(b.id==='addUnassigned')showUnassigned();if(d.source)showSource(d.source);if(d.break)splitAt(d.break);if(d.pickPanel){selectedPanel=d.pickPanel;renderInspector();}if(d.removePanel)mutate(()=>page().panels=page().panels.filter(p=>p.ref!==d.removePanel));if(d.panelUp||d.panelDown){const id=d.panelUp||d.panelDown;const delta=d.panelUp?-1:1;mutate(()=>{const list=page().panels;const at=list.findIndex(p=>p.ref===id);if(at+delta<0||at+delta>=list.length)return;const [p]=list.splice(at,1);list.splice(at+delta,0,p);});}};
 $('inspectorContent').onchange=e=>{const el=e.target;if(el.id==='arrangement')mutate(()=>page().arrangement=el.value);if(el.id==='groupGap')mutate(()=>page().gap=Number(el.value));if(el.dataset.weight)mutate(()=>{page().panels.find(p=>p.ref===el.dataset.weight).weight=Number(el.value);});if(el.id==='sectionChoice')mutate(()=>{page().sectionId=el.value;page().speechIds.forEach(id=>fragment(id).sectionId=el.value);});if(el.dataset.moveFragment){const id=el.dataset.moveFragment;const target=el.value;mutate(()=>{state.slides.forEach(p=>p.speechIds=p.speechIds.filter(f=>f!==id));const destination=state.slides.find(p=>p.id===target);if(destination){destination.speechIds.push(id);fragment(id).sectionId=destination.sectionId;}});notify(target?'讲述已移到所选页，图组可按需要另行调整。':'讲述已放入待安排。');}};
 $('inspectorContent').ondragstart=e=>{const node=e.target.closest('[data-panel-row]');if(!node)return;dragPanel=node.dataset.panelRow;e.dataTransfer.setData('text/plain',dragPanel);};
 $('inspectorContent').ondragover=e=>{if(e.target.closest('[data-panel-row]'))e.preventDefault();};
@@ -911,8 +932,46 @@ $('collapseNotes').onclick=()=>{notesOpen=!notesOpen;$('collapseNotes').textCont
 window.addEventListener('resize',layout);
 function showCheck(){saveDraft();openDialog('下一步：检查与导出 · 待设计','<p class="leading-relaxed">下一步将检查图证据、讲述覆盖、页面可读性与导出条件。</p><p class="mt-4">当前示例：'+state.slides.length+' 页，'+unassigned().length+' 句讲述待安排。</p><p class="mt-4 text-xs text-muted">本 Demo 只演示交互，不执行真实内容检查，不生成 PPT 文件。</p>',[{id:'backToSlides',label:'返回幻灯片',primary:true,action:closeDialog}]);}
 $('nextStep').onclick=showCheck;$('checkNav').onclick=showCheck;
-$('reset').onclick=()=>{state=clone(initial);current='d1';selectedPanel=null;tab='group';focusOnly=false;checked.clear();undo=[];redo=[];draft=null;persist();renderAll();navigate(current);};
+$('reset').onclick=()=>{cancelAi(false);aiMessages=[];aiProposal=null;state=clone(initial);current='d1';selectedPanel=null;tab='group';focusOnly=false;checked.clear();undo=[];redo=[];draft=null;persist();renderAll();navigate(current);};
 window.addEventListener('beforeunload',()=>{if(draft)persist();});
 document.addEventListener('keydown',e=>{if($('dialog').open||['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName))return;if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();e.shiftKey?replay(redo,undo):replay(undo,redo);}});
+
+function aiTargets(){return $('aiScope').value==='all'?state.slides.map(p=>p.id):$('aiScope').value==='selected'?[...checked].filter(id=>state.slides.some(p=>p.id===id)):current?[current]:[];}
+function updateAiScope(){const ids=aiTargets();$('aiScopeLabel').textContent=ids.length?'第 '+ids.map(id=>pageIndex(id)+1).join('、')+' 页':'尚未选择页面';$('sendAi').disabled=aiBusy||!ids.length;$('cancelAi').classList.toggle('hidden',!aiBusy);}
+function openAi(){saveDraft();$('aiComposer').classList.remove('hidden');if(!rightVisible){rightVisible=true;$('inspector').classList.remove('hidden');$('toggleInspector').textContent='收起右栏';}tab='ai';renderInspector();updateAiScope();layout();$('aiInput').focus();}
+function aiBase(ids){return JSON.stringify(ids.map(id=>{const p=state.slides.find(p=>p.id===id);return p?{page:p,position:pageIndex(id),speech:p.speechIds.map(fragment)}:null;}));}
+function cancelAi(show=true){if(!aiBusy)return;clearTimeout(aiTimer);aiEpoch++;aiBusy=false;if(show)aiMessages.push({role:'assistant',text:'已取消这次请求，页面未改变。'});updateAiScope();if(tab==='ai')renderAi();}
+function invalidateAiForEdit(){cancelAi();if(aiProposal){aiProposal.stale=true;if(tab==='ai')renderAi();}}
+function renderAi(follow=false){
+ const proposal=aiProposal;
+ if(proposal&&aiBase(proposal.ids)!==proposal.base)proposal.stale=true;
+ const names={row:'横向并排',stack:'上下排列',grid:'两列网格',auto:'自动排列'};
+ $('inspectorContent').innerHTML='<div class="mb-4 flex items-center justify-between"><h2 class="font-medium">AI 对话</h2><span class="text-xs text-muted">固定规则演示</span></div><p class="mb-4 text-xs leading-relaxed text-muted">真实应用可通过对话修改内容、讲稿、分页和图组。本 Demo 演示提问及排列、间距、屏幕文字精简；不调用模型。</p><div role="log" aria-live="polite" class="space-y-4">'+(aiMessages.length?aiMessages.map(m=>'<article class="rounded border border-line '+(m.role==='user'?'bg-canvas':'bg-white')+' p-3"><p class="mb-2 text-xs text-muted">'+(m.role==='user'?'你':'AI · 演示')+'</p><p class="whitespace-pre-wrap text-sm leading-relaxed">'+esc(m.text)+'</p></article>').join(''):'<p class="text-sm text-muted">可以提问，也可以描述希望怎样修改页面。</p>')+'</div>'+(aiBusy?'<p role="status" class="mt-4 text-xs text-muted">正在准备演示回复…</p>':'')+(proposal?'<section id="aiProposalPreview" class="mt-5 border-t border-line pt-4"><h3 class="font-medium">修改预览 · '+esc(proposal.label)+'</h3><p class="mt-2 text-xs text-muted">仅修改下列字段，讲稿与图源保持原样。</p>'+proposal.changes.map(c=>'<article class="mt-3 rounded border border-line p-3"><p class="mb-2 text-xs font-medium">'+esc(c.label)+'</p>'+Object.entries(c.patch).map(([field,value])=>'<div class="mb-3"><p class="text-xs text-muted">'+({arrangement:'图组排列',gap:'图间距',message:'屏幕文字'}[field])+'</p><p class="mt-1 whitespace-pre-wrap text-xs text-muted">原：'+esc(field==='arrangement'?names[c.before[field]]:c.before[field])+'</p><p class="mt-1 whitespace-pre-wrap text-sm">建议：'+esc(field==='arrangement'?names[value]:value)+'</p></div>').join('')+'</article>').join('')+(proposal.stale?'<p class="mt-3 text-xs leading-relaxed">稿件已编辑，这条建议已过期。请根据当前稿重新提出修改。</p>':'')+'<div class="mt-4 flex gap-3"><button id="applyAi" '+(proposal.stale?'disabled':'')+' class="rounded bg-ink px-3 py-2 text-xs text-white disabled:opacity-30">应用修改</button><button id="discardAi" class="rounded border border-control px-3 py-2 text-xs">放弃</button></div></section>':'')+'<button id="openAiInput" class="mt-5 text-xs underline">在底部输入问题或修改要求</button>';
+ if(follow){const container=$('inspectorContent'),preview=$('aiProposalPreview');container.scrollTop=preview?container.scrollTop+preview.getBoundingClientRect().top-container.getBoundingClientRect().top:container.scrollHeight;}
+}
+function sendAi(){
+ saveDraft();const prompt=$('aiInput').value.trim();const ids=aiTargets();if(!prompt){notify('请输入问题或修改要求。');return;}if(!ids.length||aiBusy)return;
+ const mode=$('aiMode').value,base=aiBase(ids),label='第 '+ids.map(id=>pageIndex(id)+1).join('、')+' 页';
+ aiProposal=null;aiMessages.push({role:'user',text:label+' · '+(mode==='ask'?'提问':'修改')+'\n'+prompt});if(aiMessages.length>20)aiMessages.splice(0,aiMessages.length-20);
+ aiBusy=true;const epoch=++aiEpoch;openAi();updateAiScope();$('aiInput').value='';renderAi(true);
+ aiTimer=setTimeout(()=>{if(!aiBusy||epoch!==aiEpoch)return;aiBusy=false;if(base!==aiBase(ids)){aiMessages.push({role:'assistant',text:'稿件在处理中发生变化，请按当前稿重新发送。'});updateAiScope();if(tab==='ai')renderAi();return;}
+ if(mode==='ask'){
+  const pages=ids.map(id=>state.slides.find(p=>p.id===id));
+  aiMessages.push({role:'assistant',text:'演示回复：这个范围有 '+pages.length+' 页、'+pages.reduce((n,p)=>n+p.panels.length,0)+' 个图像引用和 '+pages.reduce((n,p)=>n+p.speechIds.length,0)+' 个讲述片段。相关 Panel 为 '+[...new Set(pages.flatMap(p=>p.panels.map(t=>evidence[t.ref].label)))].join('、')+'。\n这是固定的范围摘要，尚未理解或回答自由问题；真实问答需要模型接入。页面未改变。'});
+ }else{
+  const arrangement=/上下|纵向/.test(prompt)?'stack':/并排|横向/.test(prompt)?'row':/网格|两列/.test(prompt)?'grid':null;
+  const gap=/间距/.test(prompt)?(/缩小|紧凑|减小/.test(prompt)?6:/增大|加大|宽松/.test(prompt)?20:null):null;
+  const compact=/精简|简短/.test(prompt)&&!/讲稿/.test(prompt);
+  const changes=ids.map(id=>{const p=state.slides.find(s=>s.id===id),patch={};if(arrangement&&p.arrangement!==arrangement&&p.panels.length>1)patch.arrangement=arrangement;if(gap!==null&&p.gap!==gap&&p.panels.length>1)patch.gap=gap;if(compact){const text=p.message.split(/[；;。\n]/)[0].trim();if(text&&text!==p.message)patch.message=text;}return{id,label:'第 '+(pageIndex(id)+1)+' 页 · '+p.title,before:clone(p),patch};}).filter(c=>Object.keys(c.patch).length);
+  if(changes.length){aiProposal={ids,base,label,changes,stale:false};aiMessages.push({role:'assistant',text:'已按演示规则准备建议，请查看下方差异。尚未应用到页面；其他自由修改要求未由模型执行。'});}
+  else aiMessages.push({role:'assistant',text:'这条要求没有产生可演示的修改。可试“把图改为上下排列，缩小间距”或“精简屏幕文字”。自由改写讲稿、分页等能力待模型接入；当前页面未改变。'});
+ }
+ updateAiScope();if(tab==='ai')renderAi(true);},700);
+}
+function applyAi(){const proposal=aiProposal;if(!proposal||proposal.stale||draft||aiBase(proposal.ids)!==proposal.base){if(proposal)proposal.stale=true;renderAi();return;}aiProposal=null;mutate(()=>proposal.changes.forEach(c=>Object.assign(state.slides.find(p=>p.id===c.id),c.patch)));aiMessages.push({role:'assistant',text:'已应用到'+proposal.label+'，可用工具栏“撤销”整体恢复。'});renderAi();}
+$('showAi').onclick=openAi;$('hideAi').onclick=()=>{$('aiComposer').classList.add('hidden');layout();$('showAi').focus();};
+$('aiScope').onchange=updateAiScope;$('sendAi').onclick=sendAi;$('cancelAi').onclick=()=>cancelAi();
+$('aiInput').onkeydown=e=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter'&&!e.isComposing){e.preventDefault();sendAi();}};
+
 renderAll();layout();navigate(current);
 </script></body></html>
