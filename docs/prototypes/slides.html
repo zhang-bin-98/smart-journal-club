@@ -766,7 +766,7 @@
 </style></head>
 <body class="m-0 h-dvh overflow-hidden bg-canvas font-sans text-sm text-ink antialiased">
 <div class="flex h-full flex-col">
-<header class="flex shrink-0 items-center justify-between gap-4 border-b border-line bg-white px-5 py-3"><div class="flex items-center gap-3"><strong class="text-lg">smartJC</strong><span class="text-line">│</span><div><p class="font-medium">肿瘤微环境中的细胞响应</p><p class="text-xs text-muted">示例论文 · 幻灯片 · 待讨论交互稿</p></div></div><div class="flex items-center gap-4"><span id="saveStatus" role="status" class="text-xs text-muted">示例页面草案已就绪</span><button id="nextStep" class="rounded bg-ink px-4 py-2.5 text-white">下一步：检查与导出 →</button></div></header>
+<header class="flex shrink-0 items-center justify-between gap-4 border-b border-line bg-white px-5 py-3"><div class="flex items-center gap-3"><strong class="text-lg">smartJC</strong><span class="text-line">│</span><div><p class="font-medium">肿瘤微环境中的细胞响应</p><p class="text-xs text-muted">示例论文 · 幻灯片 · 已确认交互稿</p></div></div><div class="flex items-center gap-4"><span id="saveStatus" role="status" class="text-xs text-muted">示例页面草案已就绪</span><button id="nextStep" class="rounded bg-ink px-4 py-2.5 text-white">下一步：检查与导出 →</button></div></header>
 <nav aria-label="工作台视图" class="flex shrink-0 justify-center gap-14 border-b border-line bg-white px-10"><a class="py-3 text-muted" href="figure-review.html">01 论文与图源</a><a class="py-3 text-muted" href="outline-speech.html">02 大纲与演讲稿</a><button aria-current="page" class="border-b-2 border-ink py-3 font-medium">03 幻灯片</button><button id="checkNav" class="py-3 text-muted">04 检查</button></nav>
 <div id="workspace" class="grid min-h-0 flex-1 grid-cols-[200px_minmax(0,1fr)_320px]">
 <aside class="flex min-h-0 min-w-0 flex-col border-r border-line bg-panel" aria-label="页面目录"><div class="flex shrink-0 items-center justify-between border-b border-line p-3"><h2 class="font-medium">页面目录</h2><button id="addPage" class="text-xs underline">＋ 页面</button></div><div id="pageNav" class="min-h-0 flex-1 overflow-y-auto p-3"></div><div class="shrink-0 border-t border-line p-3"><button id="unassigned" class="w-full text-left text-xs"></button><button id="deleteSelected" class="mt-3 text-xs text-muted underline" disabled>删除所选页</button></div></aside>
@@ -930,7 +930,7 @@ for(const [id,kind] of [['splitter','right'],['notesResize','notes']]){const el=
 $('toggleInspector').onclick=()=>{saveDraft();rightVisible=!rightVisible;$('inspector').classList.toggle('hidden',!rightVisible);$('toggleInspector').textContent=rightVisible?'收起右栏':'展开右栏';layout();};
 $('collapseNotes').onclick=()=>{notesOpen=!notesOpen;$('collapseNotes').textContent=notesOpen?'收起':'展开';layout();};
 window.addEventListener('resize',layout);
-function showCheck(){saveDraft();openDialog('下一步：检查与导出 · 待设计','<p class="leading-relaxed">下一步将检查图证据、讲述覆盖、页面可读性与导出条件。</p><p class="mt-4">当前示例：'+state.slides.length+' 页，'+unassigned().length+' 句讲述待安排。</p><p class="mt-4 text-xs text-muted">本 Demo 只演示交互，不执行真实内容检查，不生成 PPT 文件。</p>',[{id:'backToSlides',label:'返回幻灯片',primary:true,action:closeDialog}]);}
+function showCheck(){saveDraft();location.href='check-export.html';}
 $('nextStep').onclick=showCheck;$('checkNav').onclick=showCheck;
 $('reset').onclick=()=>{cancelAi(false);aiMessages=[];aiProposal=null;state=clone(initial);current='d1';selectedPanel=null;tab='group';focusOnly=false;checked.clear();undo=[];redo=[];draft=null;persist();renderAll();navigate(current);};
 window.addEventListener('beforeunload',()=>{if(draft)persist();});
