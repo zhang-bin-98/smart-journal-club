@@ -725,7 +725,7 @@
 <body class="m-0 h-dvh overflow-hidden bg-canvas font-sans text-sm text-ink antialiased"><div class="flex h-full flex-col">
 <header class="flex shrink-0 items-center justify-between border-b border-line bg-white px-8 py-5"><div class="flex items-center gap-5"><strong class="text-xl">smartJC</strong><span class="text-line">│</span><h1 class="font-medium">项目管理</h1></div><button id="settings" class="rounded border border-control px-3 py-2 text-xs">模型设置 · <span id="modelStatus">未配置</span></button></header>
 <main class="flex min-h-0 flex-1 flex-col px-8 pt-7"><div class="mb-5 flex shrink-0 items-center justify-between gap-5"><div><h2 class="text-xl font-medium">我的项目 <span id="count" class="ml-2 text-sm text-muted"></span></h2><p class="mt-2 text-xs text-muted">从上次停下的地方继续；打开项目不会重新分析。</p></div><button id="newProject" class="rounded bg-ink px-5 py-2.5 text-white">＋ 新建项目</button></div>
-<div class="mb-5 flex shrink-0 items-center gap-3"><input id="search" aria-label="搜索项目" placeholder="搜索项目名或论文标题" class="w-80 rounded border border-control bg-white px-3 py-2"><select id="filter" aria-label="筛选项目阶段" class="rounded border border-control bg-white px-3 py-2"><option value="all">全部阶段</option><option value="ready">待分析</option><option value="figure">待核对图源</option><option value="outline">大纲与讲稿</option><option value="slides">幻灯片编辑</option></select><span class="ml-auto text-xs text-muted">按最近修改排序</span></div>
+<div class="mb-5 flex shrink-0 items-center gap-3"><input id="search" aria-label="搜索项目" placeholder="搜索项目名或论文标题" class="w-80 rounded border border-control bg-white px-3 py-2"><select id="filter" aria-label="筛选项目阶段" class="rounded border border-control bg-white px-3 py-2"><option value="all">全部阶段</option><option value="ready">待分析</option><option value="analyzing">论文分析</option><option value="analysisReady">分析就绪</option><option value="figure">待核对图源</option><option value="outline">大纲与讲稿</option><option value="slides">幻灯片编辑</option></select><span class="ml-auto text-xs text-muted">按最近修改排序</span></div>
 <div class="min-h-0 flex-1 overflow-auto border border-line bg-white"><table class="w-full table-fixed text-left"><thead class="sticky top-0 bg-panel text-xs text-muted"><tr><th class="w-[32%] px-5 py-3 font-normal">项目 / 论文</th><th class="w-[15%] px-3 py-3 font-normal">论文文件</th><th class="w-[19%] px-3 py-3 font-normal">当前阶段</th><th class="w-[12%] px-3 py-3 font-normal">最近修改</th><th class="w-[22%] px-5 py-3 font-normal">操作</th></tr></thead><tbody id="projects"></tbody></table><div id="empty" class="hidden px-6 py-20 text-center"><h3 class="text-lg font-medium">还没有项目</h3><p class="mt-3 text-muted">新建项目，上传主论文和可选的补充材料。</p><button id="emptyNew" class="mt-6 rounded bg-ink px-4 py-2 text-white">新建第一个项目</button></div><p id="noMatch" class="hidden p-12 text-center text-muted">没有找到匹配的项目，请修改搜索或筛选条件。</p></div>
 <p class="py-4 text-xs text-muted">实际应用的项目和 PDF 保存在当前浏览器。此原型仅保存示例记录与文件信息，不保存 PDF 内容。</p></main>
 <footer class="flex shrink-0 items-center justify-between border-t border-line bg-white px-8 py-2.5 text-xs text-muted"><span id="status" role="status">低保真讨论稿 · 示例数据 · 不调用模型</span><div class="flex items-center gap-5"><a href="figure-review.html" class="underline">查看工作台示例</a><button id="reset" class="underline">重置示例</button></div></footer></div>
@@ -744,23 +744,23 @@
 'use strict';
 const $=id=>document.getElementById(id);
 const esc=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const stages={ready:'待分析',figure:'待核对图源',outline:'大纲与讲稿',slides:'幻灯片编辑',analyzing:'分析中'};
+const stages={ready:'待分析',figure:'待核对图源',outline:'大纲与讲稿',slides:'幻灯片编辑',analyzing:'论文分析',analysisReady:'分析就绪'};
 const key='smartjc-projects-demo-v1';
 const initial=[
 {id:'sample1',name:'组会：细胞响应与异质性',title:'肿瘤微环境中的细胞响应',primary:{name:'cell-response.pdf',size:2430000},supplement:{name:'supporting-information.pdf',size:1280000},requirements:'中文组会，充分覆盖主要发现和证据。',stage:'slides',slideCount:7,updated:Date.now()-3600000},
 {id:'sample2',name:'组织验证研究',title:'组织层面的响应与机制',primary:{name:'tissue-validation.pdf',size:3140000},supplement:null,requirements:'重点介绍实验设计。',stage:'figure',updated:Date.now()-86400000},
 {id:'sample3',name:'机制论文阅读',title:'机制与功能干预',primary:{name:'mechanism.pdf',size:2700000},supplement:{name:'supplement.pdf',size:1900000},requirements:'',stage:'ready',updated:Date.now()-172800000}];
 let projects=structuredClone(initial),modelReady=false;
-try{const saved=JSON.parse(localStorage.getItem(key));if(Array.isArray(saved)&&saved.every(p=>typeof p.id==='string'&&typeof p.name==='string'&&p.primary&&typeof p.primary.name==='string'&&p.stage in stages))projects=saved.map(p=>({...p,stage:p.stage==='analyzing'?'ready':p.stage}));modelReady=localStorage.getItem(key+'-model')==='true';}catch{}
-let files={primary:null,supplement:null},reading={primary:false,supplement:false},fileEpoch={primary:0,supplement:0},customName=false,saving=false,timer=null,runId=null,runEpoch=0;
+try{const saved=JSON.parse(localStorage.getItem(key));if(Array.isArray(saved)&&saved.every(p=>typeof p.id==='string'&&typeof p.name==='string'&&p.primary&&typeof p.primary.name==='string'&&p.stage in stages))projects=saved;modelReady=localStorage.getItem(key+'-model')==='true';}catch{}
+let files={primary:null,supplement:null},reading={primary:false,supplement:false},fileEpoch={primary:0,supplement:0},customName=false,saving=false;
 function persist(){try{localStorage.setItem(key,JSON.stringify(projects));return true;}catch{$('status').textContent='未能保存示例记录，操作未提交，请重试。';return false;}}
 function commit(next){const before=projects;projects=next;if(!persist()){projects=before;return false;}render();return true;}
 function timeLabel(ms){const days=Math.floor((Date.now()-ms)/86400000);return days?days+' 天前':'今天';}
 function sizeLabel(n){return (n/1024/1024).toFixed(1)+' MB';}
 function stageProgress(project){
- const current={ready:-1,analyzing:0,figure:0,outline:1,slides:2}[project.stage];
- const labels=['图源','讲稿','幻灯片'];
- const description=stages[project.stage]+(current<0?'，尚未开始':'，第 '+(current+1)+' 步，共 3 步');
+ const current={ready:-1,analyzing:0,analysisReady:0,figure:1,outline:2,slides:3}[project.stage];
+ const labels=['分析','图源','讲稿','幻灯片'];
+ const description=stages[project.stage]+(current<0?'，尚未开始':'，第 '+(current+1)+' 步，共 4 步');
  const segments=labels.map((label,index)=>{
   const active=index===current;
   let color='bg-line';
@@ -768,7 +768,7 @@ function stageProgress(project){
   if(active)color='border-2 border-ink bg-white';
   return '<div class="min-w-0 flex-1"><div class="h-1.5 rounded '+color+'"></div><span class="mt-1.5 block text-xs '+(active?'font-medium text-ink':'text-muted')+'">'+label+'</span></div>';
  }).join('');
- return '<div role="img" aria-label="'+description+'" title="实心：已推进的步骤；空心：当前步骤；浅色：尚未开始。阶段条不表示耗时百分比。"><div class="mb-2 text-xs">'+stages[project.stage]+'</div><div class="flex gap-2" aria-hidden="true">'+segments+'</div></div><p class="mt-2 text-xs text-muted">'+(project.slideCount?project.slideCount+' 页 PPT':'尚无 PPT')+'</p>';
+ return '<div role="img" aria-label="'+description+'" title="实心：已推进的步骤；空心：当前步骤；浅色：尚未开始。阶段条不表示耗时百分比。"><div class="mb-2 text-xs">'+esc(project.analysisSummary||stages[project.stage])+'</div><div class="flex gap-2" aria-hidden="true">'+segments+'</div></div><p class="mt-2 text-xs text-muted">'+(project.slideCount?project.slideCount+' 页 PPT':'尚无 PPT')+'</p>';
 }
 function render(){
  const query=$('search').value.trim().toLowerCase(),filter=$('filter').value;
@@ -811,23 +811,22 @@ function create(start){
 }
 $('saveLater').onclick=()=>create(false);$('startNow').onclick=()=>create(true);
 function dialog(title,body,actions){$('actionTitle').textContent=title;$('actionBody').innerHTML=body;$('actionButtons').replaceChildren();for(const a of actions){const b=document.createElement('button');b.id=a.id;b.textContent=a.label;b.className='rounded border border-control px-4 py-2'+(a.primary?' bg-ink text-white':'');b.onclick=a.run;$('actionButtons').append(b);}if(!$('actionDialog').open)$('actionDialog').showModal();}
-function stopRun(){runEpoch++;clearTimeout(timer);if(runId){const id=runId;runId=null;commit(projects.map(p=>p.id===id?{...p,stage:'ready',updated:Date.now()}:p));$('status').textContent='分析演示已停止，项目记录保留，可稍后继续。';}}
-function closeAction(){stopRun();$('actionDialog').close();}
+function closeAction(){$('actionDialog').close();}
 $('closeAction').onclick=closeAction;$('actionDialog').addEventListener('cancel',e=>{e.preventDefault();closeAction();});
 function fileRows(p){return '<div class="mb-5 rounded border border-line p-4 text-xs leading-relaxed"><p class="mb-2">主论文：'+esc(p.primary.name)+'</p><p>补充材料：'+(p.supplement?esc(p.supplement.name):'未添加')+'</p></div>';}
 function openProject(id){
  const p=projects.find(p=>p.id===id);if(!p)return;
  const actions=[{id:'backList',label:'返回列表',run:closeAction}];
- if(p.stage==='ready')actions.push({id:'startSaved',label:'开始分析',primary:true,run:()=>{if(!modelReady){$('status').textContent='请配置演示模型后再开始，项目记录已保留。';settings();return;}startAnalysis(id);}});
+ if(['ready','analyzing','analysisReady'].includes(p.stage))actions.push({id:'startSaved',label:'打开论文分析',primary:true,run:()=>{if(persist())location.href='paper-analysis.html?project='+encodeURIComponent(id);}});
  else actions.push({id:'openWorkspace',label:'打开工作台示例',primary:true,run:()=>{location.href=p.stage==='slides'?'slides.html':p.stage==='outline'?'outline-speech.html':'figure-review.html';}});
  dialog(p.name,fileRows(p)+'<p class="mb-4">当前阶段：'+stages[p.stage]+'</p><h3 class="mb-2 text-xs text-muted">汇报要求</h3><p class="mb-5 whitespace-pre-wrap leading-relaxed">'+esc(p.requirements||'未设置，默认充分覆盖论文发现。')+'</p><p class="text-xs leading-relaxed text-muted">打开只查看状态，不自动重新分析。本原型与工作台是独立示例；跳转不会载入本项目的真实文件或编辑记录。</p>',actions);
 }
 function startAnalysis(id){
- const p=projects.find(p=>p.id===id);if(!p||!modelReady||runId)return;
- if(!commit(projects.map(x=>x.id===id?{...x,stage:'analyzing',updated:Date.now()}:x)))return;
- runId=id;const token=++runEpoch;let step=0;const steps=['解析主论文全文',...(p.supplement?['解析补充材料全文、附图与方法']:[]),'整理全部已选来源的 Figure 与 Panel','汇总论文发现与证据'];
- dialog('分析论文 · 固定演示',fileRows(p)+'<p id="analysisProgress" role="status"></p><p class="mt-4 text-xs text-muted">不解析 PDF、不调用模型；演示完成后停在图源核对。</p>',[{id:'cancelAnalysis',label:'取消分析',run:closeAction}]);
- function advance(){if(token!==runEpoch)return;if(step<steps.length){$('analysisProgress').textContent=steps[step++];timer=setTimeout(advance,650);return;}runId=null;if(!commit(projects.map(x=>x.id===id?{...x,stage:'figure',updated:Date.now()}:x))){$('analysisProgress').textContent='示例状态保存失败，记录保留；关闭后可重试。';return;}dialog('图源核对已就绪 · 演示',fileRows(p)+'<p>所有已选材料共同完成演示步骤。下一步核对 Figure 切分。</p><p class="mt-4 text-xs text-muted">未实际分析论文。后续图源页为固定示例，双文件分组尚待接入原型。</p>',[{id:'finishLater',label:'稍后核对',run:closeAction},{id:'reviewFigures',label:'打开图源示例',primary:true,run:()=>location.href='figure-review.html'}]);}advance();
+ const p=projects.find(p=>p.id===id);
+ if(!p||!modelReady)return;
+ try { sessionStorage.setItem('smartjc-analysis-start',id); }
+ catch { $('status').textContent='无法传递启动意图，进入分析页后请点击开始。'; }
+ location.href='paper-analysis.html?project='+encodeURIComponent(id);
 }
 $('projects').onclick=e=>{
  const b=e.target.closest('button');if(!b)return;const id=b.dataset.open||b.dataset.rename||b.dataset.delete,p=projects.find(p=>p.id===id);if(!p)return;

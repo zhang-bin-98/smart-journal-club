@@ -1,0 +1,954 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>smartJC · 论文分析</title><style>/*! tailwindcss v4.3.3 | MIT License | https://tailwindcss.com */
+@layer properties;
+@layer theme, base, components, utilities;
+:root, :host {
+  --font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+    monospace;
+  --color-black: #000;
+  --color-white: #fff;
+  --spacing: 0.25rem;
+  --text-xs: 0.75rem;
+  --text-xs--line-height: calc(1 / 0.75);
+  --text-sm: 0.875rem;
+  --text-sm--line-height: calc(1.25 / 0.875);
+  --text-lg: 1.125rem;
+  --text-lg--line-height: calc(1.75 / 1.125);
+  --text-xl: 1.25rem;
+  --text-xl--line-height: calc(1.75 / 1.25);
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --leading-relaxed: 1.625;
+  --radius-lg: 0.5rem;
+  --default-font-family: var(--font-sans);
+  --default-mono-font-family: var(--font-mono);
+  --color-ink: #203040;
+  --color-muted: #71808b;
+  --color-subtle: #84929b;
+  --color-line: #d9e0e5;
+  --color-control: #c6d2d9;
+  --color-canvas: #f4f6f8;
+}
+@layer base {
+  *, ::after, ::before, ::backdrop, ::file-selector-button {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    border: 0 solid;
+  }
+  html, :host {
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+    tab-size: 4;
+    font-family: var(--default-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', 'Noto Sans', Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji');
+    font-feature-settings: var(--default-font-feature-settings, normal);
+    font-variation-settings: var(--default-font-variation-settings, normal);
+    -webkit-tap-highlight-color: transparent;
+  }
+  hr {
+    height: 0;
+    color: inherit;
+    border-top-width: 1px;
+  }
+  abbr:where([title]) {
+    -webkit-text-decoration: underline dotted;
+    text-decoration: underline dotted;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-size: inherit;
+    font-weight: inherit;
+  }
+  a {
+    color: inherit;
+    -webkit-text-decoration: inherit;
+    text-decoration: inherit;
+  }
+  b, strong {
+    font-weight: bolder;
+  }
+  code, kbd, samp, pre {
+    font-family: var(--default-mono-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace);
+    font-feature-settings: var(--default-mono-font-feature-settings, normal);
+    font-variation-settings: var(--default-mono-font-variation-settings, normal);
+    font-size: 1em;
+  }
+  small {
+    font-size: 80%;
+  }
+  sub, sup {
+    font-size: 75%;
+    line-height: 0;
+    position: relative;
+    vertical-align: baseline;
+  }
+  sub {
+    bottom: -0.25em;
+  }
+  sup {
+    top: -0.5em;
+  }
+  table {
+    text-indent: 0;
+    border-color: inherit;
+    border-collapse: collapse;
+  }
+  :-moz-focusring:where(:not(iframe)) {
+    outline: auto;
+  }
+  progress {
+    vertical-align: baseline;
+  }
+  summary {
+    display: list-item;
+  }
+  ol, ul, menu {
+    list-style: none;
+  }
+  img, svg, video, canvas, audio, iframe, embed, object {
+    display: block;
+    vertical-align: middle;
+  }
+  img, video {
+    max-width: 100%;
+    height: auto;
+  }
+  button, input, select, optgroup, textarea, ::file-selector-button {
+    font: inherit;
+    font-feature-settings: inherit;
+    font-variation-settings: inherit;
+    letter-spacing: inherit;
+    color: inherit;
+    border-radius: 0;
+    background-color: transparent;
+    opacity: 1;
+  }
+  :where(select:is([multiple], [size])) optgroup {
+    font-weight: bolder;
+  }
+  :where(select:is([multiple], [size])) optgroup option {
+    padding-inline-start: 20px;
+  }
+  ::file-selector-button {
+    margin-inline-end: 4px;
+  }
+  ::placeholder {
+    opacity: 1;
+  }
+  @supports (not (-webkit-appearance: -apple-pay-button))  or (contain-intrinsic-size: 1px) {
+    ::placeholder {
+      color: currentcolor;
+      @supports (color: color-mix(in lab, red, red)) {
+        color: color-mix(in oklab, currentcolor 50%, transparent);
+      }
+    }
+  }
+  textarea {
+    resize: vertical;
+  }
+  ::-webkit-search-decoration {
+    -webkit-appearance: none;
+  }
+  ::-webkit-date-and-time-value {
+    min-height: 1lh;
+    text-align: inherit;
+  }
+  ::-webkit-datetime-edit {
+    display: inline-flex;
+  }
+  ::-webkit-datetime-edit-fields-wrapper {
+    padding: 0;
+  }
+  ::-webkit-datetime-edit, ::-webkit-datetime-edit-year-field, ::-webkit-datetime-edit-month-field, ::-webkit-datetime-edit-day-field, ::-webkit-datetime-edit-hour-field, ::-webkit-datetime-edit-minute-field, ::-webkit-datetime-edit-second-field, ::-webkit-datetime-edit-millisecond-field, ::-webkit-datetime-edit-meridiem-field {
+    padding-block: 0;
+  }
+  ::-webkit-calendar-picker-indicator {
+    line-height: 1;
+  }
+  :-moz-ui-invalid {
+    box-shadow: none;
+  }
+  button, input:where([type='button'], [type='reset'], [type='submit']), ::file-selector-button {
+    appearance: button;
+  }
+  ::-webkit-inner-spin-button, ::-webkit-outer-spin-button {
+    height: auto;
+  }
+  [hidden]:where(:not([hidden='until-found'])) {
+    display: none !important;
+  }
+  body {
+    background: var(--color-canvas);
+    color: var(--color-ink);
+  }
+}
+.m-0 {
+  margin: 0px;
+}
+.m-auto {
+  margin: auto;
+}
+.mx-auto {
+  margin-inline: auto;
+}
+.mt-1 {
+  margin-top: var(--spacing);
+}
+.mt-2 {
+  margin-top: calc(var(--spacing) * 2);
+}
+.mt-3 {
+  margin-top: calc(var(--spacing) * 3);
+}
+.mt-4 {
+  margin-top: calc(var(--spacing) * 4);
+}
+.mt-5 {
+  margin-top: calc(var(--spacing) * 5);
+}
+.mt-6 {
+  margin-top: calc(var(--spacing) * 6);
+}
+.mb-5 {
+  margin-bottom: calc(var(--spacing) * 5);
+}
+.ml-2 {
+  margin-left: calc(var(--spacing) * 2);
+}
+.ml-auto {
+  margin-left: auto;
+}
+.block {
+  display: block;
+}
+.flex {
+  display: flex;
+}
+.grid {
+  display: grid;
+}
+.hidden {
+  display: none;
+}
+.table {
+  display: table;
+}
+.h-1\.5 {
+  height: calc(var(--spacing) * 1.5);
+}
+.h-auto {
+  height: auto;
+}
+.h-dvh {
+  height: 100dvh;
+}
+.h-full {
+  height: 100%;
+}
+.min-h-0 {
+  min-height: 0px;
+}
+.w-\[116px\] {
+  width: 116px;
+}
+.w-\[230px\] {
+  width: 230px;
+}
+.w-\[350px\] {
+  width: 350px;
+}
+.w-\[540px\] {
+  width: 540px;
+}
+.w-full {
+  width: 100%;
+}
+.min-w-0 {
+  min-width: 0px;
+}
+.flex-1 {
+  flex: 1;
+}
+.shrink-0 {
+  flex-shrink: 0;
+}
+.cursor-pointer {
+  cursor: pointer;
+}
+.grid-cols-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.flex-col {
+  flex-direction: column;
+}
+.items-center {
+  align-items: center;
+}
+.justify-between {
+  justify-content: space-between;
+}
+.justify-center {
+  justify-content: center;
+}
+.justify-end {
+  justify-content: flex-end;
+}
+.gap-2 {
+  gap: calc(var(--spacing) * 2);
+}
+.gap-3 {
+  gap: calc(var(--spacing) * 3);
+}
+.gap-4 {
+  gap: calc(var(--spacing) * 4);
+}
+.gap-5 {
+  gap: calc(var(--spacing) * 5);
+}
+.gap-14 {
+  gap: calc(var(--spacing) * 14);
+}
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.overflow-hidden {
+  overflow: hidden;
+}
+.overflow-y-auto {
+  overflow-y: auto;
+}
+.rounded {
+  border-radius: 0.25rem;
+}
+.rounded-lg {
+  border-radius: var(--radius-lg);
+}
+.border {
+  border-style: var(--tw-border-style);
+  border-width: 1px;
+}
+.border-t {
+  border-top-style: var(--tw-border-style);
+  border-top-width: 1px;
+}
+.border-r {
+  border-right-style: var(--tw-border-style);
+  border-right-width: 1px;
+}
+.border-b {
+  border-bottom-style: var(--tw-border-style);
+  border-bottom-width: 1px;
+}
+.border-b-2 {
+  border-bottom-style: var(--tw-border-style);
+  border-bottom-width: 2px;
+}
+.border-l {
+  border-left-style: var(--tw-border-style);
+  border-left-width: 1px;
+}
+.border-control {
+  border-color: var(--color-control);
+}
+.border-ink {
+  border-color: var(--color-ink);
+}
+.border-line {
+  border-color: var(--color-line);
+}
+.bg-canvas {
+  background-color: var(--color-canvas);
+}
+.bg-ink {
+  background-color: var(--color-ink);
+}
+.bg-line {
+  background-color: var(--color-line);
+}
+.bg-white {
+  background-color: var(--color-white);
+}
+.p-2 {
+  padding: calc(var(--spacing) * 2);
+}
+.p-3 {
+  padding: calc(var(--spacing) * 3);
+}
+.p-4 {
+  padding: calc(var(--spacing) * 4);
+}
+.p-5 {
+  padding: calc(var(--spacing) * 5);
+}
+.p-6 {
+  padding: calc(var(--spacing) * 6);
+}
+.px-2 {
+  padding-inline: calc(var(--spacing) * 2);
+}
+.px-3 {
+  padding-inline: calc(var(--spacing) * 3);
+}
+.px-4 {
+  padding-inline: calc(var(--spacing) * 4);
+}
+.px-5 {
+  padding-inline: calc(var(--spacing) * 5);
+}
+.px-10 {
+  padding-inline: calc(var(--spacing) * 10);
+}
+.py-1\.5 {
+  padding-block: calc(var(--spacing) * 1.5);
+}
+.py-2 {
+  padding-block: calc(var(--spacing) * 2);
+}
+.py-2\.5 {
+  padding-block: calc(var(--spacing) * 2.5);
+}
+.py-3 {
+  padding-block: calc(var(--spacing) * 3);
+}
+.py-16 {
+  padding-block: calc(var(--spacing) * 16);
+}
+.pt-2 {
+  padding-top: calc(var(--spacing) * 2);
+}
+.pt-4 {
+  padding-top: calc(var(--spacing) * 4);
+}
+.text-center {
+  text-align: center;
+}
+.text-left {
+  text-align: left;
+}
+.font-sans {
+  font-family: var(--font-sans);
+}
+.text-lg {
+  font-size: var(--text-lg);
+  line-height: var(--tw-leading, var(--text-lg--line-height));
+}
+.text-sm {
+  font-size: var(--text-sm);
+  line-height: var(--tw-leading, var(--text-sm--line-height));
+}
+.text-xl {
+  font-size: var(--text-xl);
+  line-height: var(--tw-leading, var(--text-xl--line-height));
+}
+.text-xs {
+  font-size: var(--text-xs);
+  line-height: var(--tw-leading, var(--text-xs--line-height));
+}
+.leading-relaxed {
+  --tw-leading: var(--leading-relaxed);
+  line-height: var(--leading-relaxed);
+}
+.font-medium {
+  --tw-font-weight: var(--font-weight-medium);
+  font-weight: var(--font-weight-medium);
+}
+.font-semibold {
+  --tw-font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-semibold);
+}
+.text-ink {
+  color: var(--color-ink);
+}
+.text-line {
+  color: var(--color-line);
+}
+.text-muted {
+  color: var(--color-muted);
+}
+.text-subtle {
+  color: var(--color-subtle);
+}
+.text-white {
+  color: var(--color-white);
+}
+.underline {
+  text-decoration-line: underline;
+}
+.antialiased {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+.opacity-30 {
+  opacity: 30%;
+}
+.shadow-xl {
+  --tw-shadow: 0 20px 25px -5px var(--tw-shadow-color, rgb(0 0 0 / 0.1)), 0 8px 10px -6px var(--tw-shadow-color, rgb(0 0 0 / 0.1));
+  box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+}
+.filter {
+  filter: var(--tw-blur,) var(--tw-brightness,) var(--tw-contrast,) var(--tw-grayscale,) var(--tw-hue-rotate,) var(--tw-invert,) var(--tw-saturate,) var(--tw-sepia,) var(--tw-drop-shadow,);
+}
+.backdrop\:bg-black\/25::backdrop {
+  background-color: color-mix(in srgb, #000 25%, transparent);
+  @supports (color: color-mix(in lab, red, red)) {
+    background-color: color-mix(in oklab, var(--color-black) 25%, transparent);
+  }
+}
+.disabled\:opacity-30:disabled {
+  opacity: 30%;
+}
+@property --tw-border-style {
+  syntax: "*";
+  inherits: false;
+  initial-value: solid;
+}
+@property --tw-leading {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-font-weight {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-shadow {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0 0 #0000;
+}
+@property --tw-shadow-color {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-shadow-alpha {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 100%;
+}
+@property --tw-inset-shadow {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0 0 #0000;
+}
+@property --tw-inset-shadow-color {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-inset-shadow-alpha {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 100%;
+}
+@property --tw-ring-color {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-ring-shadow {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0 0 #0000;
+}
+@property --tw-inset-ring-color {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-inset-ring-shadow {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0 0 #0000;
+}
+@property --tw-ring-inset {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-ring-offset-width {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --tw-ring-offset-color {
+  syntax: "*";
+  inherits: false;
+  initial-value: #fff;
+}
+@property --tw-ring-offset-shadow {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0 0 #0000;
+}
+@property --tw-blur {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-brightness {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-contrast {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-grayscale {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-hue-rotate {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-invert {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-opacity {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-saturate {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-sepia {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-drop-shadow {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-drop-shadow-color {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-drop-shadow-alpha {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 100%;
+}
+@property --tw-drop-shadow-size {
+  syntax: "*";
+  inherits: false;
+}
+@layer properties {
+  @supports ((-webkit-hyphens: none) and (not (margin-trim: inline))) or ((-moz-orient: inline) and (not (color:rgb(from red r g b)))) {
+    *, ::before, ::after, ::backdrop {
+      --tw-border-style: solid;
+      --tw-leading: initial;
+      --tw-font-weight: initial;
+      --tw-shadow: 0 0 #0000;
+      --tw-shadow-color: initial;
+      --tw-shadow-alpha: 100%;
+      --tw-inset-shadow: 0 0 #0000;
+      --tw-inset-shadow-color: initial;
+      --tw-inset-shadow-alpha: 100%;
+      --tw-ring-color: initial;
+      --tw-ring-shadow: 0 0 #0000;
+      --tw-inset-ring-color: initial;
+      --tw-inset-ring-shadow: 0 0 #0000;
+      --tw-ring-inset: initial;
+      --tw-ring-offset-width: 0px;
+      --tw-ring-offset-color: #fff;
+      --tw-ring-offset-shadow: 0 0 #0000;
+      --tw-blur: initial;
+      --tw-brightness: initial;
+      --tw-contrast: initial;
+      --tw-grayscale: initial;
+      --tw-hue-rotate: initial;
+      --tw-invert: initial;
+      --tw-opacity: initial;
+      --tw-saturate: initial;
+      --tw-sepia: initial;
+      --tw-drop-shadow: initial;
+      --tw-drop-shadow-color: initial;
+      --tw-drop-shadow-alpha: 100%;
+      --tw-drop-shadow-size: initial;
+    }
+  }
+}
+</style></head>
+<body class="m-0 h-dvh overflow-hidden bg-canvas font-sans text-sm text-ink antialiased">
+<div class="flex h-full flex-col">
+<header class="flex shrink-0 items-center justify-between gap-5 border-b border-line bg-white px-5 py-3"><div class="flex min-w-0 items-center gap-4"><a href="projects.html" class="text-xl font-semibold" aria-label="返回项目管理">smartJC</a><span class="text-line">│</span><div class="min-w-0"><h1 id="projectTitle" class="truncate font-medium">论文分析</h1><p class="mt-1 text-xs text-muted">合成论文 · 页级查漏交互稿</p></div></div><div class="flex shrink-0 items-center gap-4"><span id="saveState" class="text-xs text-muted" role="status">已保存示例</span><button id="run" class="rounded border border-control px-4 py-2">开始分析</button><button id="next" disabled class="rounded bg-ink px-4 py-2 text-white disabled:opacity-30">下一步：图源核对 →</button></div></header>
+<nav aria-label="工作台视图" class="flex shrink-0 justify-center gap-14 border-b border-line bg-white px-10"><button aria-current="page" class="border-b-2 border-ink py-3 font-medium">01 论文分析</button><button id="nextNav" disabled class="py-3 text-muted disabled:opacity-30">02 图源核对</button><button disabled class="py-3 text-subtle">03 大纲与演讲稿</button><button disabled class="py-3 text-subtle">04 幻灯片</button></nav>
+<main class="flex min-h-0 flex-1">
+<aside class="flex w-[230px] shrink-0 flex-col border-r border-line bg-white"><div class="border-b border-line p-4"><h2 class="font-medium">材料与进度</h2><button id="allDocs" class="mt-3 w-full rounded border border-control px-3 py-2 text-left text-xs">查看全部材料</button></div><div id="documents" class="min-h-0 flex-1 overflow-y-auto p-4"></div><div class="border-t border-line p-4 text-xs leading-relaxed"><p id="taskState" role="status"></p><p id="counts" class="mt-2 text-muted"></p><p id="elapsed" class="mt-3 text-muted"></p><button id="cancel" class="mt-3 text-muted underline">取消本次运行</button></div></aside>
+<section class="flex min-w-0 flex-1 flex-col"><div class="flex shrink-0 items-center justify-between gap-3 border-b border-line bg-white px-5 py-3"><h2 class="font-medium">页面总览 <span id="pageCount" class="ml-2 text-xs text-muted"></span></h2><select id="filter" aria-label="筛选页面" class="rounded border border-control px-2 py-1.5 text-xs"><option value="all">全部页面</option><option value="selected">图源页</option><option value="unselected">未入选页</option><option value="pending">待处理页</option></select></div><div class="shrink-0 border-b border-line px-5 py-3 text-xs leading-relaxed text-muted"><p id="gateReason"></p><p class="mt-1">勾选表示需要识别 Figure；所有页面正文仍会分析。</p></div><div id="pageScroll" class="min-h-0 flex-1 overflow-y-auto p-5"><div id="pages" class="grid grid-cols-3 gap-4"></div><div id="empty" class="hidden py-16 text-center text-muted">没有匹配的页面。<button id="clearFilter" class="ml-2 underline">查看全部</button></div></div></section>
+<aside class="flex w-[350px] shrink-0 flex-col border-l border-line bg-white"><div class="shrink-0 border-b border-line p-4"><h2 id="previewTitle" class="font-medium"></h2><p id="previewFile" class="mt-1 truncate text-xs text-muted"></p></div><div class="min-h-0 flex-1 overflow-y-auto p-4"><div id="preview" class="border border-line bg-canvas p-2"></div><p id="pageStatus" class="mt-4 text-xs text-muted"></p><label class="mt-4 flex items-center gap-2 rounded border border-control p-3"><input id="includePage" type="checkbox">作为图源页处理</label><button id="restoreAuto" class="mt-3 text-xs underline disabled:opacity-30">恢复自动选择</button><p id="processing" class="mt-4 text-xs leading-relaxed"></p><div class="mt-5 border-t border-line pt-4 text-xs leading-relaxed text-muted">发现遗漏时直接勾选，系统补做该页识别与切分。<br>自动发现结果不能覆盖你的选择。<br>具体 Panel 边界在下一步核对。</div></div></aside>
+</main>
+<footer class="flex shrink-0 items-center justify-between gap-4 border-t border-line bg-white px-5 py-2.5 text-xs text-muted"><span id="notice" role="status">原型不解析真实 PDF；全部缩略图和进度均为合成演示。</span><div class="flex shrink-0 gap-4"><button id="retrySave" class="hidden underline">重试保存</button><button id="demoReady" class="underline">演示分析完成</button><button id="demoWait" class="underline">演示限流</button><button id="demoError" class="underline">演示失败</button><button id="reset" class="underline">重置</button></div></footer>
+</div>
+<dialog id="impact" aria-labelledby="impactTitle" class="m-auto w-[540px] rounded-lg border border-line bg-white p-6 text-ink shadow-xl backdrop:bg-black/25"><h2 id="impactTitle" class="text-lg font-medium">排除此图源页？</h2><p id="impactText" class="mt-4 leading-relaxed"></p><p class="mt-3 text-xs leading-relaxed text-muted">这里只演示当前页自动图源的移除与证据刷新。实际应用还会列出跨页图、人工 Panel 和讲稿引用的具体影响，保护旧稿；本原型不修改其他页面的固定示例。</p><div class="mt-6 flex justify-end gap-3"><button id="keepPage" class="rounded border border-control px-4 py-2">保留此页</button><button id="applyExclude" class="rounded bg-ink px-4 py-2 text-white">应用排除并刷新</button></div></dialog>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+const esc=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const listKey='smartjc-projects-demo-v1';
+const projectId=new URLSearchParams(location.search).get('project');
+let project=null;
+try { project=JSON.parse(localStorage.getItem(listKey)||'[]').find(p=>p.id===projectId); } catch {}
+const docs=[{id:'primary',label:'主论文',name:project?.primary?.name||'cell-response.pdf',total:12}];
+if(!project||project.supplement)docs.push({id:'supplement',label:'补充材料',name:project?.supplement?.name||'supporting-information.pdf',total:8});
+const key='smartjc-analysis-demo-v1-'+(projectId||'standalone');
+function initial(){
+ const pages=docs.flatMap(d=>Array.from({length:d.total},(_,i)=>{
+  const n=i+1;
+  const auto=d.id==='primary'?[3,6,11].includes(n):[2,5].includes(n);
+  const drawn=d.id==='primary'?[3,6,9].includes(n):[2,5].includes(n);
+  return {id:d.id+'-'+n,doc:d.id,n,auto,drawn,textDone:false,detected:false,manual:null,revision:1,processed:0};
+ }));
+ return {pages,summary:false,elapsed:0,mode:'idle'};
+}
+let state=initial();
+try {
+ const saved=JSON.parse(localStorage.getItem(key));
+ if(saved&&Array.isArray(saved.pages)&&saved.pages.length===state.pages.length&&saved.pages.every((p,i)=>p.id===state.pages[i].id))state=saved;
+} catch {}
+let savedOk=true;
+let selected=state.pages.find(p=>p.drawn).id;
+let docFilter='all';
+let timer=null;
+let epoch=0;
+let waitUntil=0;
+let pendingImpact=null;
+let failurePage=null;
+let lastTick=Date.now();
+const included=p=>p.manual==='include'||(p.manual!=='exclude'&&p.detected&&p.auto);
+const pending=p=>!p.textDone||!p.detected||p.processed!==p.revision;
+const ready=()=>state.summary&&state.pages.every(p=>!pending(p));
+state.mode=ready()?'ready':state.mode==='idle'?'idle':'paused';
+function persist(){
+ try {
+  localStorage.setItem(key,JSON.stringify(state));
+  if(project){
+   const records=JSON.parse(localStorage.getItem(listKey)||'[]');
+   const stage=ready()?'analysisReady':'analyzing';
+   localStorage.setItem(listKey,JSON.stringify(records.map(p=>p.id===projectId?{...p,stage,analysisSummary:state.mode==='running'?'分析中':state.mode==='ready'?'分析就绪':state.mode==='failed'?'分析失败':'分析已暂停',updated:Date.now()}:p)));
+  }
+  savedOk=true;
+ } catch { savedOk=false; }
+ $('saveState').textContent=savedOk?'已保存示例':'未保存，请重试';
+ $('retrySave').classList.toggle('hidden',savedOk);
+ return savedOk;
+}
+function label(p){
+ if(p.manual==='include')return '人工加入';
+ if(p.manual==='exclude')return '人工排除';
+ if(!p.detected)return '待分析';
+ return p.auto?'自动发现 Figure':'未发现 Figure';
+}
+function pageSvg(p){
+ const lines=Array.from({length:10},(_,i)=>'<path d="M 18 '+(58+i*9)+' h '+(126-(i%3)*11)+'"/>').join('');
+ let graphic='';
+ if(p.drawn)graphic='<rect x="18" y="156" width="128" height="67" fill="#f4f6f8" stroke="#cbd5df"/><text x="23" y="168" font-size="9" fill="#243746">a</text><path d="M28 209V179 M28 209H74 M88 209V179 M88 209H137" stroke="#81909d"/><path d="M32 204L41 200L49 203L58 189L70 184 M93 204L103 199L114 191L130 178" stroke="#243746" fill="none"/><text x="85" y="168" font-size="9" fill="#243746">b</text><text x="18" y="235" font-size="7" fill="#617181">Figure · synthetic example</text>';
+ else graphic='<g stroke="#cbd5df" stroke-width="2">'+Array.from({length:8},(_,i)=>'<path d="M18 '+(162+i*9)+'h '+(126-(i%2)*15)+'"/>').join('')+'</g>';
+ return '<svg viewBox="0 0 164 254" class="block h-auto w-full bg-white" role="img" aria-label="'+(p.doc==='primary'?'主论文':'补充材料')+'第 '+p.n+' 页合成预览"><text x="18" y="25" font-size="8" fill="#243746">'+(p.doc==='primary'?'RESEARCH ARTICLE':'SUPPLEMENTARY DATA')+'</text><text x="18" y="41" font-size="6" fill="#617181">Illustrative content · page '+p.n+'</text><g stroke="#cbd5df" stroke-width="2">'+lines+'</g>'+graphic+'<text x="78" y="248" font-size="7" fill="#81909d">'+p.n+'</text></svg>';
+}
+function renderSidebar(){
+ $('documents').innerHTML=docs.map(d=>{
+  const pages=state.pages.filter(p=>p.doc===d.id);
+  const text=pages.filter(p=>p.textDone).length;
+  const scan=pages.filter(p=>p.detected).length;
+  return '<button data-doc="'+d.id+'" class="mb-5 block w-full rounded border '+(docFilter===d.id?'border-ink':'border-line')+' p-3 text-left"><span class="font-medium">'+d.label+'</span><span class="mt-1 block truncate text-xs text-muted" title="'+esc(d.name)+'">'+esc(d.name)+'</span><span class="mt-4 block text-xs">文本提取 '+text+' / '+d.total+' 页</span><span role="progressbar" aria-valuenow="'+text+'" aria-valuemin="0" aria-valuemax="'+d.total+'" aria-label="'+d.label+'文本提取" class="mt-2 block h-1.5 w-full overflow-hidden rounded bg-line"><span class="block h-full bg-ink" style="width:'+text/d.total*100+'%"></span></span><span class="mt-3 block text-xs">图页发现 '+scan+' / '+d.total+' 页</span></button>';
+ }).join('');
+ const selectedPages=state.pages.filter(included);
+ const done=selectedPages.filter(p=>p.processed===p.revision).length;
+ $('counts').textContent='图源处理 '+done+' / '+selectedPages.length+' 页；证据整理'+(state.summary?'已完成':'待完成');
+ $('elapsed').textContent='已用时间 '+Math.floor(state.elapsed/60)+' 分 '+Math.floor(state.elapsed%60)+' 秒';
+}
+function renderPages(){
+ const f=$('filter').value;
+ const pages=state.pages.filter(p=>(docFilter==='all'||p.doc===docFilter)&&(f==='all'||f==='selected'&&included(p)||f==='unselected'&&!included(p)||f==='pending'&&pending(p)));
+ $('pageCount').textContent=pages.length+' / '+state.pages.length+' 页';
+ $('empty').classList.toggle('hidden',pages.length>0);
+ const focus=document.activeElement;
+ const focusId=focus?.dataset?.include||focus?.dataset?.preview;
+ const focusAttr=focus?.dataset?.include?'data-include':'data-preview';
+ const scrollTop=$('pageScroll').scrollTop;
+ $('pages').innerHTML=pages.map(p=>'<article data-page="'+p.id+'" class="min-w-0 rounded border '+(p.id===selected?'border-ink':'border-line')+' bg-white p-2"><button data-preview="'+p.id+'" class="block w-full text-left" aria-label="查看'+(p.doc==='primary'?'主论文':'补充材料')+'第 '+p.n+' 页"><div class="mx-auto w-[116px] border border-line">'+pageSvg(p)+'</div><span class="mt-2 block text-xs">'+(p.doc==='primary'?'主论文':'补充材料')+' · 第 '+p.n+' 页</span><span class="mt-1 block truncate text-xs text-muted">'+label(p)+'</span></button><label class="mt-3 flex cursor-pointer items-center gap-2 border-t border-line pt-2 text-xs"><input data-include="'+p.id+'" type="checkbox" '+(included(p)?'checked':'')+'>图源页<span class="ml-auto text-muted">'+(included(p)?p.processed===p.revision?'已处理':'待处理':'')+'</span></label></article>').join('');
+ if(focusId)$('pages').querySelector('['+focusAttr+'="'+focusId+'"]')?.focus({preventScroll:true});
+ $('pageScroll').scrollTop=scrollTop;
+}
+function renderPreview(){
+ const p=state.pages.find(p=>p.id===selected);
+ const d=docs.find(d=>d.id===p.doc);
+ $('previewTitle').textContent=d.label+' / 第 '+p.n+' 页';
+ $('previewFile').textContent=d.name;
+ $('previewFile').title=d.name;
+ if($('preview').dataset.page!==p.id){
+  $('preview').innerHTML=pageSvg(p);
+  $('preview').dataset.page=p.id;
+ }
+ $('pageStatus').textContent=label(p);
+ $('includePage').checked=included(p);
+ $('restoreAuto').disabled=p.manual===null;
+ $('processing').textContent=included(p)?p.processed===p.revision?'该页图源处理已完成。具体边界将在下一步核对。':'该页等待识别、初步切分与证据关联；完成前不能进入下一步。':'此页正文仍参与全文理解；若预览中有图，可勾选补充处理。';
+}
+function render(){
+ $('projectTitle').textContent=project?.name||'肿瘤微环境中的细胞响应';
+ renderSidebar();renderPages();renderPreview();
+ const active=state.mode==='running'||state.mode==='waiting';
+ $('run').textContent=active?'暂停分析':state.mode==='failed'?'重试当前部分':state.mode==='idle'?'开始分析':'继续分析';
+ $('run').classList.toggle('hidden',ready());
+ $('run').disabled=!savedOk;
+ $('cancel').disabled=!active;
+ $('cancel').classList.toggle('opacity-30',!active);
+ $('next').disabled=!ready()||!savedOk;
+ $('nextNav').disabled=$('next').disabled;
+ const labels={idle:'尚未开始',running:'正在处理材料',waiting:'服务限流，等待后继续',paused:'已暂停，成果保留',failed:'分析失败，已保留完成部分',ready:'分析就绪，等待进入图源核对'};
+ $('taskState').textContent=labels[state.mode];
+ const manual=state.pages.filter(p=>p.manual==='include'&&!p.auto).length;
+ const detected=state.pages.filter(p=>p.detected&&p.auto).length;
+ $('gateReason').textContent=!savedOk?'保存未完成，请先重试保存。':ready()?'分析完成，可继续检查缩略图，准备好后手动点击下一步。':'自动发现 '+detected+' 个图源页 · 人工补选 '+manual+' 页 · 待处理 '+state.pages.filter(pending).length+' 页；必需处理完成后才能进入下一步。';
+}
+function stop(mode='paused'){
+ epoch++;
+ clearTimeout(timer);
+ state.mode=ready()?'ready':mode;
+ persist();render();
+}
+function start(){
+ if(!savedOk||ready())return;
+ epoch++;
+ clearTimeout(timer);
+ state.mode='running';
+ lastTick=Date.now();
+ persist();render();
+ schedule(epoch);
+}
+function schedule(token){timer=setTimeout(()=>{if(token!==epoch)return;tick();if(state.mode==='running'||state.mode==='waiting')schedule(token);},500);}
+function tick(){
+ if(state.mode!=='running'&&state.mode!=='waiting')return;
+ const now=Date.now();
+ state.elapsed+=(now-lastTick)/1000;
+ lastTick=now;
+ if(state.mode==='waiting'&&now<waitUntil){renderSidebar();return;}
+ state.mode='running';
+ let phase='';
+ for(const d of docs){
+  const p=state.pages.find(p=>p.doc===d.id&&!p.textDone);
+  if(p){p.textDone=true;phase='提取 '+d.label+'第 '+p.n+' 页文本';}
+ }
+ if(!phase){
+  for(const d of docs){
+   const p=state.pages.find(p=>p.doc===d.id&&!p.detected);
+   if(p){p.detected=true;phase='检查 '+d.label+'第 '+p.n+' 页是否有 Figure';}
+  }
+ }
+ if(!phase){
+  const p=state.pages.find(p=>p.processed!==p.revision);
+  if(p){p.processed=p.revision;phase=(included(p)?'完成图源识别与初步切分：':'保留正文分析：')+(p.doc==='primary'?'主论文':'补充材料')+'第 '+p.n+' 页';}
+  else {state.summary=true;phase='全文发现与证据整理完成；请手动进入下一步。';}
+ }
+ if(ready())state.mode='ready';
+ $('notice').textContent=phase+'（合成演示）';
+ if(!persist()){state.mode='paused';epoch++;clearTimeout(timer);}
+ render();
+}
+function applySelection(id,manual){
+ const p=state.pages.find(p=>p.id===id);
+ if(!p||p.manual===manual)return;
+ const resume=state.mode==='running'||state.mode==='waiting'||state.mode==='ready';
+ p.manual=manual;
+ p.revision++;
+ state.summary=false;
+ if(state.mode==='ready')state.mode='paused';
+ const ok=persist();
+ render();
+ $('notice').textContent='选择已更新；'+(resume?'自动补做受影响内容。':'待你继续分析后处理。');
+ if(resume&&ok)start();
+}
+function choose(id,manual){
+ const p=state.pages.find(p=>p.id===id);
+ const nextIncluded=manual==='include'||(manual===null&&p.detected&&p.auto);
+ if(included(p)&&!nextIncluded&&p.processed===p.revision){
+  const resume=state.mode==='running'||state.mode==='waiting'||state.mode==='ready';
+  stop();
+  pendingImpact={id,manual,resume,revision:p.revision};
+  $('impactText').textContent=(p.doc==='primary'?'主论文':'补充材料')+'第 '+p.n+' 页已有自动图源结果。排除后将移除该页自动图源并刷新相关证据，正文保留；下一步将等待刷新完成。';
+  $('impact').showModal();
+  return;
+ }
+ applySelection(id,manual);
+}
+$('keepPage').onclick=()=>{
+ const resume=pendingImpact?.resume;
+ pendingImpact=null;
+ $('impact').close();
+ render();
+ if(resume)start();
+};
+$('impact').addEventListener('cancel',e=>{e.preventDefault();$('keepPage').click();});
+$('applyExclude').onclick=()=>{
+ const intent=pendingImpact;
+ if(!intent)return;
+ pendingImpact=null;
+ $('impact').close();
+ const p=state.pages.find(p=>p.id===intent.id);
+ if(p.revision!==intent.revision){$('notice').textContent='页面选择已变化，请重新查看影响。';return;}
+ applySelection(intent.id,intent.manual);
+ if(intent.resume)start();
+};
+$('pages').onclick=e=>{
+ const b=e.target.closest('[data-preview]');
+ if(!b)return;
+ selected=b.dataset.preview;
+ renderPages();renderPreview();
+};
+$('pages').onchange=e=>{if(e.target.dataset.include)choose(e.target.dataset.include,e.target.checked?'include':'exclude');};
+$('includePage').onchange=e=>choose(selected,e.target.checked?'include':'exclude');
+$('restoreAuto').onclick=()=>choose(selected,null);
+$('documents').onclick=e=>{const b=e.target.closest('[data-doc]');if(b){docFilter=b.dataset.doc;renderSidebar();renderPages();}};
+$('allDocs').onclick=()=>{docFilter='all';renderSidebar();renderPages();};
+$('filter').onchange=renderPages;
+$('clearFilter').onclick=()=>{docFilter='all';$('filter').value='all';render();};
+$('run').onclick=()=>state.mode==='running'||state.mode==='waiting'?stop():start();
+$('cancel').onclick=()=>{stop();$('notice').textContent='已取消运行；选择和已完成的示例内容保留。';};
+function enterReview(){
+ if(!ready()||!savedOk)return;
+ if(!persist()){render();return;}
+ if(project){
+  try {
+   const records=JSON.parse(localStorage.getItem(listKey)||'[]');
+   localStorage.setItem(listKey,JSON.stringify(records.map(p=>p.id===projectId?{...p,stage:'figure',analysisSummary:'待核对图源'}:p)));
+  } catch {savedOk=false;render();return;}
+ }
+ location.href='figure-review.html';
+}
+$('next').onclick=enterReview;
+$('nextNav').onclick=enterReview;
+$('retrySave').onclick=()=>{persist();render();};
+$('demoReady').onclick=()=>{
+ stop();
+ for(const p of state.pages){p.textDone=true;p.detected=true;p.processed=p.revision;}
+ state.summary=true;state.mode='ready';
+ persist();render();
+ $('notice').textContent='固定完成示例：主论文第 9 页演示漏检，第 11 页演示误检；可手动纠正。';
+};
+$('demoWait').onclick=()=>{
+ if(ready()){$('notice').textContent='没有待处理任务，可先补选一页再演示限流。';return;}
+ start();
+ state.mode='waiting';waitUntil=Date.now()+5000;
+ render();
+ $('notice').textContent='模拟等待服务恢复 5 秒；可立即暂停，不计入完成数量。';
+};
+$('demoError').onclick=()=>{
+ if(ready()){$('notice').textContent='没有待处理任务，可先补选一页再演示失败。';return;}
+ failurePage=state.pages.find(pending);
+ stop('failed');
+ $('notice').textContent='模拟失败：'+(failurePage.doc==='primary'?'主论文':'补充材料')+'第 '+failurePage.n+' 页；点击重试当前部分。';
+};
+$('reset').onclick=()=>{
+ stop();state=initial();selected=state.pages.find(p=>p.drawn).id;docFilter='all';$('filter').value='all';
+ persist();render();$('notice').textContent='已重置合成示例；未调用真实模型。';
+};
+window.addEventListener('pagehide',()=>{
+ epoch++;clearTimeout(timer);
+ if(state.mode==='running'||state.mode==='waiting'){state.mode='paused';persist();}
+});
+render();
+try {
+ const intent=sessionStorage.getItem('smartjc-analysis-start');
+ if(projectId&&intent===projectId){sessionStorage.removeItem('smartjc-analysis-start');start();}
+} catch {}
+</script></body></html>

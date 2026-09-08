@@ -8,7 +8,7 @@
 | 用户如何操作、页面布局和异常状态 | [UI / UX](ui/README.md) |
 | 分层、数据、接口、运行和版本规则 | [架构](architecture/README.md) |
 | 当前阶段、未来交付、必要验收和历史 | [执行](execution/README.md) |
-| 已确认的可操作页面稿 | [HTML 原型](prototypes/README.md) |
+| 可操作页面稿与确认状态 | [HTML 原型](prototypes/README.md) |
 | 实际改动、检查和阻塞 | [实施记录索引](execution/状态与记录.md)，原记录在 spec/ |
 
 建议从产品范围开始，按当前任务阅读对应 UI、数据/接口和阶段 Gate；无需每次通读全部文档。协作流程见 [AGENTS.md](../AGENTS.md)。
