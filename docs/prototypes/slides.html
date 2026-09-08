@@ -1,0 +1,918 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>smartJC · 幻灯片交互讨论稿</title><style>/*! tailwindcss v4.3.3 | MIT License | https://tailwindcss.com */
+@layer properties;
+@layer theme, base, components, utilities;
+:root, :host {
+  --font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+    monospace;
+  --color-black: #000;
+  --color-white: #fff;
+  --spacing: 0.25rem;
+  --text-xs: 0.75rem;
+  --text-xs--line-height: calc(1 / 0.75);
+  --text-sm: 0.875rem;
+  --text-sm--line-height: calc(1.25 / 0.875);
+  --text-lg: 1.125rem;
+  --text-lg--line-height: calc(1.75 / 1.125);
+  --font-weight-medium: 500;
+  --leading-snug: 1.375;
+  --leading-relaxed: 1.625;
+  --radius-lg: 0.5rem;
+  --aspect-video: 16 / 9;
+  --default-font-family: var(--font-sans);
+  --default-mono-font-family: var(--font-mono);
+  --color-ink: #203040;
+  --color-muted: #71808b;
+  --color-accent-soft: #eef6f7;
+  --color-focus: #77aebe;
+  --color-line: #d9e0e5;
+  --color-control: #c6d2d9;
+  --color-canvas: #f4f6f8;
+  --color-panel: #fbfcfd;
+}
+@layer base {
+  *, ::after, ::before, ::backdrop, ::file-selector-button {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    border: 0 solid;
+  }
+  html, :host {
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+    tab-size: 4;
+    font-family: var(--default-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', 'Noto Sans', Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji');
+    font-feature-settings: var(--default-font-feature-settings, normal);
+    font-variation-settings: var(--default-font-variation-settings, normal);
+    -webkit-tap-highlight-color: transparent;
+  }
+  hr {
+    height: 0;
+    color: inherit;
+    border-top-width: 1px;
+  }
+  abbr:where([title]) {
+    -webkit-text-decoration: underline dotted;
+    text-decoration: underline dotted;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-size: inherit;
+    font-weight: inherit;
+  }
+  a {
+    color: inherit;
+    -webkit-text-decoration: inherit;
+    text-decoration: inherit;
+  }
+  b, strong {
+    font-weight: bolder;
+  }
+  code, kbd, samp, pre {
+    font-family: var(--default-mono-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace);
+    font-feature-settings: var(--default-mono-font-feature-settings, normal);
+    font-variation-settings: var(--default-mono-font-variation-settings, normal);
+    font-size: 1em;
+  }
+  small {
+    font-size: 80%;
+  }
+  sub, sup {
+    font-size: 75%;
+    line-height: 0;
+    position: relative;
+    vertical-align: baseline;
+  }
+  sub {
+    bottom: -0.25em;
+  }
+  sup {
+    top: -0.5em;
+  }
+  table {
+    text-indent: 0;
+    border-color: inherit;
+    border-collapse: collapse;
+  }
+  :-moz-focusring:where(:not(iframe)) {
+    outline: auto;
+  }
+  progress {
+    vertical-align: baseline;
+  }
+  summary {
+    display: list-item;
+  }
+  ol, ul, menu {
+    list-style: none;
+  }
+  img, svg, video, canvas, audio, iframe, embed, object {
+    display: block;
+    vertical-align: middle;
+  }
+  img, video {
+    max-width: 100%;
+    height: auto;
+  }
+  button, input, select, optgroup, textarea, ::file-selector-button {
+    font: inherit;
+    font-feature-settings: inherit;
+    font-variation-settings: inherit;
+    letter-spacing: inherit;
+    color: inherit;
+    border-radius: 0;
+    background-color: transparent;
+    opacity: 1;
+  }
+  :where(select:is([multiple], [size])) optgroup {
+    font-weight: bolder;
+  }
+  :where(select:is([multiple], [size])) optgroup option {
+    padding-inline-start: 20px;
+  }
+  ::file-selector-button {
+    margin-inline-end: 4px;
+  }
+  ::placeholder {
+    opacity: 1;
+  }
+  @supports (not (-webkit-appearance: -apple-pay-button))  or (contain-intrinsic-size: 1px) {
+    ::placeholder {
+      color: currentcolor;
+      @supports (color: color-mix(in lab, red, red)) {
+        color: color-mix(in oklab, currentcolor 50%, transparent);
+      }
+    }
+  }
+  textarea {
+    resize: vertical;
+  }
+  ::-webkit-search-decoration {
+    -webkit-appearance: none;
+  }
+  ::-webkit-date-and-time-value {
+    min-height: 1lh;
+    text-align: inherit;
+  }
+  ::-webkit-datetime-edit {
+    display: inline-flex;
+  }
+  ::-webkit-datetime-edit-fields-wrapper {
+    padding: 0;
+  }
+  ::-webkit-datetime-edit, ::-webkit-datetime-edit-year-field, ::-webkit-datetime-edit-month-field, ::-webkit-datetime-edit-day-field, ::-webkit-datetime-edit-hour-field, ::-webkit-datetime-edit-minute-field, ::-webkit-datetime-edit-second-field, ::-webkit-datetime-edit-millisecond-field, ::-webkit-datetime-edit-meridiem-field {
+    padding-block: 0;
+  }
+  ::-webkit-calendar-picker-indicator {
+    line-height: 1;
+  }
+  :-moz-ui-invalid {
+    box-shadow: none;
+  }
+  button, input:where([type='button'], [type='reset'], [type='submit']), ::file-selector-button {
+    appearance: button;
+  }
+  ::-webkit-inner-spin-button, ::-webkit-outer-spin-button {
+    height: auto;
+  }
+  [hidden]:where(:not([hidden='until-found'])) {
+    display: none !important;
+  }
+  body {
+    background: var(--color-canvas);
+    color: var(--color-ink);
+  }
+}
+.pointer-events-none {
+  pointer-events: none;
+}
+.absolute {
+  position: absolute;
+}
+.fixed {
+  position: fixed;
+}
+.relative {
+  position: relative;
+}
+.-top-1 {
+  top: calc(var(--spacing) * -1);
+}
+.top-0 {
+  top: 0px;
+}
+.bottom-14 {
+  bottom: calc(var(--spacing) * 14);
+}
+.-left-1\.5 {
+  left: calc(var(--spacing) * -1.5);
+}
+.left-0 {
+  left: 0px;
+}
+.left-1\/2 {
+  left: calc(1 / 2 * 100%);
+}
+.z-20 {
+  z-index: 20;
+}
+.z-50 {
+  z-index: 50;
+}
+.m-0 {
+  margin: 0px;
+}
+.m-auto {
+  margin: auto;
+}
+.mt-1 {
+  margin-top: var(--spacing);
+}
+.mt-2 {
+  margin-top: calc(var(--spacing) * 2);
+}
+.mt-3 {
+  margin-top: calc(var(--spacing) * 3);
+}
+.mt-4 {
+  margin-top: calc(var(--spacing) * 4);
+}
+.mt-5 {
+  margin-top: calc(var(--spacing) * 5);
+}
+.mb-1 {
+  margin-bottom: var(--spacing);
+}
+.mb-2 {
+  margin-bottom: calc(var(--spacing) * 2);
+}
+.mb-3 {
+  margin-bottom: calc(var(--spacing) * 3);
+}
+.mb-4 {
+  margin-bottom: calc(var(--spacing) * 4);
+}
+.mb-5 {
+  margin-bottom: calc(var(--spacing) * 5);
+}
+.line-clamp-2 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.block {
+  display: block;
+}
+.flex {
+  display: flex;
+}
+.grid {
+  display: grid;
+}
+.hidden {
+  display: none;
+}
+.aspect-video {
+  aspect-ratio: var(--aspect-video);
+}
+.h-1 {
+  height: var(--spacing);
+}
+.h-2 {
+  height: calc(var(--spacing) * 2);
+}
+.h-5 {
+  height: calc(var(--spacing) * 5);
+}
+.h-10 {
+  height: calc(var(--spacing) * 10);
+}
+.h-24 {
+  height: calc(var(--spacing) * 24);
+}
+.h-48 {
+  height: calc(var(--spacing) * 48);
+}
+.h-64 {
+  height: calc(var(--spacing) * 64);
+}
+.h-dvh {
+  height: 100dvh;
+}
+.h-full {
+  height: 100%;
+}
+.max-h-\[85dvh\] {
+  max-height: 85dvh;
+}
+.min-h-0 {
+  min-height: 0px;
+}
+.w-1 {
+  width: var(--spacing);
+}
+.w-3 {
+  width: calc(var(--spacing) * 3);
+}
+.w-10 {
+  width: calc(var(--spacing) * 10);
+}
+.w-\[760px\] {
+  width: 760px;
+}
+.w-full {
+  width: 100%;
+}
+.max-w-\[90vw\] {
+  max-width: 90vw;
+}
+.min-w-0 {
+  min-width: 0px;
+}
+.flex-1 {
+  flex: 1;
+}
+.shrink-0 {
+  flex-shrink: 0;
+}
+.-translate-x-1\/2 {
+  --tw-translate-x: calc(calc(1 / 2 * 100%) * -1);
+  translate: var(--tw-translate-x) var(--tw-translate-y);
+}
+.cursor-col-resize {
+  cursor: col-resize;
+}
+.cursor-grab {
+  cursor: grab;
+}
+.cursor-row-resize {
+  cursor: row-resize;
+}
+.touch-none {
+  touch-action: none;
+}
+.resize {
+  resize: both;
+}
+.resize-none {
+  resize: none;
+}
+.grid-cols-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.grid-cols-\[200px_minmax\(0\,1fr\)_320px\] {
+  grid-template-columns: 200px minmax(0,1fr) 320px;
+}
+.flex-col {
+  flex-direction: column;
+}
+.flex-wrap {
+  flex-wrap: wrap;
+}
+.items-center {
+  align-items: center;
+}
+.items-start {
+  align-items: flex-start;
+}
+.justify-between {
+  justify-content: space-between;
+}
+.justify-center {
+  justify-content: center;
+}
+.justify-end {
+  justify-content: flex-end;
+}
+.gap-1 {
+  gap: var(--spacing);
+}
+.gap-2 {
+  gap: calc(var(--spacing) * 2);
+}
+.gap-3 {
+  gap: calc(var(--spacing) * 3);
+}
+.gap-4 {
+  gap: calc(var(--spacing) * 4);
+}
+.gap-5 {
+  gap: calc(var(--spacing) * 5);
+}
+.gap-14 {
+  gap: calc(var(--spacing) * 14);
+}
+:where(.space-y-3 > :not(:last-child)) {
+  --tw-space-y-reverse: 0;
+  margin-block-start: calc(calc(var(--spacing) * 3) * var(--tw-space-y-reverse));
+  margin-block-end: calc(calc(var(--spacing) * 3) * calc(1 - var(--tw-space-y-reverse)));
+}
+:where(.space-y-4 > :not(:last-child)) {
+  --tw-space-y-reverse: 0;
+  margin-block-start: calc(calc(var(--spacing) * 4) * var(--tw-space-y-reverse));
+  margin-block-end: calc(calc(var(--spacing) * 4) * calc(1 - var(--tw-space-y-reverse)));
+}
+:where(.space-y-7 > :not(:last-child)) {
+  --tw-space-y-reverse: 0;
+  margin-block-start: calc(calc(var(--spacing) * 7) * var(--tw-space-y-reverse));
+  margin-block-end: calc(calc(var(--spacing) * 7) * calc(1 - var(--tw-space-y-reverse)));
+}
+.overflow-hidden {
+  overflow: hidden;
+}
+.overflow-y-auto {
+  overflow-y: auto;
+}
+.rounded {
+  border-radius: 0.25rem;
+}
+.rounded-lg {
+  border-radius: var(--radius-lg);
+}
+.border {
+  border-style: var(--tw-border-style);
+  border-width: 1px;
+}
+.border-t {
+  border-top-style: var(--tw-border-style);
+  border-top-width: 1px;
+}
+.border-r {
+  border-right-style: var(--tw-border-style);
+  border-right-width: 1px;
+}
+.border-b {
+  border-bottom-style: var(--tw-border-style);
+  border-bottom-width: 1px;
+}
+.border-b-2 {
+  border-bottom-style: var(--tw-border-style);
+  border-bottom-width: 2px;
+}
+.border-l {
+  border-left-style: var(--tw-border-style);
+  border-left-width: 1px;
+}
+.border-l-2 {
+  border-left-style: var(--tw-border-style);
+  border-left-width: 2px;
+}
+.border-control {
+  border-color: var(--color-control);
+}
+.border-focus {
+  border-color: var(--color-focus);
+}
+.border-ink {
+  border-color: var(--color-ink);
+}
+.border-line {
+  border-color: var(--color-line);
+}
+.border-transparent {
+  border-color: transparent;
+}
+.bg-canvas {
+  background-color: var(--color-canvas);
+}
+.bg-control {
+  background-color: var(--color-control);
+}
+.bg-ink {
+  background-color: var(--color-ink);
+}
+.bg-panel {
+  background-color: var(--color-panel);
+}
+.bg-white {
+  background-color: var(--color-white);
+}
+.p-1 {
+  padding: var(--spacing);
+}
+.p-2 {
+  padding: calc(var(--spacing) * 2);
+}
+.p-3 {
+  padding: calc(var(--spacing) * 3);
+}
+.p-4 {
+  padding: calc(var(--spacing) * 4);
+}
+.p-5 {
+  padding: calc(var(--spacing) * 5);
+}
+.p-6 {
+  padding: calc(var(--spacing) * 6);
+}
+.px-1 {
+  padding-inline: var(--spacing);
+}
+.px-2 {
+  padding-inline: calc(var(--spacing) * 2);
+}
+.px-3 {
+  padding-inline: calc(var(--spacing) * 3);
+}
+.px-4 {
+  padding-inline: calc(var(--spacing) * 4);
+}
+.px-5 {
+  padding-inline: calc(var(--spacing) * 5);
+}
+.px-10 {
+  padding-inline: calc(var(--spacing) * 10);
+}
+.py-1 {
+  padding-block: var(--spacing);
+}
+.py-1\.5 {
+  padding-block: calc(var(--spacing) * 1.5);
+}
+.py-2 {
+  padding-block: calc(var(--spacing) * 2);
+}
+.py-2\.5 {
+  padding-block: calc(var(--spacing) * 2.5);
+}
+.py-3 {
+  padding-block: calc(var(--spacing) * 3);
+}
+.pb-4 {
+  padding-bottom: calc(var(--spacing) * 4);
+}
+.pl-3 {
+  padding-left: calc(var(--spacing) * 3);
+}
+.text-left {
+  text-align: left;
+}
+.font-sans {
+  font-family: var(--font-sans);
+}
+.text-lg {
+  font-size: var(--text-lg);
+  line-height: var(--tw-leading, var(--text-lg--line-height));
+}
+.text-sm {
+  font-size: var(--text-sm);
+  line-height: var(--tw-leading, var(--text-sm--line-height));
+}
+.text-xs {
+  font-size: var(--text-xs);
+  line-height: var(--tw-leading, var(--text-xs--line-height));
+}
+.text-\[10px\] {
+  font-size: 10px;
+}
+.leading-relaxed {
+  --tw-leading: var(--leading-relaxed);
+  line-height: var(--leading-relaxed);
+}
+.leading-snug {
+  --tw-leading: var(--leading-snug);
+  line-height: var(--leading-snug);
+}
+.font-medium {
+  --tw-font-weight: var(--font-weight-medium);
+  font-weight: var(--font-weight-medium);
+}
+.text-ink {
+  color: var(--color-ink);
+}
+.text-line {
+  color: var(--color-line);
+}
+.text-muted {
+  color: var(--color-muted);
+}
+.text-white {
+  color: var(--color-white);
+}
+.underline {
+  text-decoration-line: underline;
+}
+.antialiased {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+.shadow-xl {
+  --tw-shadow: 0 20px 25px -5px var(--tw-shadow-color, rgb(0 0 0 / 0.1)), 0 8px 10px -6px var(--tw-shadow-color, rgb(0 0 0 / 0.1));
+  box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+}
+.backdrop\:bg-black\/25::backdrop {
+  background-color: color-mix(in srgb, #000 25%, transparent);
+  @supports (color: color-mix(in lab, red, red)) {
+    background-color: color-mix(in oklab, var(--color-black) 25%, transparent);
+  }
+}
+@media (hover: hover) {
+  .hover\:border-control:hover {
+    border-color: var(--color-control);
+  }
+  .hover\:bg-accent-soft:hover {
+    background-color: var(--color-accent-soft);
+  }
+}
+.focus\:border-control:focus {
+  border-color: var(--color-control);
+}
+.disabled\:opacity-30:disabled {
+  opacity: 30%;
+}
+@property --tw-translate-x {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0;
+}
+@property --tw-translate-y {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0;
+}
+@property --tw-translate-z {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0;
+}
+@property --tw-space-y-reverse {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0;
+}
+@property --tw-border-style {
+  syntax: "*";
+  inherits: false;
+  initial-value: solid;
+}
+@property --tw-leading {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-font-weight {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-shadow {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0 0 #0000;
+}
+@property --tw-shadow-color {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-shadow-alpha {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 100%;
+}
+@property --tw-inset-shadow {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0 0 #0000;
+}
+@property --tw-inset-shadow-color {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-inset-shadow-alpha {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 100%;
+}
+@property --tw-ring-color {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-ring-shadow {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0 0 #0000;
+}
+@property --tw-inset-ring-color {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-inset-ring-shadow {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0 0 #0000;
+}
+@property --tw-ring-inset {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-ring-offset-width {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --tw-ring-offset-color {
+  syntax: "*";
+  inherits: false;
+  initial-value: #fff;
+}
+@property --tw-ring-offset-shadow {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0 0 #0000;
+}
+@layer properties {
+  @supports ((-webkit-hyphens: none) and (not (margin-trim: inline))) or ((-moz-orient: inline) and (not (color:rgb(from red r g b)))) {
+    *, ::before, ::after, ::backdrop {
+      --tw-translate-x: 0;
+      --tw-translate-y: 0;
+      --tw-translate-z: 0;
+      --tw-space-y-reverse: 0;
+      --tw-border-style: solid;
+      --tw-leading: initial;
+      --tw-font-weight: initial;
+      --tw-shadow: 0 0 #0000;
+      --tw-shadow-color: initial;
+      --tw-shadow-alpha: 100%;
+      --tw-inset-shadow: 0 0 #0000;
+      --tw-inset-shadow-color: initial;
+      --tw-inset-shadow-alpha: 100%;
+      --tw-ring-color: initial;
+      --tw-ring-shadow: 0 0 #0000;
+      --tw-inset-ring-color: initial;
+      --tw-inset-ring-shadow: 0 0 #0000;
+      --tw-ring-inset: initial;
+      --tw-ring-offset-width: 0px;
+      --tw-ring-offset-color: #fff;
+      --tw-ring-offset-shadow: 0 0 #0000;
+    }
+  }
+}
+</style></head>
+<body class="m-0 h-dvh overflow-hidden bg-canvas font-sans text-sm text-ink antialiased">
+<div class="flex h-full flex-col">
+<header class="flex shrink-0 items-center justify-between gap-4 border-b border-line bg-white px-5 py-3"><div class="flex items-center gap-3"><strong class="text-lg">smartJC</strong><span class="text-line">│</span><div><p class="font-medium">肿瘤微环境中的细胞响应</p><p class="text-xs text-muted">示例论文 · 幻灯片 · 待讨论交互稿</p></div></div><div class="flex items-center gap-4"><span id="saveStatus" role="status" class="text-xs text-muted">示例页面草案已就绪</span><button id="nextStep" class="rounded bg-ink px-4 py-2.5 text-white">下一步：检查与导出 →</button></div></header>
+<nav aria-label="工作台视图" class="flex shrink-0 justify-center gap-14 border-b border-line bg-white px-10"><a class="py-3 text-muted" href="figure-review.html">01 论文与图源</a><a class="py-3 text-muted" href="outline-speech.html">02 大纲与演讲稿</a><button aria-current="page" class="border-b-2 border-ink py-3 font-medium">03 幻灯片</button><button id="checkNav" class="py-3 text-muted">04 检查</button></nav>
+<div id="workspace" class="grid min-h-0 flex-1 grid-cols-[200px_minmax(0,1fr)_320px]">
+<aside class="flex min-h-0 min-w-0 flex-col border-r border-line bg-panel" aria-label="页面目录"><div class="flex shrink-0 items-center justify-between border-b border-line p-3"><h2 class="font-medium">页面目录</h2><button id="addPage" class="text-xs underline">＋ 页面</button></div><div id="pageNav" class="min-h-0 flex-1 overflow-y-auto p-3"></div><div class="shrink-0 border-t border-line p-3"><button id="unassigned" class="w-full text-left text-xs"></button><button id="deleteSelected" class="mt-3 text-xs text-muted underline" disabled>删除所选页</button></div></aside>
+<main id="center" class="flex min-h-0 min-w-0 flex-col" aria-label="幻灯片连续画布"><div class="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-line bg-white px-4 py-2.5"><div class="flex items-center gap-2"><button id="undo" class="px-1 py-1 disabled:opacity-30">↶ 撤销</button><button id="redo" aria-label="重做" class="px-1 py-1 disabled:opacity-30">↷</button><span class="text-line">│</span><button id="pageUp" class="text-xs disabled:opacity-30">上移</button><button id="pageDown" class="text-xs disabled:opacity-30">下移</button><button id="mergePage" class="text-xs disabled:opacity-30">合并下一页</button><button id="removePage" class="text-xs disabled:opacity-30">删除本页</button></div><div class="flex items-center gap-3"><button id="focusMode" class="rounded border border-control px-2 py-1.5 text-xs">专注当前页</button><button id="toggleInspector" class="text-xs underline">收起右栏</button></div></div>
+<div id="canvasScroll" class="min-h-0 flex-1 overflow-y-auto p-5"><div id="slideList" class="space-y-7"></div></div>
+<div id="notesShell" class="relative flex shrink-0 flex-col border-t border-line bg-white" style="height:210px"><div id="notesResize" role="separator" aria-label="调整讲稿高度" aria-orientation="horizontal" tabindex="0" title="拖动调整高度，方向键微调" class="absolute -top-1 left-0 z-20 flex h-2 w-full cursor-row-resize touch-none items-center justify-center hover:bg-accent-soft"><span class="h-1 w-10 rounded bg-control"></span></div><div class="flex shrink-0 items-center justify-between gap-2 border-b border-line px-4 py-2.5"><h2 id="notesTitle" class="text-xs font-medium">本页讲稿</h2><div class="flex gap-3 text-xs"><button id="editNotes" class="underline">编辑讲稿</button><button id="assignNotes" class="underline">调整分页</button><button id="collapseNotes" class="text-muted underline">收起</button></div></div><div id="notesContent" class="min-h-0 flex-1 overflow-y-auto px-4 py-3 text-sm leading-relaxed"></div></div></main>
+<aside id="inspector" class="relative flex min-h-0 min-w-0 flex-col border-l border-line bg-white" aria-label="页面与图组设置"><div id="splitter" role="separator" aria-label="调整右侧栏宽度" aria-orientation="vertical" tabindex="0" class="absolute -left-1.5 top-0 z-20 flex h-full w-3 cursor-col-resize touch-none items-center justify-center hover:bg-accent-soft"><span class="h-10 w-1 rounded bg-control"></span></div><div role="tablist" aria-label="页面设置" class="flex shrink-0 gap-5 border-b border-line px-4"><button id="groupTab" role="tab" aria-controls="inspectorContent" aria-selected="true" class="border-b-2 border-ink py-3 font-medium">图组</button><button id="speechTab" role="tab" aria-controls="inspectorContent" aria-selected="false" class="border-b-2 border-transparent py-3 text-muted">讲述分配</button><button id="pageTab" role="tab" aria-controls="inspectorContent" aria-selected="false" class="border-b-2 border-transparent py-3 text-muted">页面</button></div><div id="inspectorContent" role="tabpanel" aria-labelledby="groupTab" class="min-h-0 flex-1 overflow-y-auto p-4"></div></aside>
+</div>
+<footer class="flex shrink-0 items-center justify-between border-t border-line bg-white px-4 py-2 text-xs text-muted"><span id="footerStatus"></span><div class="flex items-center gap-4"><span>本地示例 · 未调用模型</span><button id="reset" class="underline">重置 Demo</button></div></footer>
+</div><div id="toast" role="status" class="pointer-events-none fixed bottom-14 left-1/2 z-50 hidden -translate-x-1/2 rounded bg-ink px-4 py-2 text-white"></div>
+<dialog id="dialog" class="m-auto max-h-[85dvh] w-[760px] max-w-[90vw] overflow-y-auto rounded-lg border border-line bg-white p-6 text-ink shadow-xl backdrop:bg-black/25"><div class="mb-4 flex items-center justify-between"><h2 id="dialogTitle" class="text-lg font-medium"></h2><button id="closeDialog" aria-label="关闭对话框" class="px-2 py-1">✕</button></div><div id="dialogBody"></div><div id="dialogActions" class="mt-5 flex justify-end gap-3"></div></dialog>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+const esc=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const clone=value=>structuredClone(value);
+const claims=[{id:'c1',text:'处理组的相对细胞响应发生变化'},{id:'c2',text:'单细胞分布提示响应存在异质性'},{id:'c3',text:'组织层面的观察与细胞结果相互支持'},{id:'c4',text:'响应变化与信号通路变化相关'},{id:'c5',text:'功能干预为机制提供支持性证据'},{id:'c6',text:'补充分析检验结果在不同条件下的稳定性'}];
+const evidence={
+'1b':{label:'Figure 1b',title:'不同条件下的相对响应',quote:'The treatment group showed an altered response across experimental conditions.',legend:'b, Quantification of relative responses for each condition.',location:'Results · 第 3 页，第 2 段',claim:'c1'},
+'1c':{label:'Figure 1c',title:'单细胞响应的异质性',quote:'Individual cells occupied distinct regions of the response space.',legend:'c, Projection of individual cells onto the first two components.',location:'Results · 第 3 页，第 3 段',claim:'c2'},
+'2b':{label:'Figure 2b',title:'组织层面的定量验证',quote:'The tissue-level measurements supported the observed cellular response.',legend:'b, Quantification of the response in tissue samples.',location:'Results · 第 5 页，第 1 段',claim:'c3'},
+'3b':{label:'Figure 3b',title:'通路读出的变化',quote:'The response was associated with changes in pathway activity.',legend:'b, Relative pathway activity across conditions.',location:'Results · 第 7 页，第 2 段',claim:'c4'},
+'3d':{label:'Figure 3d',title:'功能干预与时间变化',quote:'Perturbation of the pathway modified the response over time.',legend:'d, Time-course response following pathway perturbation.',location:'Results · 第 7 页，第 4 段',claim:'c5'},
+'4b':{label:'Supplementary Figure S4b',title:'不同条件下的稳定性',quote:'The additional analyses examined the stability of the response across conditions.',legend:'b, Additional comparisons across experimental conditions.',location:'Results · 第 9 页，第 2 段',claim:'c6'}};
+function segment(id,purpose,text,refs){return {id,purpose,text,refs};}
+const seed=[
+{id:'s0',title:'背景与研究问题',track:'main',purpose:'先交代研究缺口，让听众知道作者为什么做这项研究。',segments:[segment('p0','提出问题','这篇论文关注肿瘤微环境中的细胞如何响应干预。过去的研究提示总体响应会改变，但不同细胞是否一致、这种变化与哪些机制相关，仍然不清楚。接下来我们沿着细胞表型、组织验证和机制干预展开。',[])]},
+{id:'s1',title:'发现一：细胞响应与异质性',track:'main',purpose:'讲清总体变化，再解释为什么仅看平均值还不够。',segments:[segment('p1','先展示总体响应','首先看 Figure 1b，作者比较了不同实验条件下的相对细胞响应。处理组与对照组的读出存在差异，提示干预改变了细胞响应。不过，仅凭这一组比较还不能断言变化由某条特定通路直接引起，需要结合后续机制实验。Figure 2b 的组织观察提供了另一层面的支持，但不能直接等同于细胞读出。',['1b','2b']),segment('p2','从平均值转向细胞差异','接下来，Figure 1c 把观察单位从总体平均转向单个细胞。细胞分布并不完全一致，说明总体变化背后可能包含不同的响应状态。因此，后续需要同时考虑群体差异与细胞异质性，不能用一个平均值概括所有细胞。',['1c'])]},
+{id:'s2',title:'发现二：组织层面验证',track:'main',purpose:'检查前面的细胞结果能否得到另一层面的支持。',segments:[segment('p3','连接细胞与组织证据','Figure 2b 进一步展示了组织样本中的定量结果。这一步为前面的细胞观察提供了另一层面的支持，但组织中的关联与单细胞层面的响应不能直接画等号。我们需要结合取样、对照以及实验条件来理解二者的关系。',['2b'])]},
+{id:'s3',title:'发现三：机制与功能干预',track:'main',purpose:'区分通路关联与功能干预分别能支持到什么程度。',segments:[segment('p4','先说明关联证据','Figure 3b 显示响应变化伴随通路活性改变。这说明二者相关，为机制解释提供了线索。这里应当保留关联的表述，不把同步变化直接当作因果关系。',['3b']),segment('p5','再看干预证据','在 Figure 3d 中，作者进一步干预候选通路并观察时间变化。与单纯比较不同，功能干预为机制提供了更强的支持。不过，这是否足以证明唯一机制，还要结合干预特异性、替代解释和论文的实验边界。',['3d'])]},
+{id:'s4',title:'综合结论与局限',track:'main',purpose:'把几组发现连起来，并明确可支持的结论边界。',segments:[segment('p6','收束主线','综合以上结果，这篇研究从总体响应、细胞差异和组织验证出发，进一步用通路分析与功能干预建立解释链条。汇报的重点不是罗列每张图，而是说明不同证据如何相互支持。对机制唯一性与适用范围的判断仍应保持谨慎。',['1b','2b','3d'])]},
+{id:'s5',title:'补充：稳定性与方法细节',track:'supplement',purpose:'充分保留论文发现，便于问答或按听众需要展开。',segments:[segment('p7','保留补充发现','Supplementary Figure S4b 展示了额外条件下的比较，用于检查结果的稳定性。这部分可以放在补充材料，在讨论不同实验条件或方法细节时展开。放入补充并不意味着删掉这项发现，它仍应被纳入完整汇报。',['4b'])]}];
+
+const key='smartjc-slides-demo-v1';
+const sections=seed.map(({segments,...s})=>s);
+const initialFragments=seed.flatMap(s=>s.segments.flatMap(p=>(p.text.match(/[^。！？]+[。！？]?/g)||[p.text]).map((text,i)=>({id:p.id+'-'+i,paragraphId:p.id,sectionId:s.id,purpose:p.purpose,text,refs:p.refs}))));
+const ids=(paragraphId)=>initialFragments.filter(f=>f.paragraphId===paragraphId).map(f=>f.id);
+const makePage=(id,sectionId,title,message,speechIds,panels)=>({id,sectionId,title,message,speechIds,panels:panels.map(ref=>({ref,weight:1})),arrangement:'auto',gap:12});
+const initial={fragments:initialFragments,slides:[
+ makePage('d0','s0','研究问题：细胞如何响应干预？','从总体响应走向异质性与机制解释',ids('p0'),[]),
+ makePage('d1','s1','干预改变了相对细胞响应','细胞与组织观察提供不同层面的支持',ids('p1').slice(0,2),['1b','2b']),
+ makePage('d2','s1','平均响应不能概括全部细胞','从总体差异进一步观察细胞异质性',[...ids('p1').slice(2),...ids('p2')],['1b','1c']),
+ makePage('d3','s2','组织观察支持细胞层面的结果','跨层面证据相互支持，但不能直接等同',ids('p3'),['2b']),
+ makePage('d4','s3','通路与干预共同支持机制解释','关联与干预回答不同问题，保留实验边界',[...ids('p4'),...ids('p5')],['3b','3d']),
+ makePage('d5','s4','多层证据构成完整解释链','表型 → 验证 → 机制；结论保留实验边界',ids('p6'),['1b','2b','3d']),
+ makePage('d6','s5','补充分析检查结果稳定性','可按叙事需要提前展示附图',ids('p7'),['4b'])]};
+let state=clone(initial),current='d1',tab='group',selectedPanel=null,focusOnly=false,checked=new Set(),undo=[],redo=[],draft=null,dragPage=null,dragPanel=null,toastTimer=null;
+try{const saved=JSON.parse(localStorage.getItem(key));if(saved?.version===1){validate(saved.state);state=saved.state;current=state.slides[0]?.id;}}catch{}
+const page=()=>state.slides.find(s=>s.id===current);
+const fragment=id=>state.fragments.find(f=>f.id===id);
+const section=id=>sections.find(s=>s.id===id);
+const pageIndex=id=>state.slides.findIndex(s=>s.id===id);
+const unassigned=()=>{const assigned=new Set(state.slides.flatMap(s=>s.speechIds));return state.fragments.filter(f=>!assigned.has(f.id));};
+function validate(s){
+ if(!s||!Array.isArray(s.slides)||!Array.isArray(s.fragments))throw Error('invalid state');
+ const fragments=new Set(s.fragments.map(f=>f.id));
+ if(fragments.size!==s.fragments.length)throw Error('duplicate fragment');
+ const assigned=new Set();const slides=new Set();
+ for(const p of s.slides){if(slides.has(p.id)||!sections.some(s=>s.id===p.sectionId))throw Error('invalid page');slides.add(p.id);for(const id of p.speechIds){if(!fragments.has(id)||assigned.has(id))throw Error('invalid assignment');assigned.add(id);}if(new Set(p.panels.map(p=>p.ref)).size!==p.panels.length||p.panels.some(p=>!evidence[p.ref]))throw Error('invalid panel');}
+}
+function notify(message){$('toast').textContent=message;$('toast').classList.remove('hidden');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.add('hidden'),2600);}
+function persist(){try{localStorage.setItem(key,JSON.stringify({version:1,state}));$('saveStatus').textContent='✓ 已保存在此浏览器';}catch{$('saveStatus').textContent='仅本次有效 · 无法写入浏览器';}}
+function beginDraft(){if(!draft)draft=clone(state);$('saveStatus').textContent='编辑中…';}
+function saveDraft(){if(!draft)return;const before=draft;draft=null;if(JSON.stringify(before)!==JSON.stringify(state)){validate(state);undo.push(before);if(undo.length>30)undo.shift();redo=[];persist();renderNav();renderStatus();}else $('saveStatus').textContent='内容未改变';}
+function mutate(action){saveDraft();const before=clone(state);action();validate(state);undo.push(before);if(undo.length>30)undo.shift();redo=[];if(!page())current=state.slides[0]?.id;checked=new Set([...checked].filter(id=>state.slides.some(s=>s.id===id)));persist();renderAll();}
+function replay(from,to){saveDraft();if(!from.length)return;to.push(clone(state));state=from.pop();if(!page())current=state.slides[0]?.id;checked.clear();persist();renderAll();}
+function activate(id){if(!state.slides.some(s=>s.id===id)||id===current)return;saveDraft();current=id;selectedPanel=null;renderNav();renderNotes();renderInspector();renderStatus();document.querySelectorAll('[data-slide]').forEach(el=>{el.classList.toggle('border-focus',el.dataset.slide===current);el.classList.toggle('border-line',el.dataset.slide!==current);});}
+function navigate(id){activate(id);if(focusOnly)renderSlides();const target=document.querySelector('[data-slide="'+id+'"]');if(target){const root=$('canvasScroll');root.scrollTop+=target.getBoundingClientRect().top-root.getBoundingClientRect().top-8;}}
+function chart(ref){
+ let marks='';
+ if(ref.endsWith('d'))marks='<path d="M44 132l48 -12 46 4 45 -44 42 -6 37 -32" fill="none" stroke="#374151" stroke-width="3"/><path d="M44 137l48 -7 46 3 45 -17 42 3 37 -9" fill="none" stroke="#9ca3af" stroke-width="3" stroke-dasharray="5 4"/>';
+ else if(ref.endsWith('c'))marks=Array.from({length:30},(_,i)=>'<circle cx="'+(49+i*47%246)+'" cy="'+(39+i*31%97)+'" r="3" fill="'+(i%2?'#9ca3af':'#374151')+'"/>').join('');
+ else marks=[0,1,2,3,4].map(n=>'<rect x="'+(61+n*47)+'" y="'+(107-n*12+(n%2)*20)+'" width="25" height="'+(39+n*12-(n%2)*20)+'" fill="'+(n%2?'#9ca3af':'#e5e7eb')+'" stroke="#6b7280"/>').join('');
+ return '<svg viewBox="0 0 340 180" preserveAspectRatio="xMidYMid meet" role="img" aria-label="'+esc(evidence[ref].label)+' 示例图" class="h-full w-full"><rect width="340" height="180" fill="white"/><text x="10" y="20" font-size="17" fill="#374151">'+esc(ref.slice(-1))+'</text><path d="M40 30v116h265" fill="none" stroke="#6b7280"/>'+marks+'<text x="170" y="167" text-anchor="middle" font-size="10" fill="#6b7280">Illustrative data</text></svg>';
+}
+function groupStyle(p){const cols=p.arrangement==='stack'?1:p.arrangement==='row'?Math.max(1,p.panels.length):Math.min(2,Math.max(1,p.panels.length));const weights=Array.from({length:cols},(_,i)=>p.panels[i]?.weight||1);return 'grid-template-columns:'+weights.map(w=>'minmax(0,'+w+'fr)').join(' ')+';grid-template-rows:repeat('+Math.ceil(Math.max(1,p.panels.length)/cols)+',minmax(0,1fr));gap:'+p.gap+'px';}
+function renderNav(){
+ $('pageNav').innerHTML=state.slides.map((p,i)=>'<div draggable="true" data-drag-page="'+p.id+'" class="mb-4 rounded border '+(current===p.id?'border-focus bg-white':'border-transparent')+' p-2"><div class="mb-2 flex items-center gap-2 text-xs text-muted"><input type="checkbox" data-check="'+p.id+'" aria-label="选择第 '+(i+1)+' 页" '+(checked.has(p.id)?'checked':'')+'><span class="cursor-grab" title="拖动页面调序">⠿</span><button data-nav="'+p.id+'" class="flex-1 text-left">'+(i+1)+' · '+(section(p.sectionId).track==='main'?'主线':'补充')+'</button></div><button data-nav="'+p.id+'" aria-current="'+(current===p.id?'true':'false')+'" class="block w-full text-left"><div class="flex aspect-video flex-col justify-between overflow-hidden border border-line bg-white p-2"><span class="line-clamp-2 text-[10px] font-medium">'+esc(p.title)+'</span><span class="flex gap-1">'+p.panels.map(t=>'<span class="h-5 min-w-0 flex-1 border border-control bg-canvas"></span>').join('')+'</span></div><span class="mt-2 block text-xs leading-snug">'+esc(p.title)+'</span><span class="mt-1 block text-[10px] text-muted">'+esc(section(p.sectionId).title)+'</span></button></div>').join('')||'<p class="p-2 text-xs text-muted">暂无页面，可以新增。</p>';
+}
+function renderSlides(){
+ const root=$('canvasScroll');const old=document.querySelector('[data-slide="'+current+'"]');const offset=old?old.getBoundingClientRect().top-root.getBoundingClientRect().top:null;
+ const list=focusOnly?state.slides.filter(s=>s.id===current):state.slides;
+ $('slideList').innerHTML=list.map(p=>'<article data-slide="'+p.id+'" class="rounded border '+(p.id===current?'border-focus':'border-line')+' bg-white"><div class="flex items-center justify-between gap-3 border-b border-line bg-panel px-3 py-2 text-xs"><button data-select="'+p.id+'">第 '+(pageIndex(p.id)+1)+' 页 · '+esc(section(p.sectionId).title)+'</button><span class="shrink-0 text-muted">'+p.panels.length+' 个 Panel</span></div><div class="flex aspect-video min-h-0 flex-col overflow-hidden p-5"><input data-title="'+p.id+'" aria-label="第 '+(pageIndex(p.id)+1)+' 页标题" value="'+esc(p.title)+'" class="mb-2 w-full shrink-0 border-b border-transparent text-lg font-medium focus:border-control"><textarea data-message="'+p.id+'" aria-label="第 '+(pageIndex(p.id)+1)+' 页屏幕文字" rows="2" class="mb-3 w-full shrink-0 resize-none border border-transparent text-xs leading-relaxed focus:border-control">'+esc(p.message)+'</textarea><div class="grid min-h-0 flex-1" style="'+groupStyle(p)+'">'+(p.panels.length?p.panels.map(t=>'<button data-canvas-panel="'+t.ref+'" data-owner="'+p.id+'" class="flex min-h-0 min-w-0 flex-col border '+(selectedPanel===t.ref&&current===p.id?'border-focus':'border-transparent')+' p-1 hover:border-control"><span class="min-h-0 w-full flex-1">'+chart(t.ref)+'</span><span class="mt-1 block shrink-0 text-[10px]">'+esc(evidence[t.ref].label)+'</span></button>').join(''):'<div class="flex items-center justify-center text-sm leading-relaxed text-muted">'+(p.speechIds.length?'问题 · 证据 · 解释':'新增页面 · 可添加图源与讲述')+'</div>')+'</div></div></article>').join('')||'<div class="flex h-64 items-center justify-center text-muted">还没有幻灯片。点击左上角“＋ 页面”开始安排。</div>';
+ const next=document.querySelector('[data-slide="'+current+'"]');if(next&&offset!==null)root.scrollTop+=next.getBoundingClientRect().top-root.getBoundingClientRect().top-offset;
+}
+function renderNotes(){const p=page();$('notesTitle').textContent=p?'第 '+(pageIndex(p.id)+1)+' 页讲稿 · '+new Set(p.speechIds.map(id=>fragment(id).paragraphId)).size+' 段来源':'本页讲稿';$('notesContent').innerHTML=p?.speechIds.length?p.speechIds.map(id=>'<span data-notes-fragment="'+id+'">'+esc(fragment(id).text)+' </span>').join(''):'<p class="text-muted">尚未分配讲述。可从“待安排讲述”中选择。</p>';for(const id of ['editNotes','assignNotes'])$(id).disabled=!p;}
+function renderStatus(){const p=page();$('pageUp').disabled=!p||pageIndex(p.id)===0;$('pageDown').disabled=!p||pageIndex(p.id)===state.slides.length-1;$('undo').disabled=!undo.length;$('redo').disabled=!redo.length;$('mergePage').disabled=!p||pageIndex(p.id)===state.slides.length-1;$('removePage').disabled=!p;$('focusMode').disabled=!p;$('footerStatus').textContent=(p?'第 '+(pageIndex(p.id)+1)+' / '+state.slides.length+' 页':'暂无页面')+' · '+(focusOnly?'专注当前页':'连续滚动')+' · '+unassigned().length+' 句待安排';$('unassigned').textContent='待安排讲述 · '+unassigned().length+' 句';$('deleteSelected').disabled=!checked.size;$('deleteSelected').textContent='删除所选 '+checked.size+' 页';$('focusMode').textContent=focusOnly?'返回连续浏览':'专注当前页';}
+function renderAll(){renderNav();renderSlides();renderNotes();renderInspector();renderStatus();}
+function renderInspector(){
+ for(const name of ['group','speech','page']){const el=$(name+'Tab');el.setAttribute('aria-selected',String(tab===name));el.classList.toggle('border-ink',tab===name);el.classList.toggle('font-medium',tab===name);el.classList.toggle('text-muted',tab!==name);}
+ $('inspectorContent').setAttribute('aria-labelledby',tab+'Tab');
+ const p=page();if(!p){$('inspectorContent').innerHTML='<p class="text-muted">新增或选择页面后调整。</p>';return;}
+ if(tab==='group'){
+  $('inspectorContent').innerHTML='<div class="mb-4 flex items-center justify-between"><h2 class="font-medium">本页图组 · '+p.panels.length+' 图</h2><button id="choosePanels" class="text-xs underline">选择 Panel</button></div><label class="mb-2 block text-xs text-muted" for="arrangement">排列方式</label><select id="arrangement" class="mb-4 w-full rounded border border-control px-2 py-2">'+[['auto','自动排列'],['row','横向并排'],['stack','上下排列'],['grid','两列网格']].map(([v,t])=>'<option value="'+v+'" '+(p.arrangement===v?'selected':'')+'>'+t+'</option>').join('')+'</select><label class="mb-2 flex justify-between text-xs text-muted" for="groupGap">图间距 <span>'+p.gap+'</span></label><input id="groupGap" aria-label="图间距" type="range" min="0" max="24" step="2" value="'+p.gap+'" class="mb-5 w-full"><div id="panelOrder" class="space-y-3">'+p.panels.map((t,i)=>'<article data-panel-row="'+t.ref+'" draggable="true" class="rounded border '+(selectedPanel===t.ref?'border-focus':'border-line')+' p-3"><div class="flex items-start justify-between gap-2"><button data-pick-panel="'+t.ref+'" class="text-left text-xs font-medium"><span class="cursor-grab text-muted">⠿ </span>'+esc(evidence[t.ref].label)+'</button><button data-remove-panel="'+t.ref+'" class="shrink-0 text-xs text-muted underline">移除</button></div><div class="mt-3 h-24">'+chart(t.ref)+'</div><div class="mt-2 flex items-center justify-between gap-2 text-xs"><div class="flex gap-3"><button data-panel-up="'+t.ref+'" '+(i===0?'disabled':'')+' class="disabled:opacity-30">←</button><button data-panel-down="'+t.ref+'" '+(i===p.panels.length-1?'disabled':'')+' class="disabled:opacity-30">→</button><button data-source="'+t.ref+'" class="underline">来源</button></div><select data-weight="'+t.ref+'" aria-label="'+esc(evidence[t.ref].label)+' 列宽比例" class="rounded border border-control px-1 py-1">'+[0.7,1,1.5,2].map(w=>'<option value="'+w+'" '+(t.weight===w?'selected':'')+'>'+w+' 倍</option>').join('')+'</select></div></article>').join('')+'</div><p class="mt-4 text-xs leading-relaxed text-muted">拖动调整图序；倍数调整该列宽度，网格同列共用。原图等比显示，保留科学标注。</p>'+(p.panels.length>=4?'<p class="mt-3 text-xs leading-relaxed">图较多时建议分多页讲述。可在“讲述分配”选择换页位置。</p>':'');
+ }else if(tab==='speech'){
+  $('inspectorContent').innerHTML='<h2 class="mb-2 font-medium">本页讲述分配</h2><p class="mb-4 text-xs leading-relaxed text-muted">按完整句意调整页界。一段可跨多页，多段也可同页；移动讲述不会删除原文或 Panel。</p>'+p.speechIds.map((id,i)=>{const f=fragment(id);return '<article class="mb-4 border-b border-line pb-4"><p class="mb-2 text-xs text-muted">'+esc(f.purpose)+'</p><p class="text-sm leading-relaxed">'+esc(f.text)+'</p><div class="mt-3 flex flex-wrap items-center justify-between gap-2"><select data-move-fragment="'+id+'" aria-label="移动讲述 '+id+'" class="min-w-0 rounded border border-control px-2 py-1 text-xs">'+pageOptions(p.id)+'</select><button data-break="'+id+'" '+(i===0?'disabled title="本句已在页首"':'')+' class="text-xs underline disabled:opacity-30">从这里换页</button></div></article>';}).join('')+'<button id="addUnassigned" class="w-full rounded border border-control px-3 py-2 text-xs">安排其他讲述 · '+unassigned().length+' 句待安排</button>';
+ }else{
+  $('inspectorContent').innerHTML='<h2 class="mb-4 font-medium">页面内容</h2><label class="mb-2 block text-xs text-muted" for="pageTitle">标题</label><input id="pageTitle" data-right-title="'+p.id+'" value="'+esc(p.title)+'" class="mb-4 w-full rounded border border-control p-2"><label class="mb-2 block text-xs text-muted" for="pageMessage">屏幕文字</label><textarea id="pageMessage" data-right-message="'+p.id+'" rows="4" class="mb-4 w-full rounded border border-control p-2">'+esc(p.message)+'</textarea><label class="mb-2 block text-xs text-muted" for="sectionChoice">所属章节</label><select id="sectionChoice" class="w-full rounded border border-control p-2">'+sections.map(s=>'<option value="'+s.id+'" '+(p.sectionId===s.id?'selected':'')+'>'+esc(s.title)+'</option>').join('')+'</select><p class="mt-4 text-xs leading-relaxed text-muted">移动页面或改变章节时，保留所有讲述和图源。这里使用示例版式；完整编辑与导出尚未实现。</p>';
+ }
+}
+function pageOptions(selected){return '<option value="">待安排</option>'+state.slides.map((p,i)=>'<option value="'+p.id+'" '+(p.id===selected?'selected':'')+'>第 '+(i+1)+' 页</option>').join('');}
+function openDialog(title,body,buttons=[]){saveDraft();$('dialogTitle').textContent=title;$('dialogBody').innerHTML=body;$('dialogActions').innerHTML=buttons.map(b=>'<button id="'+b.id+'" class="rounded '+(b.primary?'bg-ink text-white':'border border-control')+' px-4 py-2">'+esc(b.label)+'</button>').join('');$('dialog').showModal();for(const b of buttons)$(b.id).onclick=b.action;}
+function closeDialog(){$('dialog').close();}
+$('closeDialog').onclick=closeDialog;
+function choosePanels(){
+ const p=page();if(!p)return;const owner=p.id;const recommended=new Set(p.speechIds.flatMap(id=>fragment(id).refs));
+ openDialog('选择本页 Panel','<p class="mb-4 text-xs leading-relaxed text-muted">优先列出本页讲述关联的证据；也可从论文其他 Panel 中补充。主图、附图均保留原标签，已用于其他页仍可再次使用。</p><div class="grid grid-cols-2 gap-3">'+Object.entries(evidence).sort(([a],[b])=>Number(recommended.has(b))-Number(recommended.has(a))).map(([id,e])=>'<label class="rounded border border-line p-3"><span class="flex items-center gap-2 text-xs"><input type="checkbox" name="panelChoice" value="'+id+'" '+(p.panels.some(t=>t.ref===id)?'checked':'')+'>'+esc(e.label)+'</span><span class="mt-2 block h-24">'+chart(id)+'</span><span class="mt-2 block text-xs text-muted">'+(recommended.has(id)?'本页讲述已关联':'论文其他证据')+' · '+state.slides.filter(s=>s.panels.some(t=>t.ref===id)).length+' 页使用</span></label>').join('')+'</div>',[{id:'applyPanels',label:'应用图组',primary:true,action:()=>{const refs=[...$('dialogBody').querySelectorAll('input:checked')].map(el=>el.value);closeDialog();mutate(()=>{const p=state.slides.find(s=>s.id===owner);p.panels=[...p.panels.filter(t=>refs.includes(t.ref)),...refs.filter(ref=>!p.panels.some(t=>t.ref===ref)).map(ref=>({ref,weight:1}))];});}}]);
+}
+function showSource(ref){const e=evidence[ref];openDialog(e.label+' · 来源','<div class="h-48">'+chart(ref)+'</div><h3 class="mt-4 font-medium">对应发现</h3><p class="mt-2">'+esc(claims.find(c=>c.id===e.claim).text)+'</p><blockquote class="mt-3 border-l-2 border-control pl-3 leading-relaxed">'+esc(e.quote)+'</blockquote><p class="mt-3 text-xs text-muted">'+esc(e.location)+' · 示例</p><h3 class="mt-4 font-medium">Figure legend</h3><p class="mt-2 text-sm leading-relaxed">'+esc(e.legend)+'</p><p class="mt-4 text-xs text-muted">所有图像和原句均为示意，不代表真实论文。</p>');}
+function showUnassigned(){
+ const pending=unassigned();const owner=current;
+ openDialog('待安排讲述 · '+pending.length+' 句',pending.length?'<p class="mb-4 text-xs text-muted">删除页面保留讲述。选择后安排到当前页，或直接创建新页。</p><div class="space-y-3">'+pending.map(f=>'<label class="flex items-start gap-3 border border-line p-3"><input type="checkbox" name="pendingFragment" value="'+f.id+'" class="mt-1"><span><span class="mb-1 block text-xs text-muted">'+esc(f.purpose)+'</span>'+esc(f.text)+'</span></label>').join('')+'</div>':'<p class="text-muted">所有示例讲述均已有页面。</p>',pending.length?[...(owner?[{id:'assignCurrent',label:'加入当前页',primary:true,action:()=>applyPending(owner)}]:[]),{id:'assignNew',label:'安排到新页',action:()=>applyPending(null)}]:[]);
+}
+function applyPending(target){const picked=[...$('dialogBody').querySelectorAll('input:checked')].map(el=>el.value);if(!picked.length){notify('请先选择要安排的讲述。');return;}closeDialog();mutate(()=>{let p=state.slides.find(s=>s.id===target);if(!p){p=makePage('d'+Date.now(),fragment(picked[0]).sectionId,'补充讲述','',[],[...new Set(picked.flatMap(id=>fragment(id).refs))]);state.slides.push(p);}p.speechIds.push(...picked);picked.forEach(id=>fragment(id).sectionId=p.sectionId);current=p.id;});navigate(current);}
+function splitAt(id){const p=page();const at=p.speechIds.indexOf(id);if(at<1)return;mutate(()=>{const next=clone(p);next.id='d'+Date.now();next.title=p.title+'（续）';next.speechIds=p.speechIds.splice(at);state.slides.splice(pageIndex(p.id)+1,0,next);current=next.id;});navigate(current);notify('已从该句换页；图组引用保留，可分别调整。');}
+function mergeNext(){const p=page();const next=state.slides[pageIndex(p.id)+1];if(!p||!next)return;mutate(()=>{p.speechIds.push(...next.speechIds);next.speechIds.forEach(id=>fragment(id).sectionId=p.sectionId);p.panels.push(...next.panels.filter(t=>!p.panels.some(other=>other.ref===t.ref)));p.message=[p.message,next.message].filter(Boolean).join('\n');state.slides.splice(pageIndex(next.id),1);});notify('已合并下一页的讲稿、图组与屏幕文字，保留前页标题；可撤销。');}
+function removePages(ids){if(!ids.length)return;mutate(()=>{const at=pageIndex(current);state.slides=state.slides.filter(s=>!ids.includes(s.id));if(ids.includes(current))current=state.slides[Math.min(at,state.slides.length-1)]?.id;checked.clear();});notify('页面已删除，讲稿进入待安排；其他页和原图保留，可撤销。');}
+function editNotes(){const p=page();if(!p?.speechIds.length){showUnassigned();return;}const ids=[...p.speechIds];openDialog('编辑本页讲稿','<p class="mb-4 text-xs text-muted">按讲述片段编辑，保留各自的来源和页分配。这里的修改只保存在幻灯片 Demo，不回写上一页的独立示例。</p><div class="space-y-4">'+ids.map(id=>'<label class="block"><span class="mb-2 block text-xs text-muted">'+esc(fragment(id).purpose)+'</span><textarea data-edit-fragment="'+id+'" rows="3" class="w-full rounded border border-control p-2 leading-relaxed">'+esc(fragment(id).text)+'</textarea></label>').join('')+'</div>',[{id:'applyNotes',label:'保存讲稿',primary:true,action:()=>{const edits=[...$('dialogBody').querySelectorAll('textarea')].map(el=>({id:el.dataset.editFragment,text:el.value}));if(edits.some(e=>!e.text.trim())){notify('请保留讲述内容；调整分配请使用分页入口。');return;}closeDialog();mutate(()=>edits.forEach(e=>fragment(e.id).text=e.text));}}]);}
+$('undo').onclick=()=>replay(undo,redo);$('redo').onclick=()=>replay(redo,undo);
+function movePage(delta){const index=pageIndex(current);if(index<0||index+delta<0||index+delta>=state.slides.length)return;mutate(()=>{const [p]=state.slides.splice(index,1);state.slides.splice(index+delta,0,p);});navigate(current);}
+$('pageUp').onclick=()=>movePage(-1);$('pageDown').onclick=()=>movePage(1);
+$('mergePage').onclick=mergeNext;$('removePage').onclick=()=>removePages([current]);$('deleteSelected').onclick=()=>removePages([...checked]);
+$('addPage').onclick=()=>{mutate(()=>{const p=makePage('d'+Date.now(),page()?.sectionId||'s0','新页面','',[],[]);state.slides.splice(current?pageIndex(current)+1:0,0,p);current=p.id;});navigate(current);};
+$('focusMode').onclick=()=>{saveDraft();focusOnly=!focusOnly;renderSlides();renderStatus();navigate(current);};
+$('unassigned').onclick=showUnassigned;$('editNotes').onclick=editNotes;$('assignNotes').onclick=()=>{tab='speech';renderInspector();};
+for(const name of ['group','speech','page'])$(name+'Tab').onclick=()=>{saveDraft();tab=name;renderInspector();};
+$('pageNav').onclick=e=>{const b=e.target.closest('[data-nav]');if(b)navigate(b.dataset.nav);};
+$('pageNav').onchange=e=>{const id=e.target.dataset.check;if(!id)return;e.target.checked?checked.add(id):checked.delete(id);renderStatus();};
+$('pageNav').ondragstart=e=>{const node=e.target.closest('[data-drag-page]');if(!node)return;saveDraft();dragPage=node.dataset.dragPage;e.dataTransfer.setData('text/plain',dragPage);e.dataTransfer.effectAllowed='move';};
+let navScrollSpeed=0,navScrollFrame=0;
+function scrollDraggedNav(){if(!dragPage){navScrollSpeed=0;navScrollFrame=0;return;}if(navScrollSpeed)$('pageNav').scrollTop+=navScrollSpeed;navScrollFrame=requestAnimationFrame(scrollDraggedNav);}
+$('pageNav').ondragover=e=>{e.preventDefault();const box=$('pageNav').getBoundingClientRect();navScrollSpeed=e.clientY<box.top+40?-8:e.clientY>box.bottom-40?8:0;if(dragPage&&!navScrollFrame)navScrollFrame=requestAnimationFrame(scrollDraggedNav);};
+$('pageNav').ondragleave=e=>{if(!$('pageNav').contains(e.relatedTarget))navScrollSpeed=0;};
+$('pageNav').ondrop=e=>{e.preventDefault();const target=e.target.closest('[data-drag-page]')?.dataset.dragPage;if(!dragPage||!target||target===dragPage)return;mutate(()=>{const [p]=state.slides.splice(pageIndex(dragPage),1);state.slides.splice(pageIndex(target),0,p);current=p.id;});dragPage=null;navigate(current);};
+$('pageNav').ondragend=()=>{dragPage=null;};
+$('slideList').onclick=e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.select)activate(b.dataset.select);if(b.dataset.canvasPanel){activate(b.dataset.owner);selectedPanel=b.dataset.canvasPanel;tab='group';renderInspector();}};
+function handleTextInput(e){const el=e.target;const id=el.dataset.title||el.dataset.message||el.dataset.rightTitle||el.dataset.rightMessage;if(!id)return;activate(id);beginDraft();const p=page();if(el.dataset.title||el.dataset.rightTitle)p.title=el.value;else p.message=el.value;}
+$('slideList').addEventListener('input',handleTextInput);$('inspectorContent').addEventListener('input',handleTextInput);
+$('slideList').addEventListener('focusin',e=>{const id=e.target.dataset.title||e.target.dataset.message;if(id)activate(id);});
+$('slideList').addEventListener('focusout',e=>{if(e.target.dataset.title||e.target.dataset.message){saveDraft();if(tab==='page')renderInspector();}});
+$('inspectorContent').addEventListener('focusout',e=>{if(e.target.dataset.rightTitle||e.target.dataset.rightMessage){saveDraft();renderSlides();}});
+$('inspectorContent').onclick=e=>{const b=e.target.closest('button');if(!b)return;const d=b.dataset;if(b.id==='choosePanels')choosePanels();if(b.id==='addUnassigned')showUnassigned();if(d.source)showSource(d.source);if(d.break)splitAt(d.break);if(d.pickPanel){selectedPanel=d.pickPanel;renderInspector();}if(d.removePanel)mutate(()=>page().panels=page().panels.filter(p=>p.ref!==d.removePanel));if(d.panelUp||d.panelDown){const id=d.panelUp||d.panelDown;const delta=d.panelUp?-1:1;mutate(()=>{const list=page().panels;const at=list.findIndex(p=>p.ref===id);if(at+delta<0||at+delta>=list.length)return;const [p]=list.splice(at,1);list.splice(at+delta,0,p);});}};
+$('inspectorContent').onchange=e=>{const el=e.target;if(el.id==='arrangement')mutate(()=>page().arrangement=el.value);if(el.id==='groupGap')mutate(()=>page().gap=Number(el.value));if(el.dataset.weight)mutate(()=>{page().panels.find(p=>p.ref===el.dataset.weight).weight=Number(el.value);});if(el.id==='sectionChoice')mutate(()=>{page().sectionId=el.value;page().speechIds.forEach(id=>fragment(id).sectionId=el.value);});if(el.dataset.moveFragment){const id=el.dataset.moveFragment;const target=el.value;mutate(()=>{state.slides.forEach(p=>p.speechIds=p.speechIds.filter(f=>f!==id));const destination=state.slides.find(p=>p.id===target);if(destination){destination.speechIds.push(id);fragment(id).sectionId=destination.sectionId;}});notify(target?'讲述已移到所选页，图组可按需要另行调整。':'讲述已放入待安排。');}};
+$('inspectorContent').ondragstart=e=>{const node=e.target.closest('[data-panel-row]');if(!node)return;dragPanel=node.dataset.panelRow;e.dataTransfer.setData('text/plain',dragPanel);};
+$('inspectorContent').ondragover=e=>{if(e.target.closest('[data-panel-row]'))e.preventDefault();};
+$('inspectorContent').ondrop=e=>{e.preventDefault();const target=e.target.closest('[data-panel-row]')?.dataset.panelRow;if(!dragPanel||!target||dragPanel===target)return;mutate(()=>{const list=page().panels;const [p]=list.splice(list.findIndex(t=>t.ref===dragPanel),1);list.splice(list.findIndex(t=>t.ref===target),0,p);});dragPanel=null;};
+$('inspectorContent').ondragend=()=>dragPanel=null;
+let scrollFrame=0;
+$('canvasScroll').addEventListener('scroll',()=>{if(scrollFrame||focusOnly||dragPage||dragPanel||$('dialog').open)return;scrollFrame=requestAnimationFrame(()=>{scrollFrame=0;const root=$('canvasScroll').getBoundingClientRect();const anchor=root.top+Math.min(100,root.height*.25);const node=[...document.querySelectorAll('[data-slide]')].find(el=>el.getBoundingClientRect().bottom>anchor);if(node)activate(node.dataset.slide);});});
+let rightWidth=320,notesHeight=210,rightVisible=true,notesOpen=true,resize=null;
+try{const saved=JSON.parse(localStorage.getItem(key+'-view'));if(saved){rightWidth=Number(saved.rightWidth)||320;notesHeight=Number(saved.notesHeight)||210;}}catch{}
+function layout(){const width=$('workspace').getBoundingClientRect().width;rightWidth=Math.max(280,Math.min(width-200-420,rightWidth));$('workspace').style.gridTemplateColumns=rightVisible?'200px minmax(0,1fr) '+rightWidth+'px':'200px minmax(0,1fr)';notesHeight=Math.max(120,Math.min($('center').clientHeight*.48,notesHeight));$('notesShell').style.height=notesOpen?notesHeight+'px':'42px';$('notesContent').hidden=!notesOpen;$('notesResize').hidden=!notesOpen;$('splitter').setAttribute('aria-valuenow',String(Math.round(rightWidth)));$('splitter').setAttribute('aria-valuemin','280');$('splitter').setAttribute('aria-valuemax',String(Math.round(width-620)));$('notesResize').setAttribute('aria-valuenow',String(Math.round(notesHeight)));}
+function saveView(){try{localStorage.setItem(key+'-view',JSON.stringify({rightWidth,notesHeight}));}catch{}}
+function startResize(kind,e){if(e.button!==0)return;e.preventDefault();saveDraft();resize={kind,pointer:e.pointerId,width:rightWidth,height:notesHeight};e.currentTarget.setPointerCapture(e.pointerId);document.body.style.userSelect='none';}
+function moveResize(e){if(!resize)return;if(resize.kind==='right')rightWidth=$('workspace').getBoundingClientRect().right-e.clientX;else notesHeight=$('center').getBoundingClientRect().bottom-e.clientY;layout();}
+function endResize(cancel=false){if(!resize)return;const last=resize;resize=null;if(cancel){rightWidth=last.width;notesHeight=last.height;}const handle=$(last.kind==='right'?'splitter':'notesResize');if(handle.hasPointerCapture(last.pointer))handle.releasePointerCapture(last.pointer);document.body.style.userSelect='';layout();if(!cancel)saveView();}
+for(const [id,kind] of [['splitter','right'],['notesResize','notes']]){const el=$(id);el.onpointerdown=e=>startResize(kind,e);el.onpointermove=moveResize;el.onpointerup=e=>{moveResize(e);endResize();};el.onpointercancel=()=>endResize(true);el.onlostpointercapture=()=>endResize(true);el.ondblclick=()=>{if(kind==='right')rightWidth=320;else notesHeight=210;layout();saveView();};el.onkeydown=e=>{if(e.key==='Escape'){endResize(true);return;}if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home'].includes(e.key))return;e.preventDefault();if(kind==='right')rightWidth=e.key==='Home'?320:rightWidth+(e.key==='ArrowLeft'?10:e.key==='ArrowRight'?-10:0);else notesHeight=e.key==='Home'?210:notesHeight+(e.key==='ArrowUp'?10:e.key==='ArrowDown'?-10:0);layout();saveView();};}
+$('toggleInspector').onclick=()=>{saveDraft();rightVisible=!rightVisible;$('inspector').classList.toggle('hidden',!rightVisible);$('toggleInspector').textContent=rightVisible?'收起右栏':'展开右栏';layout();};
+$('collapseNotes').onclick=()=>{notesOpen=!notesOpen;$('collapseNotes').textContent=notesOpen?'收起':'展开';layout();};
+window.addEventListener('resize',layout);
+function showCheck(){saveDraft();openDialog('下一步：检查与导出 · 待设计','<p class="leading-relaxed">下一步将检查图证据、讲述覆盖、页面可读性与导出条件。</p><p class="mt-4">当前示例：'+state.slides.length+' 页，'+unassigned().length+' 句讲述待安排。</p><p class="mt-4 text-xs text-muted">本 Demo 只演示交互，不执行真实内容检查，不生成 PPT 文件。</p>',[{id:'backToSlides',label:'返回幻灯片',primary:true,action:closeDialog}]);}
+$('nextStep').onclick=showCheck;$('checkNav').onclick=showCheck;
+$('reset').onclick=()=>{state=clone(initial);current='d1';selectedPanel=null;tab='group';focusOnly=false;checked.clear();undo=[];redo=[];draft=null;persist();renderAll();navigate(current);};
+window.addEventListener('beforeunload',()=>{if(draft)persist();});
+document.addEventListener('keydown',e=>{if($('dialog').open||['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName))return;if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();e.shiftKey?replay(redo,undo):replay(undo,redo);}});
+renderAll();layout();navigate(current);
+</script></body></html>

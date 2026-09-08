@@ -878,10 +878,7 @@ function renderContext(){
 function openDialog(title,body,buttons=[]){saveDraft();$('dialogTitle').textContent=title;$('dialogBody').innerHTML=body;$('dialogActions').innerHTML=buttons.map(b=>'<button id="'+b.id+'" class="rounded '+(b.primary?'bg-ink text-white':'border border-control')+' px-4 py-2">'+esc(b.label)+'</button>').join('');$('dialog').showModal();for(const b of buttons)$(b.id).onclick=b.action;}
 function closeDialog(){$('dialog').close();}
 $('closeDialog').onclick=closeDialog;
-function showNextStep(){
- saveDraft();
- openDialog('下一步：幻灯片 · 待设计','<p class="leading-relaxed">大纲与讲稿已保留。下一步将根据讲述和证据安排分页、组合 Panel，再生成页面草案。</p><p class="mt-4 leading-relaxed">支持一段跨多页、多段合一页，以及多个 Panel 服务同一结论；主图与附图可按叙事顺序组合。</p><p class="mt-4 text-xs text-muted">本 Demo 尚未制作幻灯片页面，不调用模型，也不生成 PPT 文件。</p>',[{id:'returnSpeech',label:'返回继续编辑',primary:true,action:closeDialog}]);
-}
+function showNextStep(){saveDraft();location.href='slides.html';}
 $('taskButton').onclick=showNextStep;
 $('deckNav').onclick=showNextStep;
 
