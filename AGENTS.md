@@ -25,7 +25,9 @@
 - v0.5 的 M13 仅更新产品、架构、执行计划、本文件及本阶段工作记录；完成后停止，不提前修改应用、Prompt、依赖或测试。M14 起按执行计划逐轮授权实施，M0–M12 的历史阶段规则不阻止已确认的新流程。
 - v0.5 以论文内容为基础完整整理发现与证据；Figure 切分核对是唯一默认人工暂停点。核对后默认自动生成大纲、演讲稿、页面规划与 PPT，每步允许主动介入；不把预算、来源登记或模型格式修复转嫁给用户。新行为的实施状态以执行计划为准。
 - 图源切分允许用户直接调整整图/Panel 边框、补删 Panel 和改标签；科学标注完整优先于无重叠，不抹白或重绘原图。重新识别先给候选，不覆盖人工结果；来源级修改保护旧稿和上一版的论文绑定，单页 cropOverride 仍独立。
-- M8 已完成 `src/app`、`src/modules`、`src/shared` 的真实职责迁移；v0.5 继续复用现有模块，不回到旧平铺结构，也不提前生成全部目标文件。
+- M8 的模块化为当前实现基线；v0.5 目标采用 UI / Application / Domain / Infrastructure 四层和 project / paper / presentation 三个领域，按架构第 1 节渐进归位。工作流与 Agent 接线归 app，外部适配器归 infrastructure；旧 outline/deck 的共同领域内容归 presentation，不提前生成空目录或第二套流程。
+- UI 按产品第 3 节重新设计完整应用工作台，不能仅将旧长网页套入固定高度。主操作、对象导航、切分工具、直接编辑、AI 收起、自动保存、键盘焦点与窄窗口按实际任务验收；当前实现状态以执行计划为准。
+- 应用用例统一协调状态转换和跨对象原子提交；领域规则与影响分析可无浏览器测试，生成流程可无 React/真实模型测试。UI/tool 不导入具体适配器，composition 只装配；Plan 与 Deck 复用共同定义和必要纯规则，保留各自会话与生命周期。
 - 固定解析、图源、论文理解、大纲/演讲稿与页面规划、按已保存且校验就绪的计划生成及导出使用显式 workflow；交互式问答与读工具选择在 M10 必须优先使用 `@earendil-works/pi-agent-core` 的 Agent、事件与取消能力，不维护第二套通用 Agent loop。M8 只隔离旧循环，替换留到 M10。
 - UI 与 Agent tool 不直接访问 IndexedDB，不承载领域校验、事务或持久化；通过 service/use case 和 repository 接入。Schema、validator、mutation 不依赖 React、DOM、PDF.js、PptxGenJS 或 Pi；DeckSession/OutlineSession 保持单一提交入口。
 - 稳定 Schema、基础叙事骨架、确定性校验和事务规则不能由 Prompt 替代；可变研究写作建议才放提示词。
