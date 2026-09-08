@@ -205,6 +205,9 @@
 .m-auto {
   margin: auto;
 }
+.mt-1\.5 {
+  margin-top: calc(var(--spacing) * 1.5);
+}
 .mt-2 {
   margin-top: calc(var(--spacing) * 2);
 }
@@ -253,6 +256,9 @@
 .table {
   display: table;
 }
+.h-1\.5 {
+  height: calc(var(--spacing) * 1.5);
+}
 .h-dvh {
   height: 100dvh;
 }
@@ -277,11 +283,14 @@
 .w-\[15\%\] {
   width: 15%;
 }
+.w-\[19\%\] {
+  width: 19%;
+}
 .w-\[22\%\] {
   width: 22%;
 }
-.w-\[36\%\] {
-  width: 36%;
+.w-\[32\%\] {
+  width: 32%;
 }
 .w-\[480px\] {
   width: 480px;
@@ -294,6 +303,9 @@
 }
 .w-full {
   width: 100%;
+}
+.min-w-0 {
+  min-width: 0px;
 }
 .flex-1 {
   flex: 1;
@@ -324,6 +336,9 @@
 }
 .justify-end {
   justify-content: flex-end;
+}
+.gap-2 {
+  gap: calc(var(--spacing) * 2);
 }
 .gap-3 {
   gap: calc(var(--spacing) * 3);
@@ -358,6 +373,10 @@
   border-style: var(--tw-border-style);
   border-width: 1px;
 }
+.border-2 {
+  border-style: var(--tw-border-style);
+  border-width: 2px;
+}
 .border-t {
   border-top-style: var(--tw-border-style);
   border-top-width: 1px;
@@ -369,6 +388,9 @@
 .border-control {
   border-color: var(--color-control);
 }
+.border-ink {
+  border-color: var(--color-ink);
+}
 .border-line {
   border-color: var(--color-line);
 }
@@ -377,6 +399,9 @@
 }
 .bg-ink {
   background-color: var(--color-ink);
+}
+.bg-line {
+  background-color: var(--color-line);
 }
 .bg-panel {
   background-color: var(--color-panel);
@@ -701,7 +726,7 @@
 <header class="flex shrink-0 items-center justify-between border-b border-line bg-white px-8 py-5"><div class="flex items-center gap-5"><strong class="text-xl">smartJC</strong><span class="text-line">│</span><h1 class="font-medium">项目管理</h1></div><button id="settings" class="rounded border border-control px-3 py-2 text-xs">模型设置 · <span id="modelStatus">未配置</span></button></header>
 <main class="flex min-h-0 flex-1 flex-col px-8 pt-7"><div class="mb-5 flex shrink-0 items-center justify-between gap-5"><div><h2 class="text-xl font-medium">我的项目 <span id="count" class="ml-2 text-sm text-muted"></span></h2><p class="mt-2 text-xs text-muted">从上次停下的地方继续；打开项目不会重新分析。</p></div><button id="newProject" class="rounded bg-ink px-5 py-2.5 text-white">＋ 新建项目</button></div>
 <div class="mb-5 flex shrink-0 items-center gap-3"><input id="search" aria-label="搜索项目" placeholder="搜索项目名或论文标题" class="w-80 rounded border border-control bg-white px-3 py-2"><select id="filter" aria-label="筛选项目阶段" class="rounded border border-control bg-white px-3 py-2"><option value="all">全部阶段</option><option value="ready">待分析</option><option value="figure">待核对图源</option><option value="outline">大纲与讲稿</option><option value="slides">幻灯片编辑</option></select><span class="ml-auto text-xs text-muted">按最近修改排序</span></div>
-<div class="min-h-0 flex-1 overflow-auto border border-line bg-white"><table class="w-full table-fixed text-left"><thead class="sticky top-0 bg-panel text-xs text-muted"><tr><th class="w-[36%] px-5 py-3 font-normal">项目 / 论文</th><th class="w-[15%] px-3 py-3 font-normal">论文文件</th><th class="w-[15%] px-3 py-3 font-normal">当前阶段</th><th class="w-[12%] px-3 py-3 font-normal">最近修改</th><th class="w-[22%] px-5 py-3 font-normal">操作</th></tr></thead><tbody id="projects"></tbody></table><div id="empty" class="hidden px-6 py-20 text-center"><h3 class="text-lg font-medium">还没有项目</h3><p class="mt-3 text-muted">新建项目，上传主论文和可选的补充材料。</p><button id="emptyNew" class="mt-6 rounded bg-ink px-4 py-2 text-white">新建第一个项目</button></div><p id="noMatch" class="hidden p-12 text-center text-muted">没有找到匹配的项目，请修改搜索或筛选条件。</p></div>
+<div class="min-h-0 flex-1 overflow-auto border border-line bg-white"><table class="w-full table-fixed text-left"><thead class="sticky top-0 bg-panel text-xs text-muted"><tr><th class="w-[32%] px-5 py-3 font-normal">项目 / 论文</th><th class="w-[15%] px-3 py-3 font-normal">论文文件</th><th class="w-[19%] px-3 py-3 font-normal">当前阶段</th><th class="w-[12%] px-3 py-3 font-normal">最近修改</th><th class="w-[22%] px-5 py-3 font-normal">操作</th></tr></thead><tbody id="projects"></tbody></table><div id="empty" class="hidden px-6 py-20 text-center"><h3 class="text-lg font-medium">还没有项目</h3><p class="mt-3 text-muted">新建项目，上传主论文和可选的补充材料。</p><button id="emptyNew" class="mt-6 rounded bg-ink px-4 py-2 text-white">新建第一个项目</button></div><p id="noMatch" class="hidden p-12 text-center text-muted">没有找到匹配的项目，请修改搜索或筛选条件。</p></div>
 <p class="py-4 text-xs text-muted">实际应用的项目和 PDF 保存在当前浏览器。此原型仅保存示例记录与文件信息，不保存 PDF 内容。</p></main>
 <footer class="flex shrink-0 items-center justify-between border-t border-line bg-white px-8 py-2.5 text-xs text-muted"><span id="status" role="status">低保真讨论稿 · 示例数据 · 不调用模型</span><div class="flex items-center gap-5"><a href="figure-review.html" class="underline">查看工作台示例</a><button id="reset" class="underline">重置示例</button></div></footer></div>
 <dialog id="createDialog" aria-labelledby="createTitle" class="m-auto max-h-[90dvh] w-[780px] overflow-y-auto rounded-lg border border-line bg-white p-6 text-ink shadow-xl backdrop:bg-black/25"><div class="mb-2 flex items-center justify-between"><h2 id="createTitle" class="text-xl font-medium">新建项目</h2><button id="closeCreate" aria-label="关闭新建项目" class="px-2 py-1">✕</button></div><p class="mb-5 text-xs text-muted">一篇论文，一个项目。可同时上传主论文和它的补充材料。</p>
@@ -732,11 +757,24 @@ function persist(){try{localStorage.setItem(key,JSON.stringify(projects));return
 function commit(next){const before=projects;projects=next;if(!persist()){projects=before;return false;}render();return true;}
 function timeLabel(ms){const days=Math.floor((Date.now()-ms)/86400000);return days?days+' 天前':'今天';}
 function sizeLabel(n){return (n/1024/1024).toFixed(1)+' MB';}
+function stageProgress(project){
+ const current={ready:-1,analyzing:0,figure:0,outline:1,slides:2}[project.stage];
+ const labels=['图源','讲稿','幻灯片'];
+ const description=stages[project.stage]+(current<0?'，尚未开始':'，第 '+(current+1)+' 步，共 3 步');
+ const segments=labels.map((label,index)=>{
+  const active=index===current;
+  let color='bg-line';
+  if(index<current)color='bg-ink';
+  if(active)color='border-2 border-ink bg-white';
+  return '<div class="min-w-0 flex-1"><div class="h-1.5 rounded '+color+'"></div><span class="mt-1.5 block text-xs '+(active?'font-medium text-ink':'text-muted')+'">'+label+'</span></div>';
+ }).join('');
+ return '<div role="img" aria-label="'+description+'" title="实心：已推进的步骤；空心：当前步骤；浅色：尚未开始。阶段条不表示耗时百分比。"><div class="mb-2 text-xs">'+stages[project.stage]+'</div><div class="flex gap-2" aria-hidden="true">'+segments+'</div></div><p class="mt-2 text-xs text-muted">'+(project.slideCount?project.slideCount+' 页 PPT':'尚无 PPT')+'</p>';
+}
 function render(){
  const query=$('search').value.trim().toLowerCase(),filter=$('filter').value;
  const list=[...projects].sort((a,b)=>b.updated-a.updated).filter(p=>(filter==='all'||p.stage===filter)&&(p.name+' '+p.title).toLowerCase().includes(query));
  $('count').textContent=projects.length;$('modelStatus').textContent=modelReady?'已配置 · 演示':'未配置';
- $('projects').innerHTML=list.map(p=>'<tr class="border-t border-line"><td class="px-5 py-5"><button data-open="'+esc(p.id)+'" class="block w-full truncate text-left font-medium" title="'+esc(p.name)+'">'+esc(p.name)+'</button><p class="mt-2 truncate text-xs text-muted" title="'+esc(p.title)+'">'+esc(p.title||'论文标题待解析')+'</p></td><td class="px-3 py-5 text-xs leading-relaxed">主论文 1 份<br><span class="text-muted">'+(p.supplement?'补充材料 1 份':'未附补充材料')+'</span></td><td class="px-3 py-5"><span>'+stages[p.stage]+'</span><p class="mt-2 text-xs text-muted">'+(p.slideCount?p.slideCount+' 页 PPT':'尚无 PPT')+'</p></td><td class="px-3 py-5 text-xs text-muted">'+timeLabel(p.updated)+'</td><td class="px-5 py-5"><div class="flex gap-4 text-xs"><button data-open="'+esc(p.id)+'" class="underline">打开</button><button data-rename="'+esc(p.id)+'" class="underline">重命名</button><button data-delete="'+esc(p.id)+'" class="text-muted underline">删除</button></div></td></tr>').join('');
+ $('projects').innerHTML=list.map(p=>'<tr class="border-t border-line"><td class="px-5 py-5"><button data-open="'+esc(p.id)+'" class="block w-full truncate text-left font-medium" title="'+esc(p.name)+'">'+esc(p.name)+'</button><p class="mt-2 truncate text-xs text-muted" title="'+esc(p.title)+'">'+esc(p.title||'论文标题待解析')+'</p></td><td class="px-3 py-5 text-xs leading-relaxed">主论文 1 份<br><span class="text-muted">'+(p.supplement?'补充材料 1 份':'未附补充材料')+'</span></td><td class="px-3 py-5">'+stageProgress(p)+'</td><td class="px-3 py-5 text-xs text-muted">'+timeLabel(p.updated)+'</td><td class="px-5 py-5"><div class="flex gap-4 text-xs"><button data-open="'+esc(p.id)+'" class="underline">打开</button><button data-rename="'+esc(p.id)+'" class="underline">重命名</button><button data-delete="'+esc(p.id)+'" class="text-muted underline">删除</button></div></td></tr>').join('');
  $('empty').classList.toggle('hidden',projects.length!==0);$('noMatch').classList.toggle('hidden',!projects.length||list.length>0);updateCreate();
 }
 function updateCreate(){
