@@ -17,6 +17,7 @@
   --text-lg--line-height: calc(1.75 / 1.125);
   --text-xl: 1.25rem;
   --text-xl--line-height: calc(1.75 / 1.25);
+  --font-weight-normal: 400;
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
   --leading-relaxed: 1.625;
@@ -275,6 +276,9 @@
 .cursor-pointer {
   cursor: pointer;
 }
+.resize-y {
+  resize: vertical;
+}
 .grid-cols-3 {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
@@ -454,6 +458,10 @@
   --tw-font-weight: var(--font-weight-medium);
   font-weight: var(--font-weight-medium);
 }
+.font-normal {
+  --tw-font-weight: var(--font-weight-normal);
+  font-weight: var(--font-weight-normal);
+}
 .font-semibold {
   --tw-font-weight: var(--font-weight-semibold);
   font-weight: var(--font-weight-semibold);
@@ -486,6 +494,10 @@
 .shadow-xl {
   --tw-shadow: 0 20px 25px -5px var(--tw-shadow-color, rgb(0 0 0 / 0.1)), 0 8px 10px -6px var(--tw-shadow-color, rgb(0 0 0 / 0.1));
   box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+}
+.blur {
+  --tw-blur: blur(8px);
+  filter: var(--tw-blur,) var(--tw-brightness,) var(--tw-contrast,) var(--tw-grayscale,) var(--tw-hue-rotate,) var(--tw-invert,) var(--tw-saturate,) var(--tw-sepia,) var(--tw-drop-shadow,);
 }
 .filter {
   filter: var(--tw-blur,) var(--tw-brightness,) var(--tw-contrast,) var(--tw-grayscale,) var(--tw-hue-rotate,) var(--tw-invert,) var(--tw-saturate,) var(--tw-sepia,) var(--tw-drop-shadow,);
@@ -672,7 +684,7 @@
 <header class="flex shrink-0 items-center justify-between gap-5 border-b border-line bg-white px-5 py-3"><div class="flex min-w-0 items-center gap-4"><a href="projects.html" class="text-xl font-semibold" aria-label="返回项目管理">smartJC</a><span class="text-line">│</span><div class="min-w-0"><h1 id="projectTitle" class="truncate font-medium">论文分析</h1><p class="mt-1 text-xs text-muted">合成论文 · 页级查漏交互稿</p></div></div><div class="flex shrink-0 items-center gap-4"><span id="saveState" class="text-xs text-muted" role="status">已保存示例</span><button id="run" class="rounded border border-control px-4 py-2">开始分析</button><button id="next" disabled class="rounded bg-ink px-4 py-2 text-white disabled:opacity-30">下一步：图源核对 →</button></div></header>
 <nav aria-label="工作台视图" class="flex shrink-0 justify-center gap-14 border-b border-line bg-white px-10"><button aria-current="page" class="border-b-2 border-ink py-3 font-medium">01 论文分析</button><button id="nextNav" disabled class="py-3 text-muted disabled:opacity-30">02 图源核对</button><button disabled class="py-3 text-subtle">03 大纲与演讲稿</button><button disabled class="py-3 text-subtle">04 幻灯片</button></nav>
 <main class="flex min-h-0 flex-1">
-<aside class="flex w-[230px] shrink-0 flex-col border-r border-line bg-white"><div class="border-b border-line p-4"><h2 class="font-medium">材料与进度</h2><button id="allDocs" class="mt-3 w-full rounded border border-control px-3 py-2 text-left text-xs">查看全部材料</button></div><div id="documents" class="min-h-0 flex-1 overflow-y-auto p-4"></div><div class="border-t border-line p-4 text-xs leading-relaxed"><p id="taskState" role="status"></p><p id="counts" class="mt-2 text-muted"></p><p id="elapsed" class="mt-3 text-muted"></p><button id="cancel" class="mt-3 text-muted underline">取消本次运行</button></div></aside>
+<aside class="flex w-[230px] shrink-0 flex-col border-r border-line bg-white"><div class="border-b border-line p-4"><h2 class="font-medium">材料与进度</h2><button id="allDocs" class="mt-3 w-full rounded border border-control px-3 py-2 text-left text-xs">查看全部材料</button></div><div class="min-h-0 flex-1 overflow-y-auto p-4"><div id="documents"></div><section class="border-t border-line pt-4"><label for="requirements" class="block font-medium">汇报要求 <span class="text-xs font-normal text-muted">可选</span></label><textarea id="requirements" rows="5" placeholder="例如：中文组会，20 分钟，重点讲实验设计与主要发现。" aria-describedby="requirementsHint requirementsStatus" class="mt-3 w-full resize-y rounded border border-control bg-white px-3 py-2 text-sm leading-relaxed"></textarea><p id="requirementsHint" class="mt-2 text-xs leading-relaxed text-muted">留空则充分覆盖论文发现。修改后用于后续讲稿与幻灯片，不重新解析 PDF。</p><p id="requirementsStatus" role="status" class="mt-2 text-xs text-muted">已保存</p><button id="retryRequirements" class="mt-2 hidden text-xs underline">重试保存要求</button></section></div><div class="border-t border-line p-4 text-xs leading-relaxed"><p id="taskState" role="status"></p><p id="counts" class="mt-2 text-muted"></p><p id="elapsed" class="mt-3 text-muted"></p><button id="cancel" class="mt-3 text-muted underline">取消本次运行</button></div></aside>
 <section class="flex min-w-0 flex-1 flex-col"><div class="flex shrink-0 items-center justify-between gap-3 border-b border-line bg-white px-5 py-3"><h2 class="font-medium">页面总览 <span id="pageCount" class="ml-2 text-xs text-muted"></span></h2><select id="filter" aria-label="筛选页面" class="rounded border border-control px-2 py-1.5 text-xs"><option value="all">全部页面</option><option value="selected">图源页</option><option value="unselected">未入选页</option><option value="pending">待处理页</option></select></div><div class="shrink-0 border-b border-line px-5 py-3 text-xs leading-relaxed text-muted"><p id="gateReason"></p><p class="mt-1">勾选表示需要识别 Figure；所有页面正文仍会分析。</p></div><div id="pageScroll" class="min-h-0 flex-1 overflow-y-auto p-5"><div id="pages" class="grid grid-cols-3 gap-4"></div><div id="empty" class="hidden py-16 text-center text-muted">没有匹配的页面。<button id="clearFilter" class="ml-2 underline">查看全部</button></div></div></section>
 <aside class="flex w-[350px] shrink-0 flex-col border-l border-line bg-white"><div class="shrink-0 border-b border-line p-4"><h2 id="previewTitle" class="font-medium"></h2><p id="previewFile" class="mt-1 truncate text-xs text-muted"></p></div><div class="min-h-0 flex-1 overflow-y-auto p-4"><div id="preview" class="border border-line bg-canvas p-2"></div><p id="pageStatus" class="mt-4 text-xs text-muted"></p><label class="mt-4 flex items-center gap-2 rounded border border-control p-3"><input id="includePage" type="checkbox">作为图源页处理</label><button id="restoreAuto" class="mt-3 text-xs underline disabled:opacity-30">恢复自动选择</button><p id="processing" class="mt-4 text-xs leading-relaxed"></p><div class="mt-5 border-t border-line pt-4 text-xs leading-relaxed text-muted">发现遗漏时直接勾选，系统补做该页识别与切分。<br>自动发现结果不能覆盖你的选择。<br>具体 Panel 边界在下一步核对。</div></div></aside>
 </main>
@@ -704,6 +716,12 @@ try {
  const saved=JSON.parse(localStorage.getItem(key));
  if(saved&&Array.isArray(saved.pages)&&saved.pages.length===state.pages.length&&saved.pages.every((p,i)=>p.id===state.pages[i].id))state=saved;
 } catch {}
+let savedRequirements=typeof project?.requirements==='string'?project.requirements:'';
+if(!project){try {savedRequirements=localStorage.getItem(key+'-requirements')||'';} catch {}}
+$('requirements').value=savedRequirements;
+let requirementsTimer=null;
+let requirementsComposing=false;
+let requirementsError=false;
 let savedOk=true;
 let selected=state.pages.find(p=>p.drawn).id;
 let docFilter='all';
@@ -731,6 +749,51 @@ function persist(){
  $('retrySave').classList.toggle('hidden',savedOk);
  return savedOk;
 }
+function requirementsDirty(){return $('requirements').value!==savedRequirements;}
+function updateRequirementsFeedback(){
+ const dirty=requirementsDirty();
+ let message='已自动保存';
+ if(dirty)message='尚未保存';
+ if(requirementsError)message='保存失败，输入已保留';
+ $('requirementsStatus').textContent=message;
+ $('retryRequirements').classList.toggle('hidden',!requirementsError);
+ $('saveState').textContent=savedOk&&!dirty&&!requirementsError?'已保存示例':'未保存，请检查';
+ $('next').disabled=!ready()||!savedOk||dirty||requirementsError||requirementsComposing;
+ $('nextNav').disabled=$('next').disabled;
+ if(dirty||requirementsError)$('gateReason').textContent='汇报要求尚未保存；保存成功后可进入下一步。';
+}
+function saveRequirements(){
+ clearTimeout(requirementsTimer);
+ if(requirementsComposing)return false;
+ if(!requirementsDirty()&&!requirementsError){render();return true;}
+ const value=$('requirements').value;
+ try {
+  if(project){
+   const records=JSON.parse(localStorage.getItem(listKey)||'[]');
+   if(!records.some(p=>p.id===projectId))throw Error('project missing');
+   localStorage.setItem(listKey,JSON.stringify(records.map(p=>p.id===projectId?{...p,requirements:value,updated:Date.now()}:p)));
+   project={...project,requirements:value};
+  } else localStorage.setItem(key+'-requirements',value);
+  savedRequirements=value;
+  requirementsError=false;
+ } catch {requirementsError=true;}
+ render();
+ return !requirementsError;
+}
+function queueRequirementsSave(){
+ clearTimeout(requirementsTimer);
+ updateRequirementsFeedback();
+ if(!requirementsComposing)requirementsTimer=setTimeout(saveRequirements,500);
+}
+$('requirements').addEventListener('input',queueRequirementsSave);
+$('requirements').addEventListener('compositionstart',()=>{requirementsComposing=true;clearTimeout(requirementsTimer);updateRequirementsFeedback();});
+$('requirements').addEventListener('compositionend',()=>{requirementsComposing=false;queueRequirementsSave();});
+$('requirements').addEventListener('blur',saveRequirements);
+$('retryRequirements').onclick=saveRequirements;
+document.querySelector('a[aria-label="返回项目管理"]').addEventListener('click',e=>{if(!saveRequirements())e.preventDefault();});
+window.addEventListener('beforeunload',e=>{
+ if(!saveRequirements()){e.preventDefault();e.returnValue='';}
+});
 function label(p){
  if(p.manual==='include')return '人工加入';
  if(p.manual==='exclude')return '人工排除';
@@ -800,6 +863,7 @@ function render(){
  const manual=state.pages.filter(p=>p.manual==='include'&&!p.auto).length;
  const detected=state.pages.filter(p=>p.detected&&p.auto).length;
  $('gateReason').textContent=!savedOk?'保存未完成，请先重试保存。':ready()?'分析完成，可继续检查缩略图，准备好后手动点击下一步。':'自动发现 '+detected+' 个图源页 · 人工补选 '+manual+' 页 · 待处理 '+state.pages.filter(pending).length+' 页；必需处理完成后才能进入下一步。';
+ updateRequirementsFeedback();
 }
 function stop(mode='paused'){
  epoch++;
@@ -905,6 +969,7 @@ $('clearFilter').onclick=()=>{docFilter='all';$('filter').value='all';render();}
 $('run').onclick=()=>state.mode==='running'||state.mode==='waiting'?stop():start();
 $('cancel').onclick=()=>{stop();$('notice').textContent='已取消运行；选择和已完成的示例内容保留。';};
 function enterReview(){
+ if(!saveRequirements())return;
  if(!ready()||!savedOk)return;
  if(!persist()){render();return;}
  if(project){
