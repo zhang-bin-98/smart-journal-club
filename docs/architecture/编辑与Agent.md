@@ -41,12 +41,12 @@ Deck 修改沿用 deck_propose_revision，扩展实际需要的讲稿/分配白�
 
 一次请求最多一个有效提案，写意图顺序执行，模拟后显示影响章节/段落/页面、差异和应用/放弃；应用时再次核对版本和范围。取消、Agent 后续失败、手工草稿、项目或所编辑 Plan/Deck 切换使提案失效，不提供强制应用。每次应用是一条 RevisionRecord 和一次 Undo。
 
-事件映射为可读进度，右侧显示对话/提案，底部输入共享同一状态；不显示隐藏推理、原始 JSON、provider 错误体或 Key。仅有限可见消息与已提交摘要持久化，刷新不恢复待应用权限。有限轮次/工具/上下文预算使用 Pi runtime 适配器的已有 hook，不建设 Node/SQLite backend。
+事件映射为可读进度，右侧显示对话/提案，底部输入共享同一状态；不显示隐藏推理、原始 JSON、provider 错误体或 Key。仅有限可见消息与已提交摘要持久化，交互式提案（包括整稿范围）只保留当前项目会话，刷新或关闭项目后丢弃，不从消息恢复待应用权限；完整工作流新稿候选的持久化独立遵循[工作流与存储](工作流与存储.md)。有限轮次/工具/上下文预算使用 Pi runtime 适配器的已有 hook，不建设 Node/SQLite backend。
 
 ### Undo/Redo 与 Current/Previous
 
 各会话快照只存该内容域的必要数据，不含运行权限、旧 revision、原 PDF 或位图。Undo 恢复内容而 revision 递增；图源 Undo 也使核对失效，计划 Undo 回 draft。图源确认动作不作为可以恢复的生成授权。Undo 后新编辑清空 Redo，关闭项目/整套切版清空会话栈；失败不弹出快照。
 
-生成后大纲与讲稿读取 Current 的 sections/speechParagraphs/speech/slides；不依赖已消费计划，也不维护独立可写副本。编辑 Current 走 DeckSession；需要规划重做时创建唯一候选计划。新 Deck 的结构、讲稿、论文绑定和 omissions 在成功应用时一笔事务切换，原 Current 成为 Previous，更早 Previous 只在不再被引用后回收。失败不覆盖旧版本。
+生成后大纲与讲稿读取 Current 的 sections/speechParagraphs/speech/slides；不依赖已消费计划，也不维护独立可写副本。编辑 Current 走 DeckSession；需要规划重做时创建唯一工作计划，完整候选另按 Project.candidate 保存，不因工作计划被替换而丢失。新 Deck 的结构、讲稿、论文绑定和 omissions 在成功应用时一笔事务切换，原 Current 成为 Previous，更早 Previous 只在不再被引用后回收。失败不覆盖旧版本。
 
 恢复上一版原子交换 Current/Previous，成为 Current 的 revision 递增，绑定该版自己的论文与讲稿，失效旧任务、候选和会话 Undo。Project 工作底稿如与恢复稿不同，界面明确显示，不偷偷重绑或覆盖它；再次恢复可切回另一版。并发 Current 变更让候选 stale，不能绕过事务通过锁 UI“解决”。
