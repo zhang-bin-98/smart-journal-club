@@ -289,6 +289,9 @@
 .hidden {
   display: none;
 }
+.inline {
+  display: inline;
+}
 .table {
   display: table;
 }
@@ -656,6 +659,12 @@
 .underline {
   text-decoration-line: underline;
 }
+.decoration-dotted {
+  text-decoration-style: dotted;
+}
+.underline-offset-4 {
+  text-underline-offset: 4px;
+}
 .antialiased {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -912,10 +921,11 @@
  <div class="mb-4 flex items-center justify-between"><h2 id="figureDialogTitle" class="text-lg font-medium">添加 Figure</h2><button id="closeFigureDialog" aria-label="关闭添加图源" class="px-2 py-1">✕</button></div>
  <div class="grid grid-cols-[minmax(0,1fr)_260px] gap-5">
   <div class="min-w-0"><label for="sourcePage" class="mb-2 block text-xs text-muted">选择原页 · 全部为合成示例</label><select id="sourcePage" class="mb-3 w-full rounded border border-control bg-white px-3 py-2"></select><svg id="sourcePageCanvas" viewBox="0 0 800 530" tabindex="0" role="img" aria-label="原页框选整张 Figure" class="block w-full touch-none select-none border border-line bg-white"></svg><p class="mt-3 text-xs leading-relaxed text-muted">在空白处拖出新框；拖动框内移动，拖动控制点调边界。Esc 取消本次拖动，方向键微调。</p></div>
-  <div class="min-w-0"><label for="newFigureLabel" class="mb-2 block text-xs text-muted">原图号（可选、可输入）</label><div id="figurePicker" class="relative mb-4"><div class="flex rounded border border-control"><input id="newFigureLabel" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="figureOptions" autocomplete="off" placeholder="选择已有图号，或输入新图号" maxlength="48" class="min-w-0 flex-1 rounded px-3 py-2"><button id="toggleFigureOptions" type="button" aria-label="选择已有 Figure" class="shrink-0 px-3 py-2">⌄</button></div><div id="figureOptions" role="listbox" aria-label="已有 Figure" class="absolute top-full z-30 mt-1 hidden max-h-48 w-full overflow-y-auto rounded border border-control bg-white p-1 shadow-xl"></div></div><p id="figureTarget" class="mb-4 text-xs leading-relaxed text-muted"></p><h3 class="mb-2 text-xs text-muted">实际裁切预览</h3><div class="flex h-48 items-center justify-center border border-line bg-canvas p-2"><svg id="newFigurePreview" class="h-full w-full bg-white" role="img" aria-label="新增图块裁切预览"></svg></div><p id="figureDraftStatus" class="mt-3 text-xs leading-relaxed" role="status">请在原页框选。</p><p class="mt-4 text-xs leading-relaxed text-muted">本原型只保存手动画框。真实应用会继续识别 Panel、补充图注；这里不模拟成功关联，也不发送请求。无需细分时可直接使用整图。</p></div>
+  <div class="min-w-0"><label for="newFigureLabel" class="mb-2 block text-xs text-muted">原图号（可选、可输入）</label><span id="figurePickerHome"></span><div id="figurePicker" class="relative mb-4"><div class="flex rounded border border-control"><input id="newFigureLabel" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="figureOptions" autocomplete="off" placeholder="选择已有图号，或输入新图号" maxlength="48" class="min-w-0 flex-1 rounded px-3 py-2"><button id="toggleFigureOptions" type="button" aria-label="选择已有 Figure" class="shrink-0 px-3 py-2">⌄</button></div><div id="figureOptions" role="listbox" aria-label="已有 Figure" class="absolute top-full z-30 mt-1 hidden max-h-48 w-full overflow-y-auto rounded border border-control bg-white p-1 shadow-xl"></div></div><p id="figureTarget" class="mb-4 text-xs leading-relaxed text-muted"></p><h3 class="mb-2 text-xs text-muted">实际裁切预览</h3><div class="flex h-48 items-center justify-center border border-line bg-canvas p-2"><svg id="newFigurePreview" class="h-full w-full bg-white" role="img" aria-label="新增图块裁切预览"></svg></div><p id="figureDraftStatus" class="mt-3 text-xs leading-relaxed" role="status">请在原页框选。</p><p class="mt-4 text-xs leading-relaxed text-muted">本原型只保存手动画框。真实应用会继续识别 Panel、补充图注；这里不模拟成功关联，也不发送请求。无需细分时可直接使用整图。</p></div>
  </div>
  <div class="mt-5 flex justify-end gap-3"><button id="cancelFigureDialog" class="rounded border border-control px-4 py-2">取消</button><button id="applyFigure" disabled class="rounded bg-ink px-4 py-2 text-white disabled:opacity-30">添加 Figure</button></div>
 </dialog>
+<dialog id="confirmFigureMove" aria-labelledby="confirmFigureMoveTitle" class="m-auto w-[460px] rounded-lg border border-line bg-white p-6 text-ink shadow-xl backdrop:bg-black/25"><h2 id="confirmFigureMoveTitle" class="mb-3 text-lg font-medium">确认归入已有 Figure？</h2><p id="figureMoveSummary" class="mb-5 leading-relaxed"></p><div class="flex justify-end gap-3"><button id="cancelFigureMove" class="rounded border border-control px-4 py-2">取消</button><button id="applyFigureMove" class="rounded bg-ink px-4 py-2 text-white">确认归入</button></div></dialog>
 <script>
 'use strict';
 const $ = id => document.getElementById(id);
@@ -1033,11 +1043,11 @@ function renderNav() {
  $('figureTotal').textContent=' / '+figureCount();
  $('figureSummary').textContent='示例论文 · '+figureCount()+' 张 Figure · '+figures.length+' 个图块';
  $('seenCount').textContent = `已查看图块 ${seen.size} / ${figures.length}`;
- $('figureNav').innerHTML = figures.map((figure,i) => `<button data-nav="${i}" aria-label="跳转 ${esc(labelFor(i))}${regionDescription(i)}" ${i===active?'aria-current="true"':''} class="mb-3 block w-full rounded border ${i===active?'border-ink bg-white':'border-transparent hover:bg-white'} p-2 text-left"><div class="mb-2 flex justify-between text-xs"><span class="font-medium">${esc(labelFor(i))}${regionDescription(i)}</span><span class="text-muted">${figure.changed?'已修改':seen.has(figure.id)?'已查看':'未查看'}</span></div><svg viewBox="0 0 800 530" class="w-full border border-line" aria-hidden="true">${artFor(i)}</svg><div class="mt-2 truncate text-xs text-muted">${esc(figure.name)}</div>${i===1&&!figure.changed?'<div class="mt-1 text-xs text-muted">△ 留意 b 的坐标轴</div>':''}</button>`).join('');
+ $('figureNav').innerHTML = figures.map((figure,i) => `<button data-nav="${i}" aria-label="跳转 ${esc(labelFor(i))}${regionDescription(i)}" ${i===active?'aria-current="true"':''} class="mb-3 block w-full rounded border ${i===active?'border-ink bg-white':'border-transparent hover:bg-white'} p-2 text-left"><div class="mb-2 flex justify-between text-xs"><span class="font-medium">${esc(labelFor(i))}${regionDescription(i)}</span><span class="text-muted">${figure.changed?'已修改':seen.has(figure.id)?'已查看':'未查看'}</span></div><svg viewBox="0 0 800 530" class="w-full border border-line" aria-hidden="true">${artFor(i)}</svg><div class="mt-2 truncate text-xs text-muted">${esc(figure.name)}</div>${figure.pageKey==='original-1'&&!figure.changed?'<div class="mt-1 text-xs text-muted">△ 留意 b 的坐标轴</div>':''}</button>`).join('');
  $('footerStatus').textContent = `${labelFor(active)}${regionDescription(active)} · 已查看 ${seen.size}/${figures.length} 个图块 · 尚未统一确认`;
 }
 function renderFigures() {
- $('figureList').innerHTML = figures.map((figure,i) => `<article id="figure-${i}" class="border border-line bg-white" aria-label="${esc(labelFor(i))}${regionDescription(i)}"><div class="flex items-center justify-between gap-2 border-b border-line px-4 py-3"><h3 class="font-medium">${esc(labelFor(i))}${regionDescription(i)} <span class="ml-2 text-xs font-normal text-muted">${esc(figure.name)}</span></h3><span class="shrink-0 text-xs text-muted">${esc(sourcePageFor(i).label)}</span></div><div class="p-4"><svg data-figure="${i}" viewBox="0 0 800 530" class="block w-full touch-none select-none" style="width:${zoom*100}%;max-width:none" tabindex="0" role="img" aria-label="${esc(labelFor(i))}${regionDescription(i)}，可编辑的 Panel 切分框">${artFor(i)}<g data-overlays="${i}"></g></svg></div><div class="border-t border-line px-4 py-2 text-xs text-muted">${i===1?'△ 示例异常：Panel b 的下边界偏紧，可向下拖动以包含横轴标题。':'保留坐标轴、图例与科学标注；允许 Panel 适当重叠。'}</div></article>`).join('');
+ $('figureList').innerHTML = figures.map((figure,i) => `<article id="figure-${i}" class="border border-line bg-white" aria-label="${esc(labelFor(i))}${regionDescription(i)}"><div class="flex items-center justify-between gap-2 border-b border-line px-4 py-3"><h3 class="min-w-0 flex-1 font-medium"><button data-edit-figure="${i}" title="修改图号或所属 Figure" class="rounded text-left underline decoration-dotted underline-offset-4">${esc(labelFor(i))}</button>${regionDescription(i)}<span data-title-editor="${i}" class="hidden"></span> <span class="ml-2 text-xs font-normal text-muted">${esc(figure.name)}</span></h3><span class="shrink-0 text-xs text-muted">${esc(sourcePageFor(i).label)}</span></div><div class="p-4"><svg data-figure="${i}" viewBox="0 0 800 530" class="block w-full touch-none select-none" style="width:${zoom*100}%;max-width:none" tabindex="0" role="img" aria-label="${esc(labelFor(i))}${regionDescription(i)}，可编辑的 Panel 切分框">${artFor(i)}<g data-overlays="${i}"></g></svg></div><div class="border-t border-line px-4 py-2 text-xs text-muted">${figure.pageKey==='original-1'?'△ 示例异常：Panel b 的下边界偏紧，可向下拖动以包含横轴标题。':'保留坐标轴、图例与科学标注；允许 Panel 适当重叠。'}</div></article>`).join('');
  figures.forEach((_,i) => renderOverlay(i));
 }
 function handles(box,target) {
@@ -1105,7 +1115,7 @@ $('figureNav').onclick=event=> {
  activate(index);
 };
 $('figureScroll').onscroll=()=> {
- if(frame||drag) return;
+ if(frame||drag||figureDraft?.kind==='edit') return;
  frame=requestAnimationFrame(()=> {
  frame=0;
  const edge=$('figureScroll').getBoundingClientRect();
@@ -1156,7 +1166,7 @@ function point(event,svg) {
 }
 $('figureList').onpointerdown=event=> {
  const svg=event.target.closest('[data-figure]');
- if(!svg||event.button!==0) return;
+ if(!svg||event.button!==0||figureDraft?.kind==='edit') return;
  activate(Number(svg.dataset.figure));
  const target=event.target.closest('[data-panel]');
  if(mode!=='add'&&!target) return;
@@ -1241,7 +1251,7 @@ $('figureList').onpointerup=event=>endDrag(event);
 $('figureList').onpointercancel=event=>endDrag(event,true);
 document.addEventListener('keydown',event=> {
  if(event.key==='Escape'&&drag) {event.preventDefault();endDrag(event,true);return;}
- if(['INPUT','TEXTAREA','SELECT'].includes(event.target.tagName)||$('flowDialog').open||$('legendDialog').open||$('figureDialog').open) return;
+ if(figureDraft?.kind==='edit'||['INPUT','TEXTAREA','SELECT'].includes(event.target.tagName)||$('flowDialog').open||$('legendDialog').open||$('figureDialog').open) return;
  if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='z') {event.preventDefault();event.shiftKey?replay(future,history):replay(history,future);return;}
  if(!event.target.closest('[data-figure]')) return;
  const deltas={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]};
@@ -1410,7 +1420,7 @@ function renderLegend() {
  $('fullLegend').innerHTML='<p class="font-medium">'+esc(labelFor(active))+'. '+esc(figures[active].name)+'（示例）</p><p class="text-muted">高亮表示与当前选区关联；完整原文保持原样。</p>'+fragments.map(f=>'<p>'+ (ids.has(f.id)?'<mark class="bg-accent-soft text-ink">'+esc(f.en)+'</mark>':esc(f.en))+'</p>').join('');
  $('fullLegendDetails').classList.toggle('hidden',whole);
  const related=p&&!figures[active].manual&&['b','c','d'].includes(p.id);
- $('evidenceContent').innerHTML=related?'<p class="font-medium">主线 · 处理组呈现不同的细胞响应</p><blockquote class="border-l-2 border-control pl-3">The treatment group showed an altered response across conditions and over time (Fig. '+(active+1)+'b–d).</blockquote><p class="text-muted">正文 Results · 第 '+(active*2+2)+' 页 · 第 2 段 / 第 1 句（示例）</p><p>同一句正文关联 b、c、d；研究发现可同时由多个 Panel 支撑。</p>':'<p class="text-muted">'+(whole?'选择 Panel 查看句子级正文证据。':'当前示例未关联结果句。图注用于解释子图，不自动等同于结论证据。')+'</p>';
+ $('evidenceContent').innerHTML=related?'<p class="font-medium">主线 · 处理组呈现不同的细胞响应</p><blockquote class="border-l-2 border-control pl-3">The treatment group showed an altered response across conditions and over time (Fig. '+(Number(figures[active].pageKey.slice(9))+1)+'b–d).</blockquote><p class="text-muted">正文 Results · 第 '+(Number(figures[active].pageKey.slice(9))*2+2)+' 页 · 第 2 段 / 第 1 句（示例）</p><p>同一句正文关联 b、c、d；研究发现可同时由多个 Panel 支撑。</p>':'<p class="text-muted">'+(whole?'选择 Panel 查看句子级正文证据。':'当前示例未关联结果句。图注用于解释子图，不自动等同于结论证据。')+'</p>';
 }
 $('editLegend').onclick=()=> {
  const p=figures[active].panels.find(panel=>panel.id===selected);
@@ -1442,6 +1452,10 @@ $('legendForm').onsubmit=event=> {
 let figureDraft = null;
 let figureDialogOpener = null;
 function paintFigureDraft() {
+ if (figureDraft.kind === 'edit') {
+  $('saveFigureTitle').disabled = figureChoiceAmbiguous;
+  return;
+ }
  const box = figureDraft.box;
  const page = sourcePages.find(item => item.key === $('sourcePage').value);
  $('sourcePageCanvas').innerHTML = page.art + (box ? `<rect data-panel="__draft" x="${box.x}" y="${box.y}" width="${box.w}" height="${box.h}" fill="#24728a" fill-opacity=".08" stroke="#24728a" stroke-width="2"/>${handles(box,'__draft')}` : '');
@@ -1468,6 +1482,12 @@ function updateFigureTarget() {
  if (!target) target = matches.length === 1 ? matches[0] : null;
  figureChoiceAmbiguous = !target && matches.length > 1;
  figureDraft.target = target?.logicalId || null;
+ if (figureDraft.kind === 'edit') {
+  const region = figures.find(item => item.id === figureDraft.regionId);
+  $('figureTarget').textContent = figureChoiceAmbiguous ? '有多个同名 Figure，请从列表选择。' : target?.logicalId === region.logicalId ? '保持当前 Figure，不改变归属。' : target ? '当前图块将归入 '+(target.label || '未标号 Figure')+'；保存时需确认。' : '当前图块将成为新 Figure：'+(value || '未标号 Figure')+'；原图的其他图块保留。';
+  paintFigureDraft();
+  return;
+ }
  $('applyFigure').textContent = target ? '添加到已有 Figure' : '添加新 Figure';
  $('figureTarget').textContent = figureChoiceAmbiguous ? '有多个同名 Figure，请从下拉列表选择归属。' : target ? '追加到 '+(target.label || '未标号 Figure')+'，作为该图的接续图块；已有图块、Panel 与关联保留。' : value ? '将创建新 Figure：'+value : '留空将创建一张未标号的新 Figure。';
  paintFigureDraft();
@@ -1500,7 +1520,7 @@ function chooseFigure(id) {
  $('newFigureLabel').focus();
 }
 function openFigureDialog() {
- if (drag) return;
+ if (drag || figureDraft?.kind === 'edit') return;
  figureDialogOpener = document.activeElement;
  figureDraft = {box:null, target:null};
  figureChoiceAmbiguous = false;
@@ -1523,6 +1543,7 @@ $('newFigureLabel').oninput = () => {
  showFigureOptions();
 };
 $('newFigureLabel').onkeydown = event => {
+ if (event.isComposing) return;
  if (event.key === 'Escape' && !$('figureOptions').classList.contains('hidden')) {
   event.preventDefault();
   event.stopPropagation();
@@ -1539,6 +1560,12 @@ $('newFigureLabel').onkeydown = event => {
   options.forEach((option, index) => option.classList.toggle('bg-canvas', index === figureOptionIndex));
   $('newFigureLabel').setAttribute('aria-activedescendant', options[figureOptionIndex].id);
   options[figureOptionIndex].scrollIntoView({block:'nearest'});
+ } else if (event.key === 'Escape' && figureDraft.kind === 'edit') {
+  event.preventDefault();
+  cancelFigureTitle();
+ } else if (event.key === 'Enter' && figureOptionIndex < 0 && figureDraft.kind === 'edit') {
+  event.preventDefault();
+  requestFigureTitleSave();
  } else if (event.key === 'Enter' && figureOptionIndex >= 0) {
   event.preventDefault();
   const option = $('figureOptions').querySelectorAll('[role="option"]')[figureOptionIndex];
@@ -1623,6 +1650,90 @@ $('applyFigure').onclick = () => {
  $('figure-'+active).scrollIntoView({block:'start'});
  notify(target ? '已添加图块，仍属于同一 Figure；可撤销。' : '已添加独立 Figure，可继续细分 Panel；可撤销。');
 };
+
+
+// The add dialog and inline title editor share the same picker and identity resolution.
+function restoreFigurePicker() {
+ closeFigureOptions();
+ $('figurePickerHome').after($('figurePicker'), $('figureTarget'));
+}
+function startFigureTitle(index) {
+ if (drag || figureDraft) return;
+ activate(index);
+ const region = figures[index];
+ const host = document.querySelector(`[data-title-editor="${index}"]`);
+ figureDraft = {kind:'edit', regionId:region.id, target:region.logicalId, base:JSON.stringify(figures)};
+ figureChoiceAmbiguous = false;
+ document.querySelector(`[data-edit-figure="${index}"]`).classList.add('hidden');
+ host.className = 'mt-3 block text-sm font-normal';
+ host.append($('figurePicker'), $('figureTarget'));
+ host.insertAdjacentHTML('beforeend', '<span class="mb-3 flex gap-2"><button id="saveFigureTitle" class="rounded bg-ink px-3 py-1.5 text-white disabled:opacity-30">保存</button><button id="cancelFigureTitle" class="rounded border border-control px-3 py-1.5">取消</button></span>');
+ $('newFigureLabel').value = region.label || '';
+ updateFigureTarget();
+ $('saveFigureTitle').onclick = requestFigureTitleSave;
+ $('cancelFigureTitle').onclick = cancelFigureTitle;
+ $('newFigureLabel').focus();
+ $('newFigureLabel').select();
+}
+function cancelFigureTitle() {
+ if (figureDraft?.kind !== 'edit') return;
+ const id = figureDraft.regionId;
+ restoreFigurePicker();
+ figureDraft = null;
+ renderFigures();
+ document.querySelector(`[data-edit-figure="${figures.findIndex(item => item.id === id)}"]`)?.focus({preventScroll:true});
+}
+function requestFigureTitleSave() {
+ if (figureChoiceAmbiguous || figureDraft?.kind !== 'edit') return;
+ const region = figures.find(item => item.id === figureDraft.regionId);
+ const target = figures.find(item => item.logicalId === figureDraft.target);
+ if (target?.logicalId === region.logicalId) { cancelFigureTitle(); return; }
+ closeFigureOptions();
+ if (target) {
+  $('figureMoveSummary').textContent = '将 '+(region.label || '未标号 Figure')+' 的当前图块（'+sourcePageFor(figures.indexOf(region)).label+'）归入 '+(target.label || '未标号 Figure')+'，成为其中一个分块。当前图块的 Panel、裁切和来源保留；原图其他图块不变。可撤销。';
+  $('confirmFigureMove').showModal();
+ } else applyFigureTitle();
+}
+function applyFigureTitle() {
+ if (figureDraft?.kind !== 'edit') return;
+ if (figureDraft.base !== JSON.stringify(figures)) { notify('图源已变化，请取消后重新编辑。'); return; }
+ const before = clone(figures);
+ const entry = figures.find(item => item.id === figureDraft.regionId);
+ const target = figures.find(item => item.logicalId === figureDraft.target);
+ if (figureDraft.target && !target) { notify('目标 Figure 已不存在，请重新选择。'); return; }
+ if (target && !$('confirmFigureMove').open) return;
+ entry.logicalId = target?.logicalId || crypto.randomUUID();
+ entry.label = target ? target.label : $('newFigureLabel').value.trim();
+ if (target) {
+  figures.splice(figures.indexOf(entry), 1);
+  const after = figures.map(item => item.logicalId).lastIndexOf(target.logicalId)+1;
+  figures.splice(after, 0, entry);
+ }
+ active = figures.indexOf(entry);
+ restoreFigurePicker();
+ figureDraft = null;
+ $('confirmFigureMove').close();
+ renderFigures();
+ commit(before);
+ $('figure-'+active).scrollIntoView({block:'nearest'});
+ document.querySelector(`[data-edit-figure="${active}"]`)?.focus({preventScroll:true});
+ notify(target ? '当前图块已归入所选 Figure，可撤销。' : '当前图块已成为新 Figure，可撤销。');
+}
+$('figureList').onclick = event => {
+ const button = event.target.closest('[data-edit-figure]');
+ if (button) startFigureTitle(Number(button.dataset.editFigure));
+};
+$('cancelFigureMove').onclick = () => $('confirmFigureMove').close();
+$('applyFigureMove').onclick = applyFigureTitle;
+$('confirmFigureMove').addEventListener('close', () => {
+ if (figureDraft?.kind === 'edit') $('saveFigureTitle').focus();
+});
+document.addEventListener('click', event => {
+ if (figureDraft?.kind !== 'edit' || event.target.closest('[data-title-editor]') || event.target.closest('#confirmFigureMove')) return;
+ event.preventDefault();
+ event.stopImmediatePropagation();
+ notify('请先保存或取消当前图号修改。');
+}, true);
 
 renderFigures();renderNav();renderInspector();updateButtons();
 </script>
