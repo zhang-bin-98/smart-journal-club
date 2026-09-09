@@ -205,6 +205,9 @@
 .m-auto {
   margin: auto;
 }
+.mt-1 {
+  margin-top: var(--spacing);
+}
 .mt-1\.5 {
   margin-top: calc(var(--spacing) * 1.5);
 }
@@ -226,6 +229,9 @@
 .mb-2 {
   margin-bottom: calc(var(--spacing) * 2);
 }
+.mb-3 {
+  margin-bottom: calc(var(--spacing) * 3);
+}
 .mb-4 {
   margin-bottom: calc(var(--spacing) * 4);
 }
@@ -234,6 +240,9 @@
 }
 .ml-2 {
   margin-left: calc(var(--spacing) * 2);
+}
+.ml-3 {
+  margin-left: calc(var(--spacing) * 3);
 }
 .ml-auto {
   margin-left: auto;
@@ -258,6 +267,9 @@
 }
 .h-1\.5 {
   height: calc(var(--spacing) * 1.5);
+}
+.h-2 {
+  height: calc(var(--spacing) * 2);
 }
 .h-dvh {
   height: 100dvh;
@@ -325,8 +337,14 @@
 .grid-cols-2 {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
+.grid-cols-\[3fr_2fr\] {
+  grid-template-columns: 3fr 2fr;
+}
 .flex-col {
   flex-direction: column;
+}
+.items-baseline {
+  align-items: baseline;
 }
 .items-center {
   align-items: center;
@@ -348,6 +366,9 @@
 }
 .gap-5 {
   gap: calc(var(--spacing) * 5);
+}
+.gap-8 {
+  gap: calc(var(--spacing) * 8);
 }
 .truncate {
   overflow: hidden;
@@ -384,6 +405,10 @@
 .border-b {
   border-bottom-style: var(--tw-border-style);
   border-bottom-width: 1px;
+}
+.border-l {
+  border-left-style: var(--tw-border-style);
+  border-left-width: 1px;
 }
 .border-control {
   border-color: var(--color-control);
@@ -466,6 +491,9 @@
 .pt-7 {
   padding-top: calc(var(--spacing) * 7);
 }
+.pl-6 {
+  padding-left: calc(var(--spacing) * 6);
+}
 .text-center {
   text-align: center;
 }
@@ -527,6 +555,9 @@
 .antialiased {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+.opacity-30 {
+  opacity: 30%;
 }
 .shadow-xl {
   --tw-shadow: 0 20px 25px -5px var(--tw-shadow-color, rgb(0 0 0 / 0.1)), 0 8px 10px -6px var(--tw-shadow-color, rgb(0 0 0 / 0.1));
@@ -726,6 +757,10 @@
 <header class="flex shrink-0 items-center justify-between border-b border-line bg-white px-8 py-5"><div class="flex items-center gap-5"><strong class="text-xl">smartJC</strong><span class="text-line">│</span><h1 class="font-medium">项目管理</h1></div><button id="settings" class="rounded border border-control px-3 py-2 text-xs">模型设置 · <span id="modelStatus">未配置</span></button></header>
 <main class="flex min-h-0 flex-1 flex-col px-8 pt-7"><div class="mb-5 flex shrink-0 items-center justify-between gap-5"><div><h2 class="text-xl font-medium">我的项目 <span id="count" class="ml-2 text-sm text-muted"></span></h2><p class="mt-2 text-xs text-muted">从上次停下的地方继续；打开项目不会重新分析。</p></div><button id="newProject" class="rounded bg-ink px-5 py-2.5 text-white">＋ 新建项目</button></div>
 <div class="mb-5 flex shrink-0 items-center gap-3"><input id="search" aria-label="搜索项目" placeholder="搜索项目名或论文标题" class="w-80 rounded border border-control bg-white px-3 py-2"><select id="filter" aria-label="筛选项目阶段" class="rounded border border-control bg-white px-3 py-2"><option value="all">全部阶段</option><option value="ready">待分析</option><option value="analyzing">论文分析</option><option value="analysisReady">分析就绪</option><option value="figure">待核对图源</option><option value="outline">大纲与讲稿</option><option value="slides">幻灯片编辑</option></select><span class="ml-auto text-xs text-muted">按最近修改排序</span></div>
+<section aria-labelledby="storageTitle" class="mb-5 shrink-0 rounded border border-line bg-white px-5 py-4">
+<div class="mb-3 flex items-center justify-between gap-5"><h3 id="storageTitle" class="font-medium">浏览器存储 <span id="storageBadge" class="ml-3 text-xs font-normal text-muted"></span></h3><div class="flex items-center gap-3"><select id="storageMode" aria-label="存储数据来源" class="rounded border border-control bg-white px-2 py-1 text-xs"><option value="demo">示例存储</option><option value="near">接近上限示例</option><option value="unavailable">不可用示例</option><option value="browser">当前浏览器估算</option></select><button id="refreshStorage" class="text-xs underline">刷新</button></div></div>
+<div class="grid grid-cols-[3fr_2fr] gap-8"><div><div class="mb-2 flex items-baseline justify-between gap-3"><p id="storageUsage" class="font-medium" aria-live="polite"></p><span id="storageRemaining" class="text-xs text-muted"></span></div><div id="storageMeter" role="progressbar" aria-label="浏览器估算空间使用比例" aria-valuemin="0" aria-valuemax="100" class="h-2 overflow-hidden rounded bg-line"><div id="storageFill" class="h-full bg-ink"></div></div></div><div class="border-l border-line pl-6"><p class="text-xs text-muted">全部项目 · PDF 文件信息</p><p id="storageFiles" class="mt-1 font-medium"></p></div></div>
+<p id="storageNote" class="mt-3 text-xs leading-relaxed text-muted"></p></section>
 <div class="min-h-0 flex-1 overflow-auto border border-line bg-white"><table class="w-full table-fixed text-left"><thead class="sticky top-0 bg-panel text-xs text-muted"><tr><th class="w-[32%] px-5 py-3 font-normal">项目 / 论文</th><th class="w-[15%] px-3 py-3 font-normal">论文文件</th><th class="w-[19%] px-3 py-3 font-normal">当前阶段</th><th class="w-[12%] px-3 py-3 font-normal">最近修改</th><th class="w-[22%] px-5 py-3 font-normal">操作</th></tr></thead><tbody id="projects"></tbody></table><div id="empty" class="hidden px-6 py-20 text-center"><h3 class="text-lg font-medium">还没有项目</h3><p class="mt-3 text-muted">新建项目，上传主论文和可选的补充材料。</p><button id="emptyNew" class="mt-6 rounded bg-ink px-4 py-2 text-white">新建第一个项目</button></div><p id="noMatch" class="hidden p-12 text-center text-muted">没有找到匹配的项目，请修改搜索或筛选条件。</p></div>
 <p class="py-4 text-xs text-muted">实际应用的项目和 PDF 保存在当前浏览器。此原型仅保存示例记录与文件信息，不保存 PDF 内容。</p></main>
 <footer class="flex shrink-0 items-center justify-between border-t border-line bg-white px-8 py-2.5 text-xs text-muted"><span id="status" role="status">低保真讨论稿 · 示例数据 · 不调用模型</span><div class="flex items-center gap-5"><a href="figure-review.html" class="underline">查看工作台示例</a><button id="reset" class="underline">重置示例</button></div></footer></div>
@@ -754,9 +789,72 @@ let projects=structuredClone(initial),modelReady=false;
 try{const saved=JSON.parse(localStorage.getItem(key));if(Array.isArray(saved)&&saved.every(p=>typeof p.id==='string'&&typeof p.name==='string'&&p.primary&&typeof p.primary.name==='string'&&p.stage in stages))projects=saved;modelReady=localStorage.getItem(key+'-model')==='true';}catch{}
 let files={primary:null,supplement:null},reading={primary:false,supplement:false},fileEpoch={primary:0,supplement:0},customName=false,saving=false;
 function persist(){try{localStorage.setItem(key,JSON.stringify(projects));return true;}catch{$('status').textContent='未能保存示例记录，操作未提交，请重试。';return false;}}
-function commit(next){const before=projects;projects=next;if(!persist()){projects=before;return false;}render();return true;}
+function commit(next){const before=projects;projects=next;if(!persist()){projects=before;return false;}render();refreshStorage();return true;}
 function timeLabel(ms){const days=Math.floor((Date.now()-ms)/86400000);return days?days+' 天前':'今天';}
 function sizeLabel(n){return (n/1024/1024).toFixed(1)+' MB';}
+let storageRequest=0;
+function pdfStats(){
+ const items=projects.flatMap(p=>[p.primary,p.supplement]).filter(Boolean);
+ return {count:items.length,bytes:items.reduce((sum,item)=>sum+(Number.isFinite(item.size)&&item.size>=0?item.size:0),0)};
+}
+function storageSize(bytes){
+ if(bytes===0)return '0 MB';
+ if(bytes<1048576)return (bytes/1024).toFixed(1)+' KB';
+ return (bytes/1048576).toFixed(1)+' MB';
+}
+function showStorage(estimate,note,loading=false){
+ const stats=pdfStats();
+ $('storageFiles').textContent=stats.count+' 份 · '+storageSize(stats.bytes);
+ const valid=estimate&&Number.isFinite(estimate.usage)&&estimate.usage>=0&&Number.isFinite(estimate.quota)&&estimate.quota>0;
+ $('storageMeter').classList.toggle('opacity-30',!valid);
+ if(!valid){
+  $('storageBadge').textContent=loading?'读取中':'暂不可用';
+  $('storageUsage').textContent=loading?'正在读取浏览器估算…':'已用空间 / 配额：—';
+  $('storageRemaining').textContent='';
+  $('storageFill').style.width='0%';
+  $('storageMeter').removeAttribute('aria-valuenow');
+  $('storageMeter').setAttribute('aria-valuetext',loading?'读取中':'暂不可用');
+ }else{
+  const ratio=estimate.usage/estimate.quota;
+  const percentage=Math.min(100,Math.round(ratio*100));
+  $('storageBadge').textContent=ratio>=1?'已达到估算配额':ratio>=0.9?'接近上限':'空间充足';
+  $('storageUsage').textContent=storageSize(estimate.usage)+' / '+storageSize(estimate.quota);
+  $('storageRemaining').textContent='估算剩余 '+storageSize(Math.max(0,estimate.quota-estimate.usage));
+  $('storageFill').style.width=percentage+'%';
+  $('storageMeter').setAttribute('aria-valuenow',String(percentage));
+  $('storageMeter').setAttribute('aria-valuetext',percentage+'%');
+  if(ratio>=0.9)note+=' 可在下方删除不需要的项目；不会自动清理。';
+ }
+ $('storageNote').textContent=note;
+}
+async function refreshStorage(){
+ const token=++storageRequest;
+ const mode=$('storageMode').value;
+ const disclaimer='PDF 仅为示例记录中的文件信息，未保存文件内容，不代表实际占用。';
+ if(mode!=='browser'){
+  const quota=64*1048576;
+  const estimate=mode==='unavailable'?null:{quota,usage:mode==='near'?quota*0.92:pdfStats().bytes+8*1048576};
+  showStorage(estimate,'演示数据：配额及其他存储占用均为模拟。'+disclaimer);
+  return;
+ }
+ const note='当前来源的浏览器估算，可能含同源的其他数据；不代表磁盘容量或保证可写空间。'+disclaimer;
+ showStorage(null,note,true);
+ let timeout;
+ try{
+  if(!navigator.storage?.estimate)throw Error('unavailable');
+  const result=await Promise.race([
+   navigator.storage.estimate(),
+   new Promise((_,reject)=>{timeout=setTimeout(()=>reject(Error('timeout')),5000);})
+  ]);
+  if(token===storageRequest)showStorage(result,note+' 已刷新 '+new Date().toLocaleTimeString('zh-CN')+'。');
+ }catch{
+  if(token===storageRequest)showStorage(null,'浏览器未提供可用估算，可稍后刷新；本地文件页面可能不支持此功能。'+disclaimer);
+ }finally{
+  clearTimeout(timeout);
+ }
+}
+$('storageMode').onchange=refreshStorage;
+$('refreshStorage').onclick=refreshStorage;
 function stageProgress(project){
  const current={ready:-1,analyzing:0,analysisReady:0,figure:1,outline:2,slides:3}[project.stage];
  const labels=['分析','图源','讲稿','幻灯片'];
@@ -836,4 +934,5 @@ $('projects').onclick=e=>{
 };
 $('search').oninput=render;$('filter').onchange=render;$('reset').onclick=()=>{if(commit(structuredClone(initial))){$('search').value='';$('filter').value='all';render();$('status').textContent='已恢复三个示例项目；模型演示设置保留。';}};
 render();
+refreshStorage();
 </script></body></html>
