@@ -3,7 +3,7 @@
 | 页面 | 文件 | 状态与规格 |
 |---|---|---|
 | 项目管理与新建 | [projects.html](projects.html) | 用户确认页面可行，包含新建双 PDF、阶段进度与存储概览；[页面规格](../ui/项目准备.md) |
-| 模型配置 | [model-settings.html](model-settings.html) | Responses 独立配置页讨论稿；[页面规格](../ui/模型配置.md) |
+| 模型配置 | [model-settings.html](model-settings.html) | 用户已确认 Responses 独立配置页，包含地址、模型、思考强度及连接/能力检查；[页面规格](../ui/模型配置.md) |
 | 论文分析与图源页查漏 | [paper-analysis.html](paper-analysis.html) | 用户确认当前分析页无需修改，不增加文章类型确认；[页面规格](../ui/论文分析.md) |
 | 论文图源与 Figure 切分核对 | [figure-review.html](figure-review.html) | 用户确认页面可行；[唯一页面规格](../ui/图源核对.md) |
 | 大纲与演讲稿 | [outline-speech.html](outline-speech.html) | 用户确认页面可行；[唯一页面规格](../ui/大纲与演讲稿.md) |
