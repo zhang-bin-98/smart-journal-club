@@ -35,7 +35,7 @@
 - M8 的模块化为当前实现基线；v0.5 目标采用 UI / Application / Domain / Infrastructure 四层和 project / paper / presentation 三个领域，按 [分层与模块](docs/architecture/分层与模块.md) 渐进归位。工作流与 Agent 接线归 app，外部适配器归 infrastructure；旧 outline/deck 的共同领域内容归 presentation，不提前生成空目录或第二套流程。
 - 本项目桌面优先，不设计响应式断点、自动抽屉或手机布局；分隔线、焦点和内容可读性按桌面实际操作验收。
 - UI 按 docs/ui 的页面规格重新设计完整应用工作台，不能仅将旧长网页套入固定高度。主操作、对象导航、切分工具、直接编辑、AI 收起、自动保存、键盘焦点与桌面分栏调节按实际任务验收；当前实现状态以执行计划为准。
-- 应用用例统一协调状态转换和跨对象原子提交；领域规则与影响分析可无浏览器测试，生成流程可无 React/真实模型测试。UI/tool 不导入具体适配器，composition 只装配；Plan 与 Deck 复用共同定义和必要纯规则，保留各自会话与生命周期。
+- 应用用例统一协调状态转换和跨对象原子提交；领域规则与影响分析可无浏览器测试，生成流程可无 React/真实模型测试。UI/tool 不导入具体适配器，composition 只装配；Plan 与 Deck 通过 presentation/content 复用共同定义和必要纯规则，保留各自生命周期；OutlineSession/DeckSession 保存编排归应用，领域不接收保存回调。保存成功才推进会话与 Undo，UI 草稿以应用编辑登记保护。
 - 固定解析、图源、论文理解、大纲/演讲稿、下一步页面规划、按已保存且校验就绪的计划生成及导出使用显式 workflow；交互式问答与读工具选择在 M10 必须优先使用 `@earendil-works/pi-agent-core` 的 Agent、事件与取消能力，不维护第二套通用 Agent loop。M8 只隔离旧循环，替换留到 M10。
 - UI 与 Agent tool 不直接访问 IndexedDB，不承载领域校验、事务或持久化；通过 service/use case 和 repository 接入。Schema、validator、mutation 不依赖 React、DOM、PDF.js、PptxGenJS 或 Pi；DeckSession/OutlineSession 保持单一提交入口。
 - 稳定 Schema、基础叙事骨架、确定性校验和事务规则不能由 Prompt 替代；可变研究写作建议才放提示词。
