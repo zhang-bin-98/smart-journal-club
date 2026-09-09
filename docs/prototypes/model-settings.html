@@ -6,7 +6,6 @@
   --font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
     monospace;
-  --color-black: #000;
   --color-white: #fff;
   --spacing: 0.25rem;
   --text-xs: 0.75rem;
@@ -18,9 +17,7 @@
   --text-xl: 1.25rem;
   --text-xl--line-height: calc(1.75 / 1.25);
   --font-weight-medium: 500;
-  --font-weight-semibold: 600;
   --leading-relaxed: 1.625;
-  --radius-lg: 0.5rem;
   --default-font-family: var(--font-sans);
   --default-mono-font-family: var(--font-mono);
   --color-ink: #203040;
@@ -184,12 +181,6 @@
 .m-0 {
   margin: 0px;
 }
-.m-auto {
-  margin: auto;
-}
-.mx-auto {
-  margin-inline: auto;
-}
 .mt-1 {
   margin-top: var(--spacing);
 }
@@ -208,11 +199,11 @@
 .mt-6 {
   margin-top: calc(var(--spacing) * 6);
 }
-.mt-20 {
-  margin-top: calc(var(--spacing) * 20);
-}
 .mb-2 {
   margin-bottom: calc(var(--spacing) * 2);
+}
+.mb-5 {
+  margin-bottom: calc(var(--spacing) * 5);
 }
 .ml-auto {
   margin-left: auto;
@@ -229,23 +220,26 @@
 .hidden {
   display: none;
 }
+.table {
+  display: table;
+}
 .h-dvh {
   height: 100dvh;
 }
-.max-h-\[90dvh\] {
-  max-height: 90dvh;
+.h-full {
+  height: 100%;
 }
-.min-h-12 {
-  min-height: calc(var(--spacing) * 12);
+.min-h-0 {
+  min-height: 0px;
 }
-.w-\[760px\] {
-  width: 760px;
-}
-.w-\[800px\] {
-  width: 800px;
+.min-h-10 {
+  min-height: calc(var(--spacing) * 10);
 }
 .w-full {
   width: 100%;
+}
+.max-w-\[1120px\] {
+  max-width: 1120px;
 }
 .min-w-0 {
   min-width: 0px;
@@ -253,8 +247,17 @@
 .flex-1 {
   flex: 1;
 }
-.grid-cols-\[1fr_230px\] {
-  grid-template-columns: 1fr 230px;
+.shrink-0 {
+  flex-shrink: 0;
+}
+.grid-cols-\[minmax\(0\,1fr\)_320px\] {
+  grid-template-columns: minmax(0,1fr) 320px;
+}
+.flex-col {
+  flex-direction: column;
+}
+.content-start {
+  align-content: flex-start;
 }
 .items-center {
   align-items: center;
@@ -262,23 +265,39 @@
 .justify-between {
   justify-content: space-between;
 }
+.justify-center {
+  justify-content: center;
+}
 .gap-3 {
   gap: calc(var(--spacing) * 3);
 }
 .gap-4 {
   gap: calc(var(--spacing) * 4);
 }
+.gap-5 {
+  gap: calc(var(--spacing) * 5);
+}
+.gap-6 {
+  gap: calc(var(--spacing) * 6);
+}
+:where(.space-y-3 > :not(:last-child)) {
+  --tw-space-y-reverse: 0;
+  margin-block-start: calc(calc(var(--spacing) * 3) * var(--tw-space-y-reverse));
+  margin-block-end: calc(calc(var(--spacing) * 3) * calc(1 - var(--tw-space-y-reverse)));
+}
+:where(.space-y-5 > :not(:last-child)) {
+  --tw-space-y-reverse: 0;
+  margin-block-start: calc(calc(var(--spacing) * 5) * var(--tw-space-y-reverse));
+  margin-block-end: calc(calc(var(--spacing) * 5) * calc(1 - var(--tw-space-y-reverse)));
+}
+.overflow-auto {
+  overflow: auto;
+}
 .overflow-hidden {
   overflow: hidden;
 }
-.overflow-y-auto {
-  overflow-y: auto;
-}
 .rounded {
   border-radius: 0.25rem;
-}
-.rounded-lg {
-  border-radius: var(--radius-lg);
 }
 .border {
   border-style: var(--tw-border-style);
@@ -291,14 +310,6 @@
 .border-b {
   border-bottom-style: var(--tw-border-style);
   border-bottom-width: 1px;
-}
-.border-l {
-  border-left-style: var(--tw-border-style);
-  border-left-width: 1px;
-}
-.border-dashed {
-  --tw-border-style: dashed;
-  border-style: dashed;
 }
 .border-control {
   border-color: var(--color-control);
@@ -315,17 +326,11 @@
 .bg-white {
   background-color: var(--color-white);
 }
-.p-0 {
-  padding: 0px;
-}
 .p-5 {
   padding: calc(var(--spacing) * 5);
 }
 .p-6 {
   padding: calc(var(--spacing) * 6);
-}
-.p-8 {
-  padding: calc(var(--spacing) * 8);
 }
 .px-2 {
   padding-inline: calc(var(--spacing) * 2);
@@ -333,14 +338,8 @@
 .px-3 {
   padding-inline: calc(var(--spacing) * 3);
 }
-.px-4 {
-  padding-inline: calc(var(--spacing) * 4);
-}
 .px-5 {
   padding-inline: calc(var(--spacing) * 5);
-}
-.px-6 {
-  padding-inline: calc(var(--spacing) * 6);
 }
 .px-8 {
   padding-inline: calc(var(--spacing) * 8);
@@ -360,11 +359,17 @@
 .py-4 {
   padding-block: calc(var(--spacing) * 4);
 }
-.py-5 {
-  padding-block: calc(var(--spacing) * 5);
+.py-6 {
+  padding-block: calc(var(--spacing) * 6);
+}
+.pt-3 {
+  padding-top: calc(var(--spacing) * 3);
 }
 .pt-4 {
   padding-top: calc(var(--spacing) * 4);
+}
+.pt-5 {
+  padding-top: calc(var(--spacing) * 5);
 }
 .font-sans {
   font-family: var(--font-sans);
@@ -393,12 +398,14 @@
   --tw-font-weight: var(--font-weight-medium);
   font-weight: var(--font-weight-medium);
 }
-.font-semibold {
-  --tw-font-weight: var(--font-weight-semibold);
-  font-weight: var(--font-weight-semibold);
+.break-all {
+  word-break: break-all;
 }
 .text-ink {
   color: var(--color-ink);
+}
+.text-line {
+  color: var(--color-line);
 }
 .text-muted {
   color: var(--color-muted);
@@ -413,22 +420,13 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
-.shadow-xl {
-  --tw-shadow: 0 20px 25px -5px var(--tw-shadow-color, rgb(0 0 0 / 0.1)), 0 8px 10px -6px var(--tw-shadow-color, rgb(0 0 0 / 0.1));
-  box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
-}
-.outline-none {
-  --tw-outline-style: none;
-  outline-style: none;
-}
-.backdrop\:bg-black\/25::backdrop {
-  background-color: color-mix(in srgb, #000 25%, transparent);
-  @supports (color: color-mix(in lab, red, red)) {
-    background-color: color-mix(in oklab, var(--color-black) 25%, transparent);
-  }
-}
 .disabled\:opacity-30:disabled {
   opacity: 30%;
+}
+@property --tw-space-y-reverse {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0;
 }
 @property --tw-border-style {
   syntax: "*";
@@ -443,212 +441,184 @@
   syntax: "*";
   inherits: false;
 }
-@property --tw-shadow {
-  syntax: "*";
-  inherits: false;
-  initial-value: 0 0 #0000;
-}
-@property --tw-shadow-color {
-  syntax: "*";
-  inherits: false;
-}
-@property --tw-shadow-alpha {
-  syntax: "<percentage>";
-  inherits: false;
-  initial-value: 100%;
-}
-@property --tw-inset-shadow {
-  syntax: "*";
-  inherits: false;
-  initial-value: 0 0 #0000;
-}
-@property --tw-inset-shadow-color {
-  syntax: "*";
-  inherits: false;
-}
-@property --tw-inset-shadow-alpha {
-  syntax: "<percentage>";
-  inherits: false;
-  initial-value: 100%;
-}
-@property --tw-ring-color {
-  syntax: "*";
-  inherits: false;
-}
-@property --tw-ring-shadow {
-  syntax: "*";
-  inherits: false;
-  initial-value: 0 0 #0000;
-}
-@property --tw-inset-ring-color {
-  syntax: "*";
-  inherits: false;
-}
-@property --tw-inset-ring-shadow {
-  syntax: "*";
-  inherits: false;
-  initial-value: 0 0 #0000;
-}
-@property --tw-ring-inset {
-  syntax: "*";
-  inherits: false;
-}
-@property --tw-ring-offset-width {
-  syntax: "<length>";
-  inherits: false;
-  initial-value: 0px;
-}
-@property --tw-ring-offset-color {
-  syntax: "*";
-  inherits: false;
-  initial-value: #fff;
-}
-@property --tw-ring-offset-shadow {
-  syntax: "*";
-  inherits: false;
-  initial-value: 0 0 #0000;
-}
 @layer properties {
   @supports ((-webkit-hyphens: none) and (not (margin-trim: inline))) or ((-moz-orient: inline) and (not (color:rgb(from red r g b)))) {
     *, ::before, ::after, ::backdrop {
+      --tw-space-y-reverse: 0;
       --tw-border-style: solid;
       --tw-leading: initial;
       --tw-font-weight: initial;
-      --tw-shadow: 0 0 #0000;
-      --tw-shadow-color: initial;
-      --tw-shadow-alpha: 100%;
-      --tw-inset-shadow: 0 0 #0000;
-      --tw-inset-shadow-color: initial;
-      --tw-inset-shadow-alpha: 100%;
-      --tw-ring-color: initial;
-      --tw-ring-shadow: 0 0 #0000;
-      --tw-inset-ring-color: initial;
-      --tw-inset-ring-shadow: 0 0 #0000;
-      --tw-ring-inset: initial;
-      --tw-ring-offset-width: 0px;
-      --tw-ring-offset-color: #fff;
-      --tw-ring-offset-shadow: 0 0 #0000;
     }
   }
 }
 </style></head>
-<body class="m-0 h-dvh overflow-hidden bg-canvas font-sans text-sm text-ink antialiased">
-<header class="flex items-center justify-between border-b border-line bg-white px-8 py-5"><a href="projects.html" class="text-xl font-semibold">smartJC</a><a href="projects.html" class="text-xs underline">返回项目管理</a></header>
-<main class="mx-auto mt-20 w-[760px] rounded border border-line bg-white p-8"><h1 class="text-xl font-medium">模型配置 · 交互讨论稿</h1><p class="mt-3 leading-relaxed text-muted">全局设置以弹窗打开，保存或关闭后回到原页面。</p><p id="savedStatus" role="status" class="mt-6"></p><button id="open" class="mt-5 rounded bg-ink px-5 py-2.5 text-white">打开模型配置</button><p class="mt-6 text-xs text-muted">本原型只保存配置演示标志，不收集真实 API Key，不发送模型请求。</p></main>
-<dialog id="settingsDialog" aria-labelledby="title" class="m-auto max-h-[90dvh] w-[800px] overflow-y-auto rounded-lg border border-line bg-white p-0 text-ink shadow-xl backdrop:bg-black/25">
-<header class="flex items-center justify-between border-b border-line px-6 py-5"><div><h2 id="title" class="text-lg font-medium">模型配置</h2><p class="mt-1 text-xs text-muted">应用于当前浏览器的全部项目</p></div><button id="close" aria-label="关闭模型配置" class="rounded px-3 py-2 disabled:opacity-30">✕</button></header>
-<div class="grid grid-cols-[1fr_230px]">
-<section class="min-w-0 p-6"><label for="model" class="mb-2 block">模型</label><select id="model" class="w-full rounded border border-control bg-white px-3 py-2.5 disabled:opacity-30"><option>DeepSeek V4 Flash Vision</option></select><p class="mt-2 text-xs text-muted">用于论文分析、讲稿、幻灯片及 AI 对话</p>
-<label for="apiKey" class="mb-2 mt-6 block">API Key</label><div class="flex overflow-hidden rounded border border-control"><input id="apiKey" readonly type="password" autocomplete="off" aria-describedby="keyHelp" placeholder="尚未配置" class="min-w-0 flex-1 bg-white px-3 py-2.5 outline-none disabled:opacity-30"><button id="reveal" aria-pressed="false" class="px-3 text-xs disabled:opacity-30">显示</button></div><p id="keyHelp" class="mt-2 text-xs text-muted">演示输入：使用下方“填入示例”，请勿提供真实密钥。</p>
-<div class="mt-3 flex gap-4 text-xs"><button id="fill" class="underline disabled:opacity-30">填入示例</button><button id="emptyDraft" class="underline disabled:opacity-30">清空输入</button></div>
-<div class="mt-6 flex items-center gap-3"><button id="test" class="rounded border border-control px-3 py-2 disabled:opacity-30">测试连接</button><button id="cancelTest" class="hidden text-xs underline">取消测试</button><span id="draftStatus" class="text-xs text-muted"></span></div><p id="result" role="status" class="mt-3 min-h-12 text-sm leading-relaxed"></p>
-</section><aside class="border-l border-line bg-canvas p-5"><h3 class="font-medium">配置与数据</h3><p class="mt-3 text-xs leading-relaxed text-muted">论文分析所需的文本和图片将直接发送给 DeepSeek。</p><p class="mt-4 text-xs leading-relaxed text-muted">Key 保存在当前浏览器，可单独清除。删除项目不会清除 Key，清除 Key 也不会删除项目。</p><p class="mt-4 text-xs leading-relaxed text-muted">测试只检查连接，不发送项目论文。保存设置后，回到原步骤手动开始或继续。</p><div id="constraint" role="status" class="mt-5 border-t border-line pt-4 text-xs leading-relaxed"></div></aside></div>
-<footer class="flex items-center justify-between border-t border-line px-6 py-4"><button id="clear" class="text-xs underline disabled:opacity-30">清除已保存 Key</button><div class="flex gap-3"><button id="cancel" class="rounded border border-control px-4 py-2 disabled:opacity-30">取消</button><button id="save" class="rounded bg-ink px-5 py-2 text-white disabled:opacity-30">保存</button></div></footer>
-<div class="flex items-center gap-3 border-t border-dashed border-line bg-canvas px-6 py-3 text-xs"><span class="text-muted">原型场景</span><select id="scenario" aria-label="原型演示场景" class="rounded border border-control bg-white px-2 py-1 disabled:opacity-30"><option value="success">连接成功</option><option value="auth">Key 无效</option><option value="rate">请求限流</option><option value="network">网络失败</option><option value="offline">当前离线</option><option value="saveError">保存失败</option><option value="running">任务运行中</option></select><span class="ml-auto text-muted">全部为模拟 · 不调用模型</span></div>
-</dialog>
+<body class="m-0 h-dvh overflow-hidden bg-canvas font-sans text-sm text-ink antialiased"><div class="flex h-full flex-col">
+<header class="flex shrink-0 items-center justify-between border-b border-line bg-white px-8 py-4"><div class="flex items-center gap-5"><strong class="text-xl">smartJC</strong><span class="text-line">│</span><h1 class="text-lg font-medium">模型配置</h1><span id="savedStatus" role="status" class="text-xs text-muted"></span></div><div class="flex items-center gap-4"><button id="back" class="px-3 py-2 disabled:opacity-30">返回</button><button id="save" class="rounded bg-ink px-5 py-2.5 text-white disabled:opacity-30">保存并返回</button></div></header>
+<main class="flex min-h-0 flex-1 justify-center overflow-auto px-8 py-6"><div class="grid w-full max-w-[1120px] grid-cols-[minmax(0,1fr)_320px] content-start gap-6">
+<section class="rounded border border-line bg-white p-6"><div class="mb-5 flex items-center justify-between"><h2 class="font-medium">连接配置</h2><span class="rounded border border-line px-3 py-1 text-xs text-muted">Responses API · 固定协议</span></div>
+<label for="baseUrl" class="mb-2 block">Base URL</label><input id="baseUrl" type="url" autocomplete="off" spellcheck="false" placeholder="https://api.example.com/v1" class="w-full rounded border border-control px-3 py-2.5 disabled:opacity-30"><p class="mt-2 text-xs text-muted">填写服务 API 根地址，保留服务要求的路径，例如 /v1。</p><p class="mt-2 break-all text-xs text-muted">请求地址：<span id="endpoint">—</span></p>
+<label for="apiKey" class="mb-2 mt-5 block">API Key</label><div class="flex rounded border border-control"><input id="apiKey" readonly type="password" autocomplete="off" placeholder="尚未配置" class="min-w-0 flex-1 rounded bg-white px-3 py-2.5 disabled:opacity-30"><button id="reveal" aria-pressed="false" class="px-3 text-xs disabled:opacity-30">显示</button></div><div class="mt-2 flex items-center gap-4 text-xs"><span class="text-muted">原型仅使用示例密钥</span><button id="fillKey" class="underline disabled:opacity-30">填入示例</button><button id="emptyKey" class="underline disabled:opacity-30">清空输入</button></div>
+<label for="model" class="mb-2 mt-5 block">模型 ID</label><input id="model" autocomplete="off" spellcheck="false" placeholder="填写服务提供的模型名称" class="w-full rounded border border-control px-3 py-2.5 disabled:opacity-30">
+<label for="effort" class="mb-2 mt-5 block">思考强度</label><select id="effort" class="w-full rounded border border-control bg-white px-3 py-2.5 disabled:opacity-30"><option value="default">服务默认</option><option value="none">关闭 · none（待验证）</option><option value="minimal">极低 · minimal（待验证）</option><option value="low">低 · low（待验证）</option><option value="medium">中 · medium（待验证）</option><option value="high">高 · high（待验证）</option><option value="xhigh">很高 · xhigh（待验证）</option><option value="max">最高 · max（待验证）</option></select><p id="effortHint" class="mt-2 text-xs leading-relaxed text-muted"></p><p class="mt-1 text-xs text-muted">较高强度可能增加等待时间和费用，不保证结果更好。</p>
+<div class="mt-6 flex items-center gap-3 border-t border-line pt-5"><button id="test" class="rounded border border-control px-3 py-2 disabled:opacity-30">测试连接</button><button id="capabilities" class="rounded border border-control px-3 py-2 disabled:opacity-30">检查应用所需能力</button><button id="cancelTest" class="hidden text-xs underline">取消检查</button></div><p id="result" role="status" class="mt-3 min-h-10 leading-relaxed"></p><button id="useDefault" class="hidden text-xs underline">改回服务默认</button><div class="mt-3 flex justify-between border-t border-line pt-4 text-xs"><button id="clear" class="underline disabled:opacity-30">清除已保存 Key</button><button id="resetDraft" class="underline disabled:opacity-30">恢复已保存配置</button></div>
+</section>
+<aside class="space-y-5"><section class="rounded border border-line bg-white p-5"><h2 class="font-medium">配置检查</h2><p class="mt-2 text-xs leading-relaxed text-muted">结果只对应当前填写的配置；修改后需重新检查。</p><dl class="mt-4 space-y-3 text-xs"><div class="flex justify-between"><dt>服务连接</dt><dd id="connectionStatus">未检查</dd></div><div class="flex justify-between"><dt>图片输入</dt><dd id="visionStatus">未检查</dd></div><div class="flex justify-between"><dt>工具调用</dt><dd id="toolsStatus">未检查</dd></div><div class="flex justify-between"><dt>结构化结果</dt><dd id="structuredStatus">未检查</dd></div><div class="flex justify-between"><dt>流式返回</dt><dd id="streamStatus">未检查</dd></div></dl><p class="mt-4 border-t border-line pt-3 text-xs leading-relaxed text-muted">连接成功不代表全部能力可用。检查使用示例文本和图片，不发送项目论文。</p></section>
+<section class="rounded border border-line bg-white p-5"><h2 class="font-medium">应用于全部项目</h2><p class="mt-3 text-xs leading-relaxed text-muted">文本与图片将发送至你配置的服务地址。Key 保存在当前浏览器，可单独清除。</p><p class="mt-3 text-xs leading-relaxed text-muted">修改只影响后续请求，已有论文与 PPT 保留。保存后不会自动开始或继续任务。</p><p id="constraint" role="status" class="mt-4 border-t border-line pt-3 text-xs leading-relaxed"></p></section>
+</aside></div></main>
+<footer class="flex shrink-0 items-center gap-3 border-t border-line bg-white px-8 py-3 text-xs"><span class="text-muted">原型场景</span><select id="scenario" aria-label="原型演示场景" class="rounded border border-control bg-white px-2 py-1 disabled:opacity-30"><option value="success">全部成功</option><option value="effort">思考强度不支持</option><option value="vision">图片输入不支持</option><option value="auth">Key 无效</option><option value="rate">请求限流</option><option value="network">网络失败</option><option value="offline">当前离线</option><option value="saveError">保存失败</option><option value="running">任务运行中</option></select><button id="fillExample" class="underline disabled:opacity-30">填入整套示例</button><span class="ml-auto text-muted">仅保存示例配置 · 不接收真实 Key · 不发送请求</span></footer></div>
 <script>
 'use strict';
 const $=id=>document.getElementById(id);
-const storageKey='smartjc-projects-demo-v1-model';
-let saved=false;
-try{saved=localStorage.getItem(storageKey)==='true';}catch{}
-let draft=false,checking=false,saving=false,epoch=0,timer;
+const storageKey='smartjc-model-config-demo-v2';
+const defaults={baseUrl:'',modelId:'',effort:'default',hasKey:false};
+const allowedEfforts=['default','none','minimal','low','medium','high','xhigh','max'];
+let saved={...defaults};
+try{
+ const value=JSON.parse(localStorage.getItem(storageKey));
+ if(value&&typeof value.baseUrl==='string'&&typeof value.modelId==='string'&&typeof value.hasKey==='boolean'&&allowedEfforts.includes(value.effort))saved=value;
+}catch{}
+let hasKey=saved.hasKey,checking=false,saving=false,epoch=0,timer;
+const query=new URLSearchParams(location.search);
+const returns={projects:'projects.html',analysis:'paper-analysis.html',figures:'figure-review.html',outline:'outline-speech.html',slides:'slides.html'};
+const returnUrl=(returns[query.get('from')]||returns.projects)+(query.get('resume')==='create'?'?resumeCreate=1':'');
+function normalizeBase(value){
+ const url=new URL(value.trim());
+ if(!['https:','http:'].includes(url.protocol)||url.username||url.password||url.search||url.hash)throw Error('请填写不含账号、查询参数和片段的 HTTP(S) API 根地址。');
+ url.pathname=url.pathname.replace(/\/+$/,'').replace(/\/responses$/,'');
+ return url.href.replace(/\/+$/,'');
+}
+function draft(){return {baseUrl:$('baseUrl').value.trim(),modelId:$('model').value.trim(),effort:$('effort').value,hasKey};}
+function inputError(){
+ if(!$('baseUrl').value.trim())return '请填写 Base URL。';
+ try{normalizeBase($('baseUrl').value);}catch{return 'Base URL 无效，请填写 HTTP(S) API 根地址，不含账号或查询参数。';}
+ if(!$('model').value.trim())return '请填写模型 ID。';
+ return '';
+}
+function resetResults(){
+ for(const id of ['connectionStatus','visionStatus','toolsStatus','structuredStatus','streamStatus'])$(id).textContent='未检查';
+ $('useDefault').classList.add('hidden');
+}
 function update(){
  const running=$('scenario').value==='running';
  const offline=$('scenario').value==='offline';
- for(const id of ['model','apiKey','fill','emptyDraft'])$(id).disabled=running||checking||saving;
- $('reveal').disabled=!draft||running||saving;
- $('test').disabled=!draft||checking||saving||running||offline;
+ for(const id of ['baseUrl','apiKey','model','effort','fillKey','emptyKey','fillExample','resetDraft'])$(id).disabled=running||checking||saving;
+ $('reveal').disabled=!hasKey||running||saving;
+ for(const id of ['test','capabilities'])$(id).disabled=!!inputError()||!hasKey||checking||saving||running||offline;
  $('save').disabled=checking||saving||running;
- $('clear').disabled=!saved||checking||saving||running;
- $('close').disabled=saving;
- $('cancel').disabled=saving;
+ $('clear').disabled=!saved.hasKey||checking||saving||running;
+ $('back').disabled=saving;
  $('scenario').disabled=saving;
  $('cancelTest').classList.toggle('hidden',!checking);
- $('apiKey').value=draft?'demo-key-not-a-real-secret':'';
- $('draftStatus').textContent=draft!==saved?'尚未保存':saved?'已配置 · 演示':'未配置';
- $('constraint').textContent=running?'当前有模型任务运行中。请返回任务，等待完成或取消后再更改配置。':offline?'当前离线：联网后可测试连接，仍可保存或清除 Key。':'未配置时，仍可查看和手工编辑已有内容。';
- $('savedStatus').textContent=saved?'当前状态：已配置（演示）':'当前状态：未配置';
+ $('apiKey').value=hasKey?'demo-key-not-a-real-secret':'';
+ $('savedStatus').textContent=JSON.stringify(draft())===JSON.stringify(saved)?'已保存配置':'尚未保存';
+ try{$('endpoint').textContent=normalizeBase($('baseUrl').value)+'/responses';}catch{$('endpoint').textContent='—';}
+ $('effortHint').textContent=$('effort').value==='default'?'使用服务默认设置，不发送思考强度参数。':'该档位尚未验证，请测试当前服务与模型；不支持时不会自动降档。';
+ $('constraint').textContent=running?'当前有模型任务运行中，请返回任务等待完成或取消后再修改配置。':offline?'当前离线，仍可保存或清除配置；联网后再测试。':'可以先保存配置，连接和能力检查均不会自动保存。';
 }
-function abortTest(message=''){
+function abortCheck(message=''){
  epoch++;
  clearTimeout(timer);
  checking=false;
  $('result').textContent=message;
  update();
 }
-function openSettings(){
- abortTest();
- draft=saved;
+function changed(){
+ abortCheck();
+ resetResults();
+ update();
+}
+function restore(){
+ hasKey=saved.hasKey;
+ $('baseUrl').value=saved.baseUrl;
+ $('model').value=saved.modelId;
+ $('effort').value=saved.effort;
  $('apiKey').type='password';
  $('reveal').textContent='显示';
  $('reveal').setAttribute('aria-pressed','false');
- update();
- $('settingsDialog').showModal();
+ changed();
 }
-function closeSettings(){
+function leave(){
  if(saving)return;
- abortTest();
- draft=saved;
- $('settingsDialog').close();
- update();
- $('open').focus();
+ abortCheck();
+ location.href=returnUrl;
 }
-function setDraft(value){
+async function saveConfig(clearOnly=false){
  if(checking||saving||$('scenario').value==='running')return;
- draft=value;
- $('result').textContent='';
- update();
-}
-async function saveSettings(value){
- if(checking||saving||$('scenario').value==='running')return;
+ const error=clearOnly?'':inputError();
+ if(error){$('result').textContent=error;return;}
+ const next=clearOnly?{...saved,hasKey:false}:{...draft(),baseUrl:normalizeBase($('baseUrl').value)};
  saving=true;
  $('result').textContent='正在保存…';
  update();
- await new Promise(resolve=>setTimeout(resolve,300));
+ await new Promise(resolve=>setTimeout(resolve,250));
  try{
   if($('scenario').value==='saveError')throw Error('simulation');
-  localStorage.setItem(storageKey,String(value));
-  saved=value;
+  localStorage.setItem(storageKey,JSON.stringify(next));
+  saved=next;
   saving=false;
-  closeSettings();
-  $('savedStatus').textContent=value?'配置已保存（演示），没有自动启动任务。':'Key 已清除（演示），项目与论文成果保留。';
+  if(clearOnly){restore();$('result').textContent='已清除保存的 Key，服务地址、模型与思考强度保留。';}
+  else leave();
  }catch{
   saving=false;
-  $('result').textContent='未能保存，原配置未改变。输入已保留，请重试。';
+  $('result').textContent='未能保存，旧配置未改变；输入已保留，请重试。';
   update();
  }
 }
-$('open').onclick=openSettings;
-$('close').onclick=closeSettings;
-$('cancel').onclick=closeSettings;
-$('settingsDialog').addEventListener('cancel',event=>{event.preventDefault();closeSettings();});
-$('fill').onclick=()=>setDraft(true);
-$('emptyDraft').onclick=()=>setDraft(false);
+function check(full){
+ if($(full?'capabilities':'test').disabled)return;
+ const token=++epoch;
+ const scenario=$('scenario').value;
+ const effort=$('effort').value;
+ resetResults();
+ checking=true;
+ $('result').textContent=full?'正在检查连接与应用所需能力…（模拟）':'正在测试连接…（模拟）';
+ update();
+ timer=setTimeout(()=>{
+  if(token!==epoch)return;
+  checking=false;
+  const error=({auth:'认证失败，请检查 Key。',rate:'请求受到限流，请稍后重试。',network:'连接失败，请检查地址、网络及浏览器连接限制。'})[scenario];
+  if(error){$('connectionStatus').textContent='失败（模拟）';$('result').textContent=error;}
+  else if(scenario==='effort'&&effort!=='default'){
+   $('connectionStatus').textContent='参数被拒绝（模拟）';
+   $('result').textContent='当前服务或模型不支持所选思考强度。请改回服务默认后重新检查。';
+   $('useDefault').classList.remove('hidden');
+  }else{
+   $('connectionStatus').textContent='成功（模拟）';
+   if(full){
+    for(const id of ['visionStatus','toolsStatus','structuredStatus','streamStatus'])$(id).textContent='通过（模拟）';
+    if(scenario==='vision')$('visionStatus').textContent='不支持（模拟）';
+   }
+   $('result').textContent=full?(scenario==='vision'?'连接成功，但图片输入不支持；请更换具备图片能力的模型或服务。':'本次应用能力检查通过（模拟），配置尚未自动保存。'):'连接成功（模拟）；应用所需能力尚未检查。';
+  }
+  update();
+ },850);
+}
+for(const id of ['baseUrl','model'])$(id).oninput=changed;
+$('effort').onchange=changed;
+$('fillKey').onclick=()=>{hasKey=true;changed();};
+$('emptyKey').onclick=()=>{hasKey=false;changed();};
+$('fillExample').onclick=()=>{
+ $('baseUrl').value='https://api.example.com/v1';
+ $('model').value='example-vision-model';
+ $('effort').value='default';
+ hasKey=true;
+ changed();
+};
 $('reveal').onclick=()=>{
  const show=$('apiKey').type==='password';
  $('apiKey').type=show?'text':'password';
  $('reveal').textContent=show?'隐藏':'显示';
  $('reveal').setAttribute('aria-pressed',String(show));
 };
-$('scenario').onchange=()=>abortTest();
-$('cancelTest').onclick=()=>abortTest('测试已取消，配置未改变。');
-$('test').onclick=()=>{
- if($('test').disabled)return;
- const token=++epoch;
- const scenario=$('scenario').value;
- checking=true;
- $('result').textContent='正在测试连接…（模拟）';
- update();
- timer=setTimeout(()=>{
-  if(token!==epoch)return;
-  checking=false;
-  $('result').textContent=({auth:'认证失败，请检查 API Key 后重试。',rate:'请求受到限流，请稍后测试。',network:'连接失败，请检查网络或浏览器连接限制。'})[scenario]||'连接成功（模拟）。本次测试未保存配置。';
-  update();
- },900);
-};
-$('save').onclick=()=>saveSettings(draft);
-$('clear').onclick=()=>saveSettings(false);
-update();
-openSettings();
+$('useDefault').onclick=()=>{$('effort').value='default';changed();};
+$('scenario').onchange=changed;
+$('cancelTest').onclick=()=>{abortCheck('检查已取消，配置未改变。');resetResults();};
+$('test').onclick=()=>check(false);
+$('capabilities').onclick=()=>check(true);
+$('save').onclick=()=>saveConfig();
+$('clear').onclick=()=>saveConfig(true);
+$('back').onclick=leave;
+$('resetDraft').onclick=restore;
+window.addEventListener('pagehide',()=>{epoch++;clearTimeout(timer);});
+restore();
 </script></body></html>

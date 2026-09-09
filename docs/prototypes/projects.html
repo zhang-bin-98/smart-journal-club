@@ -773,7 +773,6 @@
 <p class="mt-2 text-xs text-muted">留空时使用论文主要语言，充分覆盖发现；要求不缩小全文解析范围。</p>
 <div id="modelHint" class="mt-5 flex items-center justify-between rounded border border-line bg-panel p-3 text-xs"><span>尚未配置模型，可以先保存项目。</span><button id="configureFromCreate" class="underline">配置模型</button></div><p id="createError" role="alert" class="mt-3 text-xs"></p>
 <div class="mt-5 flex justify-end gap-3"><button id="saveLater" class="rounded border border-control px-4 py-2 disabled:opacity-30">保存，稍后开始</button><button id="startNow" class="rounded bg-ink px-4 py-2 text-white disabled:opacity-30">开始分析</button></div><p class="mt-4 text-xs text-muted">原型不保存或上传 PDF；这里只演示创建记录与分析步骤。</p></dialog>
-<dialog id="settingsDialog" aria-labelledby="settingsTitle" class="m-auto w-[480px] rounded-lg border border-line bg-white p-6 text-ink shadow-xl backdrop:bg-black/25"><h2 id="settingsTitle" class="mb-4 text-lg font-medium">模型设置 · 演示</h2><p class="mb-5 text-xs leading-relaxed text-muted">原型不接入模型，也不收集 API Key。下方开关仅模拟已配置状态；实际应用复用统一模型设置。</p><label class="flex items-center gap-3"><input id="configured" type="checkbox">模拟模型已配置</label><div class="mt-6 flex justify-end"><button id="saveSettings" class="rounded bg-ink px-4 py-2 text-white">完成</button></div></dialog>
 <dialog id="actionDialog" aria-labelledby="actionTitle" class="m-auto max-h-[85dvh] w-[620px] overflow-y-auto rounded-lg border border-line bg-white p-6 text-ink shadow-xl backdrop:bg-black/25"><div class="mb-5 flex justify-between"><h2 id="actionTitle" class="text-lg font-medium"></h2><button id="closeAction" aria-label="关闭对话框">✕</button></div><div id="actionBody"></div><div id="actionButtons" class="mt-6 flex justify-end gap-3"></div></dialog>
 <script>
 'use strict';
@@ -786,7 +785,11 @@ const initial=[
 {id:'sample2',name:'组织验证研究',title:'组织层面的响应与机制',primary:{name:'tissue-validation.pdf',size:3140000},supplement:null,requirements:'重点介绍实验设计。',stage:'figure',updated:Date.now()-86400000},
 {id:'sample3',name:'机制论文阅读',title:'机制与功能干预',primary:{name:'mechanism.pdf',size:2700000},supplement:{name:'supplement.pdf',size:1900000},requirements:'',stage:'ready',updated:Date.now()-172800000}];
 let projects=structuredClone(initial),modelReady=false;
-try{const saved=JSON.parse(localStorage.getItem(key));if(Array.isArray(saved)&&saved.every(p=>typeof p.id==='string'&&typeof p.name==='string'&&p.primary&&typeof p.primary.name==='string'&&p.stage in stages))projects=saved;modelReady=localStorage.getItem(key+'-model')==='true';}catch{}
+try{const saved=JSON.parse(localStorage.getItem(key));if(Array.isArray(saved)&&saved.every(p=>typeof p.id==='string'&&typeof p.name==='string'&&p.primary&&typeof p.primary.name==='string'&&p.stage in stages))projects=saved;}catch{}
+try{
+ const config=JSON.parse(localStorage.getItem('smartjc-model-config-demo-v2'));
+ modelReady=!!(config?.hasKey&&config.baseUrl&&config.modelId);
+}catch{modelReady=false;}
 let files={primary:null,supplement:null},reading={primary:false,supplement:false},fileEpoch={primary:0,supplement:0},customName=false,saving=false;
 function persist(){try{localStorage.setItem(key,JSON.stringify(projects));return true;}catch{$('status').textContent='未能保存示例记录，操作未提交，请重试。';return false;}}
 function commit(next){const before=projects;projects=next;if(!persist()){projects=before;return false;}render();refreshStorage();return true;}
@@ -896,8 +899,18 @@ for(const role of ['primary','supplement']){
 function showCreate(){updateCreate();$('createError').textContent='';$('createDialog').showModal();}
 function closeCreate(){if(saving)return;$('createDialog').close();}
 $('newProject').onclick=showCreate;$('emptyNew').onclick=showCreate;$('closeCreate').onclick=closeCreate;$('createDialog').addEventListener('cancel',e=>{e.preventDefault();closeCreate();});$('projectName').oninput=()=>customName=true;
-function settings(){ $('configured').checked=modelReady;$('settingsDialog').showModal(); }
-$('settings').onclick=settings;$('configureFromCreate').onclick=settings;$('saveSettings').onclick=()=>{modelReady=$('configured').checked;try{localStorage.setItem(key+'-model',String(modelReady));}catch{}$('settingsDialog').close();render();};
+function settings(){
+ const resume=$('createDialog').open;
+ if(reading.primary||reading.supplement){$('createError').textContent='请等待文件信息读取完成后打开配置。';return;}
+ if(resume){
+  try{
+   sessionStorage.setItem('smartjc-create-return-demo',JSON.stringify({primary:fileInfo(files.primary),supplement:fileInfo(files.supplement),name:$('projectName').value,requirements:$('requirements').value,customName}));
+  }catch{$('createError').textContent='无法保存新建草稿，请重试；当前输入已保留。';return;}
+ }
+ location.href='model-settings.html?from=projects'+(resume?'&resume=create':'');
+}
+$('settings').onclick=settings;
+$('configureFromCreate').onclick=settings;
 function fileInfo(file){return file?{name:file.name,size:file.size}:null;}
 function create(start){
  if(saving||reading.primary||reading.supplement||!files.primary)return;
@@ -935,4 +948,18 @@ $('projects').onclick=e=>{
 $('search').oninput=render;$('filter').onchange=render;$('reset').onclick=()=>{if(commit(structuredClone(initial))){$('search').value='';$('filter').value='all';render();$('status').textContent='已恢复三个示例项目；模型演示设置保留。';}};
 render();
 refreshStorage();
+if(new URLSearchParams(location.search).get('resumeCreate')==='1'){
+ try{
+  const draft=JSON.parse(sessionStorage.getItem('smartjc-create-return-demo'));
+  if(draft){
+   files={primary:draft.primary||null,supplement:draft.supplement||null};
+   $('projectName').value=draft.name||'';
+   $('requirements').value=draft.requirements||'';
+   customName=!!draft.customName;
+   showCreate();
+   sessionStorage.removeItem('smartjc-create-return-demo');
+  }
+ }catch{$('status').textContent='新建示例草稿无法恢复，请重新选择文件。';}
+ history.replaceState(null,'','projects.html');
+}
 </script></body></html>
