@@ -205,6 +205,12 @@
 .top-0 {
   top: 0px;
 }
+.top-full {
+  top: 100%;
+}
+.right-0 {
+  right: 0px;
+}
 .bottom-14 {
   bottom: calc(var(--spacing) * 14);
 }
@@ -216,6 +222,9 @@
 }
 .z-20 {
   z-index: 20;
+}
+.z-30 {
+  z-index: 30;
 }
 .z-40 {
   z-index: 40;
@@ -241,6 +250,9 @@
 .mt-3 {
   margin-top: calc(var(--spacing) * 3);
 }
+.mt-4 {
+  margin-top: calc(var(--spacing) * 4);
+}
 .mt-5 {
   margin-top: calc(var(--spacing) * 5);
 }
@@ -255,6 +267,9 @@
 }
 .mb-3 {
   margin-bottom: calc(var(--spacing) * 3);
+}
+.mb-4 {
+  margin-bottom: calc(var(--spacing) * 4);
 }
 .mb-5 {
   margin-bottom: calc(var(--spacing) * 5);
@@ -286,6 +301,9 @@
 .h-10 {
   height: calc(var(--spacing) * 10);
 }
+.h-48 {
+  height: calc(var(--spacing) * 48);
+}
 .h-dvh {
   height: 100dvh;
 }
@@ -294,6 +312,9 @@
 }
 .max-h-\[85dvh\] {
   max-height: 85dvh;
+}
+.max-h-\[88dvh\] {
+  max-height: 88dvh;
 }
 .max-h-\[160px\] {
   max-height: 160px;
@@ -313,11 +334,17 @@
 .w-7 {
   width: calc(var(--spacing) * 7);
 }
+.w-48 {
+  width: calc(var(--spacing) * 48);
+}
 .w-\[460px\] {
   width: 460px;
 }
 .w-\[600px\] {
   width: 600px;
+}
+.w-\[1040px\] {
+  width: 1040px;
 }
 .w-full {
   width: 100%;
@@ -362,6 +389,9 @@
 .grid-cols-\[176px_minmax\(0\,5fr\)_minmax\(0\,4fr\)\] {
   grid-template-columns: 176px minmax(0,5fr) minmax(0,4fr);
 }
+.grid-cols-\[minmax\(0\,1fr\)_260px\] {
+  grid-template-columns: minmax(0,1fr) 260px;
+}
 .flex-col {
   flex-direction: column;
 }
@@ -394,6 +424,9 @@
 }
 .gap-4 {
   gap: calc(var(--spacing) * 4);
+}
+.gap-5 {
+  gap: calc(var(--spacing) * 5);
 }
 .gap-14 {
   gap: calc(var(--spacing) * 14);
@@ -513,6 +546,9 @@
 }
 .p-4 {
   padding: calc(var(--spacing) * 4);
+}
+.p-5 {
+  padding: calc(var(--spacing) * 5);
 }
 .p-6 {
   padding: calc(var(--spacing) * 6);
@@ -812,7 +848,7 @@
 <body class="m-0 h-dvh overflow-hidden bg-canvas font-sans text-sm text-ink antialiased">
 <div class="flex h-full flex-col">
 <header class="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-line bg-white px-5 py-3">
- <div class="flex min-w-0 items-center gap-3"><a href="projects.html" aria-label="返回项目管理" title="返回项目管理" class="text-lg tracking-tight">smartJC</a><span class="text-line">│</span><div><div class="font-medium">肿瘤微环境中的细胞响应</div><div class="text-xs text-muted">示例论文 · 4 张 Figure · 低保真交互 Demo</div></div></div>
+ <div class="flex min-w-0 items-center gap-3"><a href="projects.html" aria-label="返回项目管理" title="返回项目管理" class="text-lg tracking-tight">smartJC</a><span class="text-line">│</span><div><div class="font-medium">肿瘤微环境中的细胞响应</div><div class="text-xs text-muted"><span id="figureSummary">示例论文 · 4 张 Figure · 低保真交互 Demo</span></div></div></div>
  <div class="flex items-center gap-3"><span id="saveStatus" role="status" class="text-xs text-muted">示例已就绪</span><button id="generate" class="rounded bg-ink px-4 py-2.5 text-sm font-medium text-white hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2">确认切分并生成讲稿 →</button></div>
 </header>
 <nav aria-label="工作台视图" class="flex shrink-0 justify-center gap-14 border-b border-line bg-white px-10 text-sm"><a href="paper-analysis.html" class="py-3 text-muted">01 论文分析</a>
@@ -820,13 +856,13 @@
 </nav>
 <div class="grid min-h-0 flex-1 grid-cols-[176px_minmax(0,5fr)_minmax(0,4fr)]">
  <aside class="flex min-h-0 flex-col border-r border-line bg-panel" aria-label="Figure 导航">
-  <div class="border-b border-line p-4"><h2 class="font-medium">图源目录 <span class="text-muted"> / 4</span></h2><p id="seenCount" class="mt-1 text-xs text-muted">已查看 1 / 4</p></div>
+  <div class="border-b border-line p-4"><h2 class="font-medium">图源目录 <span id="figureTotal" class="text-muted"> / 4</span></h2><p id="seenCount" class="mt-1 text-xs text-muted">已查看 1 / 4</p></div>
   <div id="figureNav" class="min-h-0 flex-1 overflow-y-auto p-3"></div>
   <div class="border-t border-line p-4 text-xs leading-relaxed text-muted">向下滚动连续检查<br>无需逐张点击确认</div>
  </aside>
  <main class="flex min-h-0 min-w-0 flex-col" aria-label="连续 Figure 核对">
   <div class="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-line bg-white px-4 py-2.5">
-   <div class="flex flex-wrap items-center gap-1"><button id="selectMode" class="rounded border border-control px-2.5 py-1.5" aria-pressed="true">选择 / 调整</button><button id="addMode" class="rounded border border-control px-2.5 py-1.5" aria-pressed="false">＋ 添加 Panel</button><button id="figureMode" class="rounded border border-control px-2.5 py-1.5" aria-pressed="false">整图边界</button></div>
+   <div class="flex flex-wrap items-center gap-1"><button id="selectMode" class="rounded border border-control px-2.5 py-1.5" aria-pressed="true">选择 / 调整</button><button id="addFigure" class="rounded border border-control px-2.5 py-1.5">＋ 添加 Figure</button><button id="addMode" class="rounded border border-control px-2.5 py-1.5" aria-pressed="false">＋ 添加 Panel</button><button id="figureMode" class="rounded border border-control px-2.5 py-1.5" aria-pressed="false">整图边界</button><details id="figureMore" class="relative"><summary class="cursor-pointer rounded border border-control px-2.5 py-1.5">更多</summary><div class="absolute right-0 top-full z-30 mt-1 w-48 rounded border border-line bg-white p-2 shadow-xl"><button id="addRegion" class="w-full rounded px-2 py-2 text-left text-xs hover:bg-canvas">添加跨页图块</button></div></details></div>
    <div class="flex items-center gap-1"><button id="undo" aria-label="撤销" class="rounded px-2 py-1.5 hover:bg-canvas disabled:opacity-30">↶ 撤销</button><button id="redo" aria-label="重做" class="rounded px-2 py-1.5 hover:bg-canvas disabled:opacity-30">↷</button><select id="zoom" aria-label="显示比例" class="rounded border border-control bg-white px-2 py-1.5"><option value="1">适应宽度</option><option value="1.3">放大 130%</option><option value="1.6">放大 160%</option></select></div>
   </div>
   <div class="flex shrink-0 items-center justify-between gap-2 border-b border-line px-4 py-2 text-xs text-muted"><span id="toolHint">拖动边框或控制点修正切分，选中后可用方向键微调。</span><button id="toggleInspector" class="shrink-0 underline">收起预览</button></div>
@@ -872,6 +908,14 @@
   <div class="flex justify-end gap-2"><button id="cancelLegend" type="button" class="rounded border border-control px-3 py-2">取消</button><button type="submit" class="rounded bg-ink px-3 py-2 text-white">应用关联</button></div>
  </form>
 </dialog>
+<dialog id="figureDialog" aria-labelledby="figureDialogTitle" class="m-auto max-h-[88dvh] w-[1040px] overflow-y-auto rounded-lg border border-line bg-white p-5 text-ink shadow-xl backdrop:bg-black/25">
+ <div class="mb-4 flex items-center justify-between"><h2 id="figureDialogTitle" class="text-lg font-medium">添加 Figure</h2><button id="closeFigureDialog" aria-label="关闭添加图源" class="px-2 py-1">✕</button></div>
+ <div class="grid grid-cols-[minmax(0,1fr)_260px] gap-5">
+  <div class="min-w-0"><label for="sourcePage" class="mb-2 block text-xs text-muted">选择原页 · 全部为合成示例</label><select id="sourcePage" class="mb-3 w-full rounded border border-control bg-white px-3 py-2"></select><svg id="sourcePageCanvas" viewBox="0 0 800 530" tabindex="0" role="img" aria-label="原页框选整张 Figure" class="block w-full touch-none select-none border border-line bg-white"></svg><p class="mt-3 text-xs leading-relaxed text-muted">在空白处拖出新框；拖动框内移动，拖动控制点调边界。Esc 取消本次拖动，方向键微调。</p></div>
+  <div class="min-w-0"><label for="newFigureLabel" class="mb-2 block text-xs text-muted">原图号（可留空）</label><input id="newFigureLabel" placeholder="如 Figure 5 或 Figure S2" maxlength="48" class="mb-4 w-full rounded border border-control px-3 py-2"><p id="figureTarget" class="mb-4 text-xs leading-relaxed text-muted"></p><h3 class="mb-2 text-xs text-muted">实际裁切预览</h3><div class="flex h-48 items-center justify-center border border-line bg-canvas p-2"><svg id="newFigurePreview" class="h-full w-full bg-white" role="img" aria-label="新增图块裁切预览"></svg></div><p id="figureDraftStatus" class="mt-3 text-xs leading-relaxed" role="status">请在原页框选。</p><p class="mt-4 text-xs leading-relaxed text-muted">本原型只保存手动画框。真实应用会继续识别 Panel、补充图注；这里不模拟成功关联，也不发送请求。无需细分时可直接使用整图。</p></div>
+ </div>
+ <div class="mt-5 flex justify-end gap-3"><button id="cancelFigureDialog" class="rounded border border-control px-4 py-2">取消</button><button id="applyFigure" disabled class="rounded bg-ink px-4 py-2 text-white disabled:opacity-30">添加 Figure</button></div>
+</dialog>
 <script>
 'use strict';
 const $ = id => document.getElementById(id);
@@ -879,12 +923,12 @@ const esc = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&
 const names = ['研究设计与细胞响应','组织定位与表型变化','信号通路与功能验证','机制整合与补充分析'];
 const clone = value => structuredClone(value);
 const basePanels = () => [{id:'a',label:'a',x:24,y:26,w:352,h:216},{id:'b',label:'b',x:407,y:26,w:369,h:216},{id:'c',label:'c',x:24,y:276,w:352,h:224},{id:'d',label:'d',x:407,y:276,w:369,h:224}];
-const initial = names.map((name,i) => ({name,panels:basePanels(),bounds:{x:8,y:8,w:784,h:514},changed:false}));
+const initial = names.map((name,i) => ({id:"region-"+i,logicalId:"figure-"+i,label:"Figure "+(i+1),pageKey:"original-"+i,name,panels:basePanels(),bounds:{x:8,y:8,w:784,h:514},changed:false}));
 // Figure 2 deliberately misses part of an axis label for the review discussion.
 initial[1].panels[1].h = 172;
 const storageKey = 'smartjc-figure-wireframe-v1';
 let figures = clone(initial);
-try { const saved = JSON.parse(localStorage.getItem(storageKey)); if(saved?.version === 1 && saved.figures?.length === 4) figures = saved.figures; } catch {}
+try { const saved = JSON.parse(localStorage.getItem(storageKey)); if([1,2].includes(saved?.version) && Array.isArray(saved.figures) && saved.figures.length && saved.figures.every(f=>Array.isArray(f.panels)&&f.bounds)) figures = saved.figures.map((f,i)=>({id:'region-'+i,logicalId:'figure-'+i,label:'Figure '+(i+1),pageKey:'original-'+i,...f})); } catch {}
 // Stable fragment ids and stable Panel ids keep caption links independent of geometry.
 const legends = names.map((name,i) => [
  {id:'a',scope:'panel',source:'a',en:i===0?'a, Schematic of the sampling and treatment workflow.':'a, Distribution of cells in the two experimental groups.',zh:i===0?'a：取样、处理及读出的实验流程。':'a：两组实验条件下的细胞分布。'},
@@ -912,7 +956,7 @@ initializeLinks(figures);
 let active = 0;
 let selected = figures[0].panels[0]?.id || null;
 let mode = 'select';
-let seen = new Set([0]);
+let seen = new Set([figures[0].id]);
 let history = [];
 let future = [];
 let drag = null;
@@ -939,6 +983,19 @@ function chart(x,y,label,kind,seed) {
  return `<g fill="${colors.ink}" font-family="Arial,sans-serif"><text x="${x+3}" y="${y+20}" font-size="21" font-weight="bold">${label}</text>${marks}</g>`;
 }
 const artwork = names.map((_,i) => `<rect width="800" height="530" fill="white"/>${chart(24,26,'a',i===0?0:2,i)}${chart(407,26,'b',1,i)}${chart(24,276,'c',2,i)}${chart(407,276,'d',3,i)}<text x="400" y="522" fill="#9ca3af" text-anchor="middle" font-size="10">ILLUSTRATIVE DATA · NOT A REAL PAPER FIGURE</text>`);
+const sourcePages = [
+ ...names.map((_,i)=>({key:'original-'+i,label:'主论文 · 第 '+(i*2+3)+' 页',art:artwork[i]})),
+ ...[0,1].map(i=>({key:'extra-'+i,label:'补充材料 · 第 '+(i+2)+' 页',art:'<rect width="800" height="530" fill="white"/><text x="38" y="38" fill="#374151" font-size="20">Supplementary figures · illustrative page '+(i+2)+'</text><text x="38" y="72" fill="#6b7280" font-size="13">Synthetic page for manually locating figure regions</text><g transform="translate(40 105) scale(.42)">'+artwork[i]+'</g><g transform="translate(420 105) scale(.42)">'+artwork[i+2]+'</g><text x="40" y="365" fill="#374151" font-size="16">Figure S'+(i+1)+' · Additional observations</text><text x="40" y="400" fill="#6b7280" font-size="13">Caption and source associations are not generated by this demo.</text>'}))
+];
+const sourcePageFor = i => sourcePages.find(p=>p.key===figures[i].pageKey) || sourcePages[0];
+const artFor = i => sourcePageFor(i).art;
+const labelFor = i => figures[i].label || '未标号 Figure';
+const figureCount = () => new Set(figures.map(f=>f.logicalId)).size;
+const legendFor = i => figures[i].pageKey?.startsWith('original-') && !figures[i].manual ? legends[Number(figures[i].pageKey.slice(9))] || [] : [];
+function regionDescription(i) {
+ const siblings=figures.filter(f=>f.logicalId===figures[i].logicalId);
+ return siblings.length>1?' · 图块 '+(siblings.findIndex(f=>f.id===figures[i].id)+1)+'/'+siblings.length:'';
+}
 function notify(message) {
  $('toast').textContent = message;
  $('toast').classList.remove('hidden');
@@ -946,7 +1003,7 @@ function notify(message) {
  toastTimer = setTimeout(() => $('toast').classList.add('hidden'), 2200);
 }
 function persist() {
- try { localStorage.setItem(storageKey, JSON.stringify({version:1,figures})); $('saveStatus').textContent = '✓ 已保存在此浏览器'; }
+ try { localStorage.setItem(storageKey, JSON.stringify({version:2,figures})); $('saveStatus').textContent = '✓ 已保存在此浏览器'; }
  catch { $('saveStatus').textContent = '仅本次有效 · 浏览器存储不可用'; }
 }
 function commit(before) {
@@ -972,12 +1029,15 @@ function updateButtons() {
  $('toolHint').textContent = mode==='add' ? '在整图内拖出新 Panel，完成后自动回到选择模式。' : mode==='figure' ? '拖动虚线整图框的控制点调整边界；已有 Panel 必须保留在整图内。' : '拖动边框或控制点修正切分，选中后可用方向键微调。';
 }
 function renderNav() {
- $('seenCount').textContent = `已查看 ${seen.size} / 4`;
- $('figureNav').innerHTML = figures.map((figure,i) => `<button data-nav="${i}" aria-label="跳转 Figure ${i+1}" ${i===active?'aria-current="true"':''} class="mb-3 block w-full rounded border ${i===active?'border-ink bg-white':'border-transparent hover:bg-white'} p-2 text-left"><div class="mb-2 flex justify-between text-xs"><span class="font-medium">Figure ${i+1}</span><span class="text-muted">${figure.changed?'已修改':seen.has(i)?'已查看':'未查看'}</span></div><svg viewBox="0 0 800 530" class="w-full border border-line" aria-hidden="true">${artwork[i]}</svg><div class="mt-2 truncate text-xs text-muted">${figure.name}</div>${i===1&&!figure.changed?'<div class="mt-1 text-xs text-muted">△ 留意 b 的坐标轴</div>':''}</button>`).join('');
- $('footerStatus').textContent = `Figure ${active+1} / 4 · 已查看 ${seen.size} 张 · 尚未统一确认`;
+ seen=new Set([...seen].filter(id=>figures.some(f=>f.id===id)));
+ $('figureTotal').textContent=' / '+figureCount();
+ $('figureSummary').textContent='示例论文 · '+figureCount()+' 张 Figure · '+figures.length+' 个图块';
+ $('seenCount').textContent = `已查看图块 ${seen.size} / ${figures.length}`;
+ $('figureNav').innerHTML = figures.map((figure,i) => `<button data-nav="${i}" aria-label="跳转 ${esc(labelFor(i))}${regionDescription(i)}" ${i===active?'aria-current="true"':''} class="mb-3 block w-full rounded border ${i===active?'border-ink bg-white':'border-transparent hover:bg-white'} p-2 text-left"><div class="mb-2 flex justify-between text-xs"><span class="font-medium">${esc(labelFor(i))}${regionDescription(i)}</span><span class="text-muted">${figure.changed?'已修改':seen.has(figure.id)?'已查看':'未查看'}</span></div><svg viewBox="0 0 800 530" class="w-full border border-line" aria-hidden="true">${artFor(i)}</svg><div class="mt-2 truncate text-xs text-muted">${esc(figure.name)}</div>${i===1&&!figure.changed?'<div class="mt-1 text-xs text-muted">△ 留意 b 的坐标轴</div>':''}</button>`).join('');
+ $('footerStatus').textContent = `${labelFor(active)}${regionDescription(active)} · 已查看 ${seen.size}/${figures.length} 个图块 · 尚未统一确认`;
 }
 function renderFigures() {
- $('figureList').innerHTML = figures.map((figure,i) => `<article id="figure-${i}" class="border border-line bg-white" aria-label="Figure ${i+1}"><div class="flex items-center justify-between gap-2 border-b border-line px-4 py-3"><h3 class="font-medium">Figure ${i+1} <span class="ml-2 text-xs font-normal text-muted">${figure.name}</span></h3><span class="shrink-0 text-xs text-muted">PDF 第 ${i*2+3} 页</span></div><div class="p-4"><svg data-figure="${i}" viewBox="0 0 800 530" class="block w-full touch-none select-none" style="width:${zoom*100}%;max-width:none" tabindex="0" role="img" aria-label="Figure ${i+1}，可编辑的 Panel 切分框">${artwork[i]}<g data-overlays="${i}"></g></svg></div><div class="border-t border-line px-4 py-2 text-xs text-muted">${i===1?'△ 示例异常：Panel b 的下边界偏紧，可向下拖动以包含横轴标题。':'保留坐标轴、图例与科学标注；允许 Panel 适当重叠。'}</div></article>`).join('');
+ $('figureList').innerHTML = figures.map((figure,i) => `<article id="figure-${i}" class="border border-line bg-white" aria-label="${esc(labelFor(i))}${regionDescription(i)}"><div class="flex items-center justify-between gap-2 border-b border-line px-4 py-3"><h3 class="font-medium">${esc(labelFor(i))}${regionDescription(i)} <span class="ml-2 text-xs font-normal text-muted">${esc(figure.name)}</span></h3><span class="shrink-0 text-xs text-muted">${esc(sourcePageFor(i).label)}</span></div><div class="p-4"><svg data-figure="${i}" viewBox="0 0 800 530" class="block w-full touch-none select-none" style="width:${zoom*100}%;max-width:none" tabindex="0" role="img" aria-label="${esc(labelFor(i))}${regionDescription(i)}，可编辑的 Panel 切分框">${artFor(i)}<g data-overlays="${i}"></g></svg></div><div class="border-t border-line px-4 py-2 text-xs text-muted">${i===1?'△ 示例异常：Panel b 的下边界偏紧，可向下拖动以包含横轴标题。':'保留坐标轴、图例与科学标注；允许 Panel 适当重叠。'}</div></article>`).join('');
  figures.forEach((_,i) => renderOverlay(i));
 }
 function handles(box,target) {
@@ -990,14 +1050,14 @@ function handles(box,target) {
 function renderOverlay(i) {
  const target = document.querySelector(`[data-overlays="${i}"]`);
  const figure=figures[i];
- const whole=mode==='figure'&&i===active;
+ const whole=(mode==='figure'||!figure.panels.length)&&i===active;
  const b=figure.bounds;
  target.innerHTML = figure.panels.map(p => {
  const chosen=i===active&&p.id===selected&&!whole;
  return `<g><rect data-panel="${esc(p.id)}" x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" fill="${chosen?'#24728a':'#374151'}" fill-opacity="${chosen?'.055':'.01'}" stroke="${chosen?'#24728a':'#6b7280'}" stroke-width="${chosen?2.5:1.5}" ${chosen?'':'stroke-dasharray="5 4"'} style="cursor:${mode==='add'?'crosshair':'move'}"/><rect x="${p.x}" y="${p.y}" width="${Math.max(23,p.label.length*10+12)}" height="23" fill="${chosen?'#24728a':'#6b7280'}" pointer-events="none"/><text x="${p.x+7}" y="${p.y+16}" font-size="13" fill="white" pointer-events="none">${esc(p.label)}</text>${chosen?handles(p,p.id):''}</g>`;
  }).join('') + (whole?`<rect data-panel="__figure" x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" fill="transparent" stroke="#24728a" stroke-width="2" stroke-dasharray="8 4"/>${handles(b,'__figure')}`:'');
 }
-function getSelection() { return mode==='figure'?figures[active].bounds:figures[active].panels.find(p=>p.id===selected); }
+function getSelection() { return mode==='figure'||!figures[active].panels.length?figures[active].bounds:figures[active].panels.find(p=>p.id===selected); }
 function renderPreview() {
  const box=getSelection();
  if(!box) { $('cropPreview').innerHTML=''; return; }
@@ -1005,27 +1065,27 @@ function renderPreview() {
  // A viewBox sets the coordinate mapping, but does not clip artwork to that rectangle.
  // Explicitly clip the selected source area so wide or tall preview gutters stay empty.
  $('cropPreview').setAttribute('preserveAspectRatio','xMidYMid meet');
- $('cropPreview').innerHTML=`<defs><clipPath id="selectedPreviewClip" clipPathUnits="userSpaceOnUse"><rect x="${box.x}" y="${box.y}" width="${box.w}" height="${box.h}"/></clipPath></defs><g clip-path="url(#selectedPreviewClip)">${artwork[active]}</g>`;
+ $('cropPreview').innerHTML=`<defs><clipPath id="selectedPreviewClip" clipPathUnits="userSpaceOnUse"><rect x="${box.x}" y="${box.y}" width="${box.w}" height="${box.h}"/></clipPath></defs><g clip-path="url(#selectedPreviewClip)">${artFor(active)}</g>`;
 }
 function renderInspector() {
  const figure=figures[active];
  const p=figure.panels.find(p=>p.id===selected);
- $('selectionTitle').textContent=`Figure ${active+1} / ${mode==='figure'?'整图':p?'Panel '+p.label:'未选中'}`;
+ $('selectionTitle').textContent=`${labelFor(active)}${regionDescription(active)} / ${mode==='figure'||!figure.panels.length?'整图':p?'Panel '+p.label:'未选中'}`;
  $('panelLabel').value=p?.label||'';
  $('panelLabel').disabled=!p||mode==='figure';
  $('deletePanel').disabled=!p||mode==='figure';
- $('panelCount').textContent=`${figure.panels.length} 个`;
+ $('panelCount').textContent=figure.panels.length?`${figure.panels.length} 个`:'可直接使用整图';
  $('panelList').innerHTML=figure.panels.map(panel=>`<button data-select="${esc(panel.id)}" aria-pressed="${panel.id===selected&&mode!=='figure'}" class="min-w-9 rounded border px-3 py-1.5 ${panel.id===selected&&mode!=='figure'?'border-ink bg-ink text-white':'border-control hover:bg-canvas'}">${esc(panel.label)}</button>`).join('');
  $('warning').textContent=active===1?'请检查 Panel b 是否包含完整横轴标题。提示不会因滚过这张图而被当作已确认。':'重点检查边界是否截断标注。浏览状态只表示已查看，最终由你统一确认。';
  renderPreview();
  renderLegend();
 }
 function activate(index) {
- if(active===index) { seen.add(index); return; }
+ if(active===index) { seen.add(figures[index].id); return; }
  const old=active;
  active=index;
  selected=figures[index].panels[0]?.id||null;
- seen.add(index);
+ seen.add(figures[index].id);
  renderOverlay(old);
  renderOverlay(active);
  renderNav();
@@ -1039,7 +1099,10 @@ function setMode(value) {
 }
 $('figureNav').onclick=event=> {
  const button=event.target.closest('[data-nav]');
- if(button) document.getElementById('figure-'+button.dataset.nav).scrollIntoView({behavior:'smooth',block:'start'});
+ if (!button) return;
+ const index = Number(button.dataset.nav);
+ document.getElementById('figure-'+index).scrollIntoView({block:'start'});
+ activate(index);
 };
 $('figureScroll').onscroll=()=> {
  if(frame||drag) return;
@@ -1079,6 +1142,7 @@ function replay(from,to) {
  if(!from.length) return;
  to.push(clone(figures));
  figures=from.pop();
+ active=Math.min(active,figures.length-1);
  selected=figures[active].panels[0]?.id||null;
  persist();
  renderFigures();renderNav();renderInspector();updateButtons();
@@ -1117,11 +1181,11 @@ $('figureList').onpointerdown=event=> {
 function updateDrag(event) {
  if(!drag) return;
  const p=point(event,drag.svg);
- const box=drag.id==='__figure'?figures[active].bounds:figures[active].panels.find(p=>p.id===drag.id);
+ const box=drag.dialog?figureDraft.box:drag.id==='__figure'?figures[active].bounds:figures[active].panels.find(p=>p.id===drag.id);
  const dx=p.x-drag.start.x;
  const dy=p.y-drag.start.y;
  const o=drag.original;
- const limit=drag.id==='__figure'?{x:0,y:0,w:800,h:530}:figures[active].bounds;
+ const limit=drag.dialog||drag.id==='__figure'?{x:0,y:0,w:800,h:530}:figures[active].bounds;
  const right=limit.x+limit.w;
  const bottom=limit.y+limit.h;
  if(drag.adding) {
@@ -1141,7 +1205,7 @@ function updateDrag(event) {
  if(drag.handle.includes('s')) y2=Math.min(bottom,Math.max(y1+22,o.y+o.h+dy));
  Object.assign(box,{x:x1,y:y1,w:x2-x1,h:y2-y1});
  }
- if(drag.id==='__figure'&&figures[active].panels.length) {
+ if(!drag.dialog&&drag.id==='__figure'&&figures[active].panels.length) {
  const panels=figures[active].panels;
  const x=Math.min(box.x,...panels.map(p=>p.x));
  const y=Math.min(box.y,...panels.map(p=>p.y));
@@ -1149,7 +1213,8 @@ function updateDrag(event) {
  const b=Math.max(box.y+box.h,...panels.map(p=>p.y+p.h));
  Object.assign(box,{x,y,w:r-x,h:b-y});
  }
- renderOverlay(active);renderPreview();
+ if(drag.dialog) paintFigureDraft();
+ else {renderOverlay(active);renderPreview();}
 }
 $('figureList').onpointermove=updateDrag;
 function endDrag(event,cancel=false) {
@@ -1158,6 +1223,11 @@ function endDrag(event,cancel=false) {
  const done=drag;
  drag=null;
  if(done.svg.hasPointerCapture(done.pointer)) done.svg.releasePointerCapture(done.pointer);
+ if(done.dialog) {
+  if(cancel || figureDraft.box.w<22 || figureDraft.box.h<22) figureDraft.box=done.previousBox;
+  paintFigureDraft();
+  return;
+ }
  const box=figures[active].panels.find(p=>p.id===done.id);
  if(cancel||(done.adding&&(box.w<22||box.h<22))) {
  figures=done.before;
@@ -1170,8 +1240,8 @@ function endDrag(event,cancel=false) {
 $('figureList').onpointerup=event=>endDrag(event);
 $('figureList').onpointercancel=event=>endDrag(event,true);
 document.addEventListener('keydown',event=> {
- if(event.key==='Escape'&&drag) {endDrag(event,true);return;}
- if(['INPUT','TEXTAREA','SELECT'].includes(event.target.tagName)||$('flowDialog').open||$('legendDialog').open) return;
+ if(event.key==='Escape'&&drag) {event.preventDefault();endDrag(event,true);return;}
+ if(['INPUT','TEXTAREA','SELECT'].includes(event.target.tagName)||$('flowDialog').open||$('legendDialog').open||$('figureDialog').open) return;
  if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='z') {event.preventDefault();event.shiftKey?replay(future,history):replay(history,future);return;}
  if(!event.target.closest('[data-figure]')) return;
  const deltas={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]};
@@ -1277,7 +1347,7 @@ $('toggleInspector').onclick=()=> {
 applySidebarWidth();
 $('reset').onclick=()=> {
  const before=clone(figures);
- figures=clone(initial);active=0;selected='a';mode='select';seen=new Set([0]);
+ figures=clone(initial);active=0;selected='a';mode='select';seen=new Set([figures[0].id]);
  history.push(before);future=[];
  persist();renderFigures();renderNav();renderInspector();updateButtons();
  $('figureScroll').scrollTop=0;
@@ -1299,9 +1369,8 @@ function scheduleFlow() {
  flowTimer=setTimeout(()=>{flowStep++;paintFlow();scheduleFlow();},1800);
 }
 $('generate').onclick=()=> {
- if(figures.some(f=>!f.panels.length)) {notify('仍有 Figure 没有 Panel，请补充切分后再确认');return;}
- flowStep=0;flowPaused=false;
- $('flowSummary').textContent=`确认当前 ${figures.length} 张 Figure、${figures.reduce((sum,f)=>sum+f.panels.length,0)} 个 Panel 的切分。${seen.size<4?'还有 '+(4-seen.size)+' 张未查看；你仍可返回继续核对。':'所有 Figure 都已浏览。'}`;
+  flowStep=0;flowPaused=false;
+ $('flowSummary').textContent=`确认当前 ${figureCount()} 张 Figure、${figures.length} 个图块、${figures.reduce((sum,f)=>sum+f.panels.length,0)} 个 Panel 的切分。${seen.size<figures.length?'还有 '+(figures.length-seen.size)+' 个图块未查看；你仍可返回继续核对。':'所有 Figure 都已浏览。'}`;
  $('flowDialog').showModal();paintFlow();scheduleFlow();
 };
 $('pauseFlow').onclick=()=> {if(flowStep>=steps.length){location.href='outline-speech.html';return;}flowPaused=!flowPaused;paintFlow();scheduleFlow();};
@@ -1318,8 +1387,8 @@ function linkNames(fragment) {
 }
 function renderLegend() {
  const p=figures[active].panels.find(panel=>panel.id===selected);
- const whole=mode==='figure';
- const fragments=legends[active];
+ const whole=mode==='figure'||!figures[active].panels.length;
+ const fragments=legendFor(active);
  const ids=new Set(whole?fragments.map(f=>f.id):p?.legendIds||[]);
  const key=active+':'+selected+':'+whole;
  if(key!==lastLegendSelection) {
@@ -1330,25 +1399,25 @@ function renderLegend() {
  $('editLegend').disabled=!p||whole;
  $('editLegend').classList.toggle('hidden',!p||whole);
  $('legendTitle').textContent=whole?'完整 Figure legend':p?'对应图注 · Panel '+p.label:'对应图注';
- $('legendStatus').textContent=whole?'Figure '+(active+1)+' · PDF 第 '+(active*2+3)+' 页':!p?'请先选择一个 Panel':p.legendReview?'△ 关联待确认'+(p.legendIds.length?' · 保留原有关联':' · 可按需关联图注片段'):p.legendOrigin==='manual'?'手动关联 · 已保存':'自动关联 · 示例';
+ $('legendStatus').textContent=whole?labelFor(active)+' · '+sourcePageFor(active).label:!p?'请先选择一个 Panel':p.legendReview?'△ 关联待确认'+(p.legendIds.length?' · 保留原有关联':' · 可按需关联图注片段'):p.legendOrigin==='manual'?'手动关联 · 已保存':'自动关联 · 示例';
  const specific=fragments.filter(f=>ids.has(f.id)&&f.scope==='panel');
  $('panelLegend').innerHTML=specific.length?specific.map(f=>
   '<div><p class="border-l-2 border-focus pl-3">'+esc(f.en)+'</p><p class="mt-1 text-muted">中文释义：'+esc(f.zh)+'</p>'+(f.id==='bc'?'<p class="mt-1 text-muted">共用片段 · 已关联 Panel '+esc(linkNames(f))+'</p>':'')+'</div>'
- ).join(''):'<p class="text-muted">'+(p?'尚无专属图注关联。可从完整图注中选取片段，不要求逐条确认。':'选择 Panel 后展示对应原文。')+'</p>';
+ ).join(''):'<p class="text-muted">'+(figures[active].manual?'手动补入的图源，图注与证据尚待补充；本原型不执行自动关联。':p?'尚无专属图注关联。可从完整图注中选取片段，不要求逐条确认。':'选择 Panel 后展示对应原文。')+'</p>';
  const common=fragments.filter(f=>ids.has(f.id)&&f.scope==='common');
  $('commonLegend').classList.toggle('hidden',!common.length);
  $('commonLegend').innerHTML='<h4 class="font-medium">公共说明</h4>'+common.map(f=>'<div><p>'+esc(f.en)+'</p><p class="mt-1 text-muted">'+esc(f.zh)+'</p><p class="mt-1 text-muted">适用原标签 '+esc(f.source)+'</p></div>').join('');
- $('fullLegend').innerHTML='<p class="font-medium">Figure '+(active+1)+'. '+esc(figures[active].name)+'（示例）</p><p class="text-muted">高亮表示与当前选区关联；完整原文保持原样。</p>'+fragments.map(f=>'<p>'+ (ids.has(f.id)?'<mark class="bg-accent-soft text-ink">'+esc(f.en)+'</mark>':esc(f.en))+'</p>').join('');
+ $('fullLegend').innerHTML='<p class="font-medium">'+esc(labelFor(active))+'. '+esc(figures[active].name)+'（示例）</p><p class="text-muted">高亮表示与当前选区关联；完整原文保持原样。</p>'+fragments.map(f=>'<p>'+ (ids.has(f.id)?'<mark class="bg-accent-soft text-ink">'+esc(f.en)+'</mark>':esc(f.en))+'</p>').join('');
  $('fullLegendDetails').classList.toggle('hidden',whole);
- const related=p&&['b','c','d'].includes(p.id);
+ const related=p&&!figures[active].manual&&['b','c','d'].includes(p.id);
  $('evidenceContent').innerHTML=related?'<p class="font-medium">主线 · 处理组呈现不同的细胞响应</p><blockquote class="border-l-2 border-control pl-3">The treatment group showed an altered response across conditions and over time (Fig. '+(active+1)+'b–d).</blockquote><p class="text-muted">正文 Results · 第 '+(active*2+2)+' 页 · 第 2 段 / 第 1 句（示例）</p><p>同一句正文关联 b、c、d；研究发现可同时由多个 Panel 支撑。</p>':'<p class="text-muted">'+(whole?'选择 Panel 查看句子级正文证据。':'当前示例未关联结果句。图注用于解释子图，不自动等同于结论证据。')+'</p>';
 }
 $('editLegend').onclick=()=> {
  const p=figures[active].panels.find(panel=>panel.id===selected);
  if(!p) return;
  legendDialogTarget={figure:active,panel:p.id};
- $('legendDialogTitle').textContent='Figure '+(active+1)+' / Panel '+p.label+' · 调整关联';
- $('legendOptions').innerHTML=legends[active].map(f=>'<label class="flex cursor-pointer items-start gap-3 rounded border border-line p-3"><input type="checkbox" name="fragment" value="'+f.id+'" '+(p.legendIds.includes(f.id)?'checked':'')+' class="mt-1 shrink-0"><span class="text-sm leading-relaxed"><span class="mb-1 block text-xs text-muted">'+(f.scope==='common'?'公共说明':'图注片段')+' · 原标签 '+esc(f.source)+'</span>'+esc(f.en)+'<span class="mt-1 block text-xs text-muted">'+esc(f.zh)+'</span></span></label>').join('');
+ $('legendDialogTitle').textContent=labelFor(active)+' / Panel '+p.label+' · 调整关联';
+ $('legendOptions').innerHTML=legendFor(active).map(f=>'<label class="flex cursor-pointer items-start gap-3 rounded border border-line p-3"><input type="checkbox" name="fragment" value="'+f.id+'" '+(p.legendIds.includes(f.id)?'checked':'')+' class="mt-1 shrink-0"><span class="text-sm leading-relaxed"><span class="mb-1 block text-xs text-muted">'+(f.scope==='common'?'公共说明':'图注片段')+' · 原标签 '+esc(f.source)+'</span>'+esc(f.en)+'<span class="mt-1 block text-xs text-muted">'+esc(f.zh)+'</span></span></label>').join('');
  $('legendFormError').textContent='';
  $('legendDialog').showModal();
 };
@@ -1367,6 +1436,109 @@ $('legendForm').onsubmit=event=> {
  commit(before);
  $('legendDialog').close();
  notify(ids.length?'已更新关联，可撤销':'已移除关联，保留待确认提示');
+};
+
+
+let figureDraft = null;
+let figureDialogOpener = null;
+function paintFigureDraft() {
+ const box = figureDraft.box;
+ const page = sourcePages.find(item => item.key === $('sourcePage').value);
+ $('sourcePageCanvas').innerHTML = page.art + (box ? `<rect data-panel="__draft" x="${box.x}" y="${box.y}" width="${box.w}" height="${box.h}" fill="#24728a" fill-opacity=".08" stroke="#24728a" stroke-width="2"/>${handles(box,'__draft')}` : '');
+ $('applyFigure').disabled = !box || box.w < 22 || box.h < 22 || Boolean(drag);
+ if (!box) {
+  $('newFigurePreview').innerHTML = '';
+  $('figureDraftStatus').textContent = '请在原页框选。';
+  return;
+ }
+ $('newFigurePreview').setAttribute('viewBox', `${box.x} ${box.y} ${box.w} ${box.h}`);
+ $('newFigurePreview').setAttribute('preserveAspectRatio', 'xMidYMid meet');
+ $('newFigurePreview').innerHTML = `<defs><clipPath id="draftFigureClip"><rect x="${box.x}" y="${box.y}" width="${box.w}" height="${box.h}"/></clipPath></defs><g clip-path="url(#draftFigureClip)">${page.art}</g>`;
+ $('figureDraftStatus').textContent = '当前选区尚未添加，可拖动边框调整；方向键微调位置。';
+}
+function openFigureDialog(append) {
+ if (drag) return;
+ figureDialogOpener = document.activeElement;
+ figureDraft = {box:null, target:append ? figures[active].logicalId : null};
+ $('figureMore').open = false;
+ $('figureDialogTitle').textContent = append ? '添加跨页图块' : '添加 Figure';
+ $('applyFigure').textContent = append ? '添加到当前 Figure' : '添加 Figure';
+ $('sourcePage').innerHTML = sourcePages.map(page => `<option value="${page.key}">${esc(page.label)}</option>`).join('');
+ $('sourcePage').value = append && sourcePageFor(active).key === 'extra-0' ? 'extra-1' : 'extra-0';
+ $('newFigureLabel').value = append ? labelFor(active) : '';
+ $('newFigureLabel').disabled = append;
+ $('figureTarget').textContent = append ? '归入 '+labelFor(active)+'，保留已有图块、Panel 与关联。请选择接续的原页。' : '创建独立 Figure；可补入漏检图，也可在同页分别添加多张图。';
+ paintFigureDraft();
+ $('figureDialog').showModal();
+}
+$('addFigure').onclick = () => openFigureDialog(false);
+$('addRegion').onclick = () => openFigureDialog(true);
+$('sourcePage').onchange = () => {
+ figureDraft.box = null;
+ paintFigureDraft();
+};
+$('sourcePageCanvas').onpointerdown = event => {
+ if (event.button !== 0 || drag) return;
+ event.preventDefault();
+ const svg = $('sourcePageCanvas');
+ svg.focus();
+ const start = point(event, svg);
+ const target = event.target.closest('[data-panel]');
+ const previousBox = figureDraft.box ? clone(figureDraft.box) : null;
+ if (!target) figureDraft.box = {x:start.x, y:start.y, w:0, h:0};
+ drag = {dialog:true, svg, start, original:clone(figureDraft.box), previousBox, handle:target?.dataset.handle, adding:!target, pointer:event.pointerId};
+ svg.setPointerCapture(event.pointerId);
+ paintFigureDraft();
+};
+$('sourcePageCanvas').onpointermove = updateDrag;
+$('sourcePageCanvas').onpointerup = event => endDrag(event);
+$('sourcePageCanvas').onpointercancel = event => endDrag(event, true);
+$('sourcePageCanvas').onkeydown = event => {
+ const delta = {ArrowLeft:[-1,0], ArrowRight:[1,0], ArrowUp:[0,-1], ArrowDown:[0,1]}[event.key];
+ if (!delta || !figureDraft.box || drag) return;
+ event.preventDefault();
+ const box = figureDraft.box;
+ const step = event.shiftKey ? 10 : 1;
+ box.x = Math.max(0, Math.min(800-box.w, box.x+delta[0]*step));
+ box.y = Math.max(0, Math.min(530-box.h, box.y+delta[1]*step));
+ paintFigureDraft();
+};
+function closeFigureDialog() {
+ if (drag?.dialog) endDrag(null, true);
+ $('figureDialog').close();
+}
+$('closeFigureDialog').onclick = closeFigureDialog;
+$('cancelFigureDialog').onclick = closeFigureDialog;
+$('figureDialog').addEventListener('close', () => {
+ figureDraft = null;
+ figureDialogOpener?.focus();
+});
+$('applyFigure').onclick = () => {
+ if (!figureDraft?.box || $('applyFigure').disabled) return;
+ const before = clone(figures);
+ const target = figures.find(item => item.logicalId === figureDraft.target);
+ const entry = {
+  id:crypto.randomUUID(),
+  logicalId:target?.logicalId || crypto.randomUUID(),
+  label:target?.label || $('newFigureLabel').value.trim(),
+  name:target?.name || '手动添加 · 图注关联待补充',
+  pageKey:$('sourcePage').value,
+  bounds:clone(figureDraft.box),
+  panels:[],
+  manual:true,
+  changed:true
+ };
+ const index = target ? figures.map(item => item.logicalId).lastIndexOf(target.logicalId)+1 : figures.length;
+ figures.splice(index, 0, entry);
+ active = index;
+ selected = null;
+ mode = 'figure';
+ seen.add(entry.id);
+ renderFigures();
+ commit(before);
+ closeFigureDialog();
+ $('figure-'+active).scrollIntoView({block:'start'});
+ notify(target ? '已添加图块，仍属于同一 Figure；可撤销。' : '已添加独立 Figure，可继续细分 Panel；可撤销。');
 };
 
 renderFigures();renderNav();renderInspector();updateButtons();
