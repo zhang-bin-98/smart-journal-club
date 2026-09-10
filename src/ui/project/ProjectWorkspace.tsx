@@ -6,6 +6,9 @@ import type { WorkspaceStep } from '../../modules/project/model';
 import { Button, errorMessage } from '../controls';
 
 const AnalysisPage = lazy(() => import('../paper/AnalysisPage').then((module) => ({ default: module.AnalysisPage })));
+const FigureReviewPage = lazy(() =>
+  import('../paper/FigureReviewPage').then((module) => ({ default: module.FigureReviewPage })),
+);
 const LegacyPage = lazy(() => import('./ProjectPage').then((module) => ({ default: module.ProjectPage })));
 
 export function ProjectWorkspace({
@@ -102,6 +105,15 @@ export function ProjectWorkspace({
               registerLeaveGuard={register}
             />
           </>
+        ) : step === 'figure-review' ? (
+          <FigureReviewPage
+            id={id}
+            settings={settings}
+            onSettings={onSettings}
+            onLeave={onLeave}
+            onStep={(next) => void changeStep(next)}
+            registerLeaveGuard={register}
+          />
         ) : (
           <AnalysisPage
             id={id}

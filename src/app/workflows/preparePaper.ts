@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { LocalPanelsSchema } from '../paper/recognizeFigure';
+import { toPageBox } from '../../modules/paper/figureGeometry';
 import {
   type EvidenceResult,
   type FigureResult,
@@ -281,6 +283,33 @@ export async function preparePaper({
           () => {},
           image.image,
         );
+        const localResource = resourceFor(page.documentId);
+        if (localResource.localFigure) {
+          for (const figure of output.figures) {
+            report('局部高清识别与边界核对', target);
+            const local = await localResource.localFigure(page.pageNumber, figure.bbox, signal);
+            try {
+              const panels = await modelUnit(
+                LocalPanelsSchema,
+                'figure-local',
+                { ...context, figureLabel: figure.label, caption: figure.caption },
+                '识别当前局部高清图内真实可见的 Panel 标签、内容和矩形，bbox 使用局部图归一化坐标。保留坐标轴、图例、比例尺和科学统计标注，共享标注允许重叠。不按位置猜标签，不重绘或擦除像素。对照图注标出漏图、重复或无法完整独立裁切的疑点于 concerns；description 用中文说明可见图像内容。没有必要细分时允许空 panels。',
+                () => {},
+                local.image,
+              );
+              figure.description = [figure.description, ...panels.concerns].filter(Boolean).join('\n');
+              const refined = await local.refine(panels.panels.map((panel) => panel.bbox));
+              figure.panels = panels.panels.map((panel, index) => ({
+                ...panel,
+                label: panel.label || '',
+                bbox: toPageBox(refined.boxes[index], figure.bbox),
+                description: [panel.description, ...refined.issues[index], ...panels.concerns].join('\n'),
+              }));
+            } finally {
+              local.release();
+            }
+          }
+        }
         const result: FigureResult = { sources: [], figures: [] };
         for (const [index, figure] of output.figures.entries()) {
           const id = `figure:${pageKey(page.documentId, page.pageNumber)}:${index}`;

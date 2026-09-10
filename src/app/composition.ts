@@ -1,3 +1,7 @@
+import { supplementAddedRegion } from './paper/supplementAddedRegion';
+import { createFigureSession } from './paper/figureSession';
+import { createFigureResources } from '../infrastructure/pdf/figureResource';
+import { recognizeFigure } from './paper/recognizeFigure';
 import { createPaperAssistant } from './paper/paperAssistant';
 import { createReadOnlyAgent } from '../infrastructure/llm/readOnlyAgent';
 import * as projectStore from '../infrastructure/persistence/projectStore';
@@ -41,3 +45,19 @@ export const projectsService = createProjectService({
   removeSession: analysisService.remove,
 });
 export const askPaper = createPaperAssistant(createReadOnlyAgent(adapter));
+export const createReviewSession = (id: string) =>
+  createFigureSession(
+    id,
+    {
+      openProject: projectStore.openProject,
+      saveFigure: paperStore.saveFigure,
+      loadConsumers: paperStore.loadFigureConsumers,
+    },
+    () => analysisService.session(id).cancel(),
+  );
+export const createReviewResources = createFigureResources;
+export const recognizeReviewFigure = (input: Omit<Parameters<typeof recognizeFigure>[0], 'requests'>) =>
+  recognizeFigure({ ...input, requests: modelRequests });
+
+export const supplementReviewRegion = (input: Omit<Parameters<typeof supplementAddedRegion>[0], 'requests'>) =>
+  supplementAddedRegion({ ...input, requests: modelRequests });

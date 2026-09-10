@@ -9,11 +9,15 @@ export function PaperAssistant({
   documentId,
   pageNumber,
   settings,
+  figureId,
+  panelId,
 }: {
   paper: Paper;
   documentId?: string;
   pageNumber?: number;
   settings: ModelSettings;
+  figureId?: string;
+  panelId?: string;
 }) {
   const questionInput = useRef<HTMLTextAreaElement>(null);
   useEffect(() => questionInput.current?.focus(), []);
@@ -32,10 +36,24 @@ export function PaperAssistant({
     setError('');
     setAnswer('');
     const document = paper.documents.find((item) => item.id === documentId);
-    setTarget(document ? document.fileName + (pageNumber ? ` · 第 ${pageNumber} 页` : '') : '全部材料');
+    setTarget(
+      (document ? document.fileName + (pageNumber ? ` · 第 ${pageNumber} 页` : '') : '全部材料') +
+        (figureId
+          ? ' · ' +
+            (paper.figures.find((figure) => figure.id === figureId)?.label ?? '当前图') +
+            (panelId
+              ? ' · Panel ' +
+                (paper.figures
+                  .flatMap((figure) => figure.regions.flatMap((region) => region.panels))
+                  .find((panel) => panel.id === panelId)?.label ?? '')
+              : '')
+          : ''),
+    );
     try {
       const result = await askPaper({
         paper,
+        figureId,
+        panelId,
         documentId,
         pageNumber,
         settings,

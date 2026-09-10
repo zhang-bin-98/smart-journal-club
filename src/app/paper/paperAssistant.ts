@@ -23,6 +23,8 @@ export type ReadAgent = (input: {
 export function createPaperAssistant(run: ReadAgent) {
   return async function ask(input: {
     paper: Paper;
+    figureId?: string;
+    panelId?: string;
     documentId?: string;
     pageNumber?: number;
     settings: ModelSettings;
@@ -160,6 +162,8 @@ export function createPaperAssistant(run: ReadAgent) {
           target: {
             paperId: paper.id,
             revision: paper.revision,
+            figureId: input.figureId,
+            panelId: input.panelId,
             documentId: input.documentId,
             pageNumber: input.pageNumber,
           },

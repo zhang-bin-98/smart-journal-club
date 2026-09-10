@@ -1,3 +1,5 @@
+import type { Deck } from '../../modules/deck/deck.schema';
+import type { FigureConsumer } from '../../app/paper/figureImpact';
 import {
   applyPageSelection,
   applyUnitResult,
@@ -9,6 +11,8 @@ import { type AnalysisStage, type AnalysisUnitTarget, type Paper, validatePaper 
 import { type Project, ProjectError } from '../../modules/project/model';
 import { get, request, transaction } from '../../shared/persistence/indexedDb';
 import { openProject, paperIn, projectDataIn, projectIn } from './projectStore';
+import { applyFigureCommand } from '../../modules/paper/figureEditing';
+import type { FigureSave } from '../../app/paper/figureSession';
 
 export type CommitUnitInput = {
   projectId: string;
@@ -49,7 +53,13 @@ async function referencedPaperIds(tx: IDBTransaction, project: Project) {
 }
 
 /** 修改冻结底稿时先复制身份；旧稿、候选与计划始终读取自己的保存依据。 */
-async function saveWorkingPaper(tx: IDBTransaction, project: Project, original: Paper, changed: Paper) {
+async function saveWorkingPaper(
+  tx: IDBTransaction,
+  project: Project,
+  original: Paper,
+  changed: Paper,
+  captureBaseline = true,
+) {
   const keep = await referencedPaperIds(tx, project);
   const paper = validatePaper({
     ...changed,
@@ -59,7 +69,11 @@ async function saveWorkingPaper(tx: IDBTransaction, project: Project, original: 
   });
   const progress = getAnalysisProgress(paper);
   const geometrySources = paper.sources.filter((source) => source.kind === 'figure' || source.kind === 'panel');
-  if (progress.figuresReady && geometrySources.every((source) => source.geometryOrigin === 'automatic')) {
+  if (
+    captureBaseline &&
+    progress.figuresReady &&
+    geometrySources.every((source) => source.geometryOrigin === 'automatic')
+  ) {
     paper.figureReview.automaticBaseline = structuredClone({
       figures: paper.figures,
       sources: paper.sources.filter(
@@ -152,5 +166,44 @@ export async function ensureWorkingPaper(projectId: string) {
     const keep = await referencedPaperIds(tx, project);
     if (!keep.has(paper.id)) return projectDataIn(tx, project, paper);
     return saveWorkingPaper(tx, project, paper, paper);
+  });
+}
+
+/** One atomic source edit; frozen manuscripts retain their original paper. */
+export async function saveFigure(input: FigureSave) {
+  input.assertCurrent();
+  return transaction(['projects', 'papers', 'decks', 'plans', 'assets'], 'readwrite', async (tx) => {
+    const project = await projectIn(tx, input.projectId);
+    const paper = await paperIn(tx, project);
+    input.assertCurrent();
+    if (
+      paper.id !== input.paperId ||
+      paper.revision !== input.revision ||
+      paper.figureReview.revision !== input.reviewRevision
+    )
+      throw new ProjectError('stale-paper', '图源保存基准已变化，请保留输入并重新打开项目。');
+    const next = applyFigureCommand(paper, input.command);
+    if (next === paper) return projectDataIn(tx, project, paper);
+    const result = await saveWorkingPaper(tx, project, paper, next, false);
+    input.assertCurrent();
+    return result;
+  });
+}
+
+/** Read frozen manuscript references without changing the current workspace. */
+export async function loadFigureConsumers(projectId: string): Promise<FigureConsumer[]> {
+  return transaction(['projects', 'papers', 'decks'], 'readonly', async (tx) => {
+    const project = await projectIn(tx, projectId);
+    const result: FigureConsumer[] = [];
+    for (const [label, id] of [
+      ['当前稿', project.currentDeckId],
+      ['上一版', project.previousDeckId],
+    ]) {
+      if (!id) continue;
+      const deck = await get<Deck>(tx, 'decks', id);
+      if (!deck) throw new ProjectError('missing-deck', '已保存稿件缺失。');
+      result.push({ label: label!, deck, paper: await paperIn(tx, project, deck.paperId) });
+    }
+    return result;
   });
 }

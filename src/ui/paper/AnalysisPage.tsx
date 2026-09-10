@@ -21,11 +21,11 @@ export function AnalysisPage({
   settings: ModelSettings;
   onSettings: () => void;
   onLeave: () => void;
-  onLegacyStep?: (step: 'slides' | 'outline-speech') => void;
+  onLegacyStep?: (step: 'slides' | 'outline-speech' | 'figure-review') => void;
   registerLeaveGuard?: RegisterLeaveGuard;
 }) {
   const controller = usePaperAnalysis({ id, settings, registerLeaveGuard, onLegacyStep });
-  const { paper, snapshot, progress, selectedPage, step } = controller;
+  const { paper, snapshot, progress, selectedPage } = controller;
   const [leftWidth, setLeftWidth] = useState(230);
   const [rightWidth, setRightWidth] = useState(350);
   const [aiOpen, setAiOpen] = useState(false);
@@ -54,7 +54,6 @@ export function AnalysisPage({
     );
   const selectedDocument = paper.documents.find((document) => document.id === selectedPage?.documentId);
   const selected = selection ? isSelected(selection) : false;
-  const review = step === 'figure-review';
   const running = snapshot.status === 'running';
   const waiting = running && controller.scheduler.waitingUntil > Date.now();
   const visibleDocuments = paper.documents.filter(
@@ -89,32 +88,31 @@ export function AnalysisPage({
               : progress?.completed
                 ? '待继续，已恢复保存内容'
                 : '待分析';
-  const previewRegions =
-    review && selectedPage
-      ? paper.sources.flatMap((source) => {
-          if (
-            !source.bbox ||
-            source.documentId !== selectedPage.documentId ||
-            source.pageNumber !== selectedPage.pageNumber ||
-            !['figure', 'panel'].includes(source.kind)
-          )
-            return [];
-          const figure = paper.figures.find((item) =>
-            item.regions.some(
-              (region) => region.sourceId === source.id || region.panels.some((panel) => panel.sourceId === source.id),
-            ),
-          );
-          const panel = figure?.regions.flatMap((region) => region.panels).find((item) => item.sourceId === source.id);
-          return [
-            {
-              id: source.id,
-              bbox: source.bbox,
-              label: [figure?.label || 'Figure', panel?.label].filter(Boolean).join(' '),
-              panel: source.kind === 'panel',
-            },
-          ];
-        })
-      : [];
+  const previewRegions = selectedPage
+    ? paper.sources.flatMap((source) => {
+        if (
+          !source.bbox ||
+          source.documentId !== selectedPage.documentId ||
+          source.pageNumber !== selectedPage.pageNumber ||
+          !['figure', 'panel'].includes(source.kind)
+        )
+          return [];
+        const figure = paper.figures.find((item) =>
+          item.regions.some(
+            (region) => region.sourceId === source.id || region.panels.some((panel) => panel.sourceId === source.id),
+          ),
+        );
+        const panel = figure?.regions.flatMap((region) => region.panels).find((item) => item.sourceId === source.id);
+        return [
+          {
+            id: source.id,
+            bbox: source.bbox,
+            label: [figure?.label || 'Figure', panel?.label].filter(Boolean).join(' '),
+            panel: source.kind === 'panel',
+          },
+        ];
+      })
+    : [];
   const elapsedSeconds = Math.floor(controller.elapsedMs / 1000);
   const shownGroups = visibleDocuments.map((document) => ({
     document,
@@ -131,15 +129,6 @@ export function AnalysisPage({
       return true;
     }),
   }));
-  const visibleFigures = paper.figures.filter(
-    (figure) =>
-      controller.documentFilter === 'all' ||
-      figure.regions.some((region) =>
-        paper.sources.some(
-          (source) => source.id === region.sourceId && source.documentId === controller.documentFilter,
-        ),
-      ),
-  );
   const visibleCount = shownGroups.reduce((sum, group) => sum + group.pages.length, 0);
   async function leave() {
     try {
@@ -170,11 +159,11 @@ export function AnalysisPage({
           </span>
         </div>
         <nav aria-label="项目步骤" className="flex shrink-0 items-center gap-2">
-          <Button primary={!review} onClick={() => void controller.navigate('paper-analysis')}>
+          <Button primary onClick={() => void controller.navigate('paper-analysis')}>
             1 论文分析
           </Button>
           <span className="text-muted">›</span>
-          <Button primary={review} disabled={!ready} onClick={() => void controller.navigate('figure-review')}>
+          <Button primary={false} disabled={!ready} onClick={() => void controller.navigate('figure-review')}>
             2 图源核对
           </Button>
           <span className="text-muted">›</span>
@@ -195,7 +184,7 @@ export function AnalysisPage({
       </header>
       <div className="flex shrink-0 items-center justify-between gap-4 border-b border-line bg-white px-5 py-3">
         <div className="min-w-0">
-          <h1 className="font-medium">{review ? '图源核对 · 自动结果预览' : '论文分析'}</h1>
+          <h1 className="font-medium">论文分析</h1>
           <p role="status" className="mt-1 truncate text-xs text-muted">
             {taskLabel}
             {snapshot.documentId
@@ -204,27 +193,26 @@ export function AnalysisPage({
           </p>
         </div>
         <div className="flex shrink-0 gap-2">
-          {!review &&
-            (running ? (
-              <Button onClick={controller.session.pause}>
-                <Pause size={15} />
-                暂停分析
-              </Button>
-            ) : !ready ? (
-              <Button primary disabled={!settings.apiKey.trim()} onClick={() => void controller.start()}>
-                <Play size={15} />
-                {runLabel}
-              </Button>
-            ) : (
-              <Button
-                primary
-                disabled={controller.saving || controller.selectionSaving}
-                onClick={() => void controller.navigate('figure-review')}
-              >
-                下一步：图源核对
-                <ArrowRight size={15} />
-              </Button>
-            ))}
+          {running ? (
+            <Button onClick={controller.session.pause}>
+              <Pause size={15} />
+              暂停分析
+            </Button>
+          ) : !ready ? (
+            <Button primary disabled={!settings.apiKey.trim()} onClick={() => void controller.start()}>
+              <Play size={15} />
+              {runLabel}
+            </Button>
+          ) : (
+            <Button
+              primary
+              disabled={controller.saving || controller.selectionSaving}
+              onClick={() => void controller.navigate('figure-review')}
+            >
+              下一步：图源核对
+              <ArrowRight size={15} />
+            </Button>
+          )}
           <Button onClick={() => setAiOpen(!aiOpen)}>
             <Sparkles size={15} />
             {aiOpen ? '收起 AI' : 'AI 问答'}
@@ -349,8 +337,8 @@ export function AnalysisPage({
         />
         <section className="flex min-w-[320px] flex-1 flex-col">
           <div className="flex shrink-0 items-center justify-between gap-3 border-b border-line bg-panel px-4 py-3">
-            <h2 className="shrink-0 font-medium">{review ? '已发现 Figure' : '全部原文页面'}</h2>
-            {!review && (
+            <h2 className="shrink-0 font-medium">全部原文页面</h2>
+            {
               <select
                 aria-label="筛选原文页面"
                 className={`${inputClass} max-w-36 shrink-0`}
@@ -362,139 +350,92 @@ export function AnalysisPage({
                 <option value="unselected">未入选页</option>
                 <option value="pending">待处理页</option>
               </select>
-            )}
+            }
           </div>
           <div
             ref={controller.list}
             onScroll={(event) => controller.rememberScroll(event.currentTarget.scrollTop)}
             className="min-h-0 flex-1 overflow-y-auto p-4"
           >
-            {review ? (
-              <>
-                <p className="mb-4 rounded border border-line bg-white p-3 text-xs leading-relaxed text-muted">
-                  可查看自动定位结果与原文。具体边框、Panel 与关联编辑在后续图源核对阶段交付；当前没有完成整体确认。
-                </p>
-                {visibleFigures.length ? (
-                  visibleFigures.map((figure) => (
-                    <article key={figure.id} className="mb-4 rounded border border-line bg-white p-4">
-                      <h3 className="font-medium">{figure.label || '未标号 Figure'}</h3>
-                      <p className="mt-2 text-xs leading-relaxed text-muted">
-                        {figure.caption || figure.description || '暂无图注'}
-                      </p>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {figure.regions.map((region) => {
-                          const source = paper.sources.find((item) => item.id === region.sourceId);
-                          const document = paper.documents.find((item) => item.id === source?.documentId);
-                          return (
-                            source && (
-                              <Button
-                                key={region.id}
-                                onClick={() =>
-                                  controller.setSelectedPage({
-                                    documentId: source.documentId,
-                                    pageNumber: source.pageNumber,
-                                  })
-                                }
-                              >
-                                {document?.role === 'primary' ? '主论文' : '补充材料'} · 第 {source.pageNumber} 页 ·{' '}
-                                {region.panels.length} 个 Panel
-                              </Button>
-                            )
-                          );
-                        })}
-                      </div>
-                    </article>
-                  ))
-                ) : (
-                  <p className="rounded border border-line bg-white p-5 text-sm text-muted">
-                    尚未定位到整图。已保存原页，后续图源核对需手动补齐。
+            {!settings.apiKey.trim() && (
+              <div className="mb-4 rounded border border-line bg-white p-4 text-xs">
+                <p>论文和汇报要求已保存。配置模型后即可开始分析。</p>
+                <Button className="mt-3" onClick={() => void settingsPage()}>
+                  配置模型
+                </Button>
+              </div>
+            )}
+            {shownGroups.map(({ document, pages }) => (
+              <section key={document.id} className="mb-7">
+                <h3 className="mb-3 text-xs font-medium">
+                  {document.role === 'primary' ? '主论文' : '补充材料'} ·{' '}
+                  <span title={document.fileName}>{document.fileName}</span>{' '}
+                  <span className="font-normal text-muted">
+                    {document.pageCount === undefined ? '页数待解析' : `${document.pageCount} 页`}
+                  </span>
+                </h3>
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(145px,1fr))] gap-4">
+                  {pages.map((target) => {
+                    const entry = paper.figurePageSelections.find(
+                      (page) => page.documentId === target.documentId && page.pageNumber === target.pageNumber,
+                    );
+                    const focused =
+                      selectedPage?.documentId === target.documentId && selectedPage.pageNumber === target.pageNumber;
+                    return (
+                      <article
+                        key={target.pageNumber}
+                        className={`overflow-hidden rounded border bg-white ${focused ? 'border-accent ring-1 ring-accent' : 'border-line'}`}
+                      >
+                        <button
+                          className="block w-full cursor-pointer text-left focus-visible:outline-2 focus-visible:outline-focus"
+                          aria-label={`预览${document.role === 'primary' ? '主论文' : '补充材料'}第 ${target.pageNumber} 页`}
+                          onClick={() => controller.setSelectedPage(target)}
+                        >
+                          <PagePreview session={controller.session} {...target} thumbnail />
+                        </button>
+                        <div className="border-t border-line p-2.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs">第 {target.pageNumber} 页</span>
+                            <input
+                              type="checkbox"
+                              aria-label={`${document.role === 'primary' ? '主论文' : '补充材料'}第 ${target.pageNumber} 页作为图源页处理`}
+                              checked={!!entry && isSelected(entry)}
+                              disabled={!entry || controller.selectionSaving}
+                              onChange={(event) =>
+                                controller.select(target, event.target.checked ? 'include' : 'exclude')
+                              }
+                              className="size-4 accent-accent"
+                            />
+                          </div>
+                          <p className="mt-2 text-[11px] text-muted">{pageSelectionLabel(entry)}</p>
+                          <p className="mt-1 text-[11px] leading-relaxed text-muted">
+                            {pageProcessingLabel(paper, target)}
+                          </p>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+                {!document.pageCount && (
+                  <p className="rounded border border-dashed border-control bg-white px-4 py-8 text-center text-xs text-muted">
+                    开始分析后显示该文件全部页面。
                   </p>
                 )}
-              </>
-            ) : (
-              <>
-                {!settings.apiKey.trim() && (
-                  <div className="mb-4 rounded border border-line bg-white p-4 text-xs">
-                    <p>论文和汇报要求已保存。配置模型后即可开始分析。</p>
-                    <Button className="mt-3" onClick={() => void settingsPage()}>
-                      配置模型
-                    </Button>
-                  </div>
-                )}
-                {shownGroups.map(({ document, pages }) => (
-                  <section key={document.id} className="mb-7">
-                    <h3 className="mb-3 text-xs font-medium">
-                      {document.role === 'primary' ? '主论文' : '补充材料'} ·{' '}
-                      <span title={document.fileName}>{document.fileName}</span>{' '}
-                      <span className="font-normal text-muted">
-                        {document.pageCount === undefined ? '页数待解析' : `${document.pageCount} 页`}
-                      </span>
-                    </h3>
-                    <div className="grid grid-cols-[repeat(auto-fill,minmax(145px,1fr))] gap-4">
-                      {pages.map((target) => {
-                        const entry = paper.figurePageSelections.find(
-                          (page) => page.documentId === target.documentId && page.pageNumber === target.pageNumber,
-                        );
-                        const focused =
-                          selectedPage?.documentId === target.documentId &&
-                          selectedPage.pageNumber === target.pageNumber;
-                        return (
-                          <article
-                            key={target.pageNumber}
-                            className={`overflow-hidden rounded border bg-white ${focused ? 'border-accent ring-1 ring-accent' : 'border-line'}`}
-                          >
-                            <button
-                              className="block w-full cursor-pointer text-left focus-visible:outline-2 focus-visible:outline-focus"
-                              aria-label={`预览${document.role === 'primary' ? '主论文' : '补充材料'}第 ${target.pageNumber} 页`}
-                              onClick={() => controller.setSelectedPage(target)}
-                            >
-                              <PagePreview session={controller.session} {...target} thumbnail />
-                            </button>
-                            <div className="border-t border-line p-2.5">
-                              <div className="flex items-center justify-between">
-                                <span className="text-xs">第 {target.pageNumber} 页</span>
-                                <input
-                                  type="checkbox"
-                                  aria-label={`${document.role === 'primary' ? '主论文' : '补充材料'}第 ${target.pageNumber} 页作为图源页处理`}
-                                  checked={!!entry && isSelected(entry)}
-                                  disabled={!entry || controller.selectionSaving}
-                                  onChange={(event) =>
-                                    controller.select(target, event.target.checked ? 'include' : 'exclude')
-                                  }
-                                  className="size-4 accent-accent"
-                                />
-                              </div>
-                              <p className="mt-2 text-[11px] text-muted">{pageSelectionLabel(entry)}</p>
-                              <p className="mt-1 text-[11px] leading-relaxed text-muted">
-                                {pageProcessingLabel(paper, target)}
-                              </p>
-                            </div>
-                          </article>
-                        );
-                      })}
-                    </div>
-                    {!document.pageCount && (
-                      <p className="rounded border border-dashed border-control bg-white px-4 py-8 text-center text-xs text-muted">
-                        开始分析后显示该文件全部页面。
-                      </p>
-                    )}
-                  </section>
-                ))}
-                {!visibleCount && paper.documents.some((document) => document.pageCount) && (
-                  <div className="p-8 text-center text-sm text-muted">
-                    <p>没有匹配的页面。</p>
-                    <Button
-                      className="mt-3"
-                      onClick={() => {
-                        controller.setDocumentFilter('all');
-                        controller.setPageFilter('all');
-                      }}
-                    >
-                      清除筛选
-                    </Button>
-                  </div>
-                )}
-              </>
+              </section>
+            ))}
+            {!visibleCount && paper.documents.some((document) => document.pageCount) && (
+              <div className="p-8 text-center text-sm text-muted">
+                <p>没有匹配的页面。</p>
+                <Button
+                  className="mt-3"
+                  onClick={() => {
+                    controller.setDocumentFilter('all');
+                    controller.setPageFilter('all');
+                  }}
+                >
+                  清除筛选
+                </Button>
+              </div>
             )}
           </div>
         </section>
@@ -524,7 +465,7 @@ export function AnalysisPage({
                 <p className="mt-4 text-xs text-muted">
                   {pageSelectionLabel(selection)} · {pageProcessingLabel(paper, selectedPage)}
                 </p>
-                {!review && (
+                {
                   <>
                     <label className="mt-4 flex items-center gap-2 rounded border border-control p-3 text-xs">
                       <input
@@ -551,7 +492,7 @@ export function AnalysisPage({
                         : '页级选择仅影响图源处理；正文、方法和图注仍完整提取。人工选择优先于自动发现结果。'}
                     </p>
                   </>
-                )}
+                }
                 <details className="mt-5 border-t border-line pt-4">
                   <summary className="flex cursor-pointer items-center gap-2 text-xs">
                     <ChevronDown size={14} />

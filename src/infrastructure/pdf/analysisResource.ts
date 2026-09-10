@@ -1,3 +1,4 @@
+import { localFigureInput } from './figureResource';
 import type { PaperResource } from '../../app/paper/ports';
 import { PdfResource, PDF_PREVIEW_EDGE } from './pdfResource';
 
@@ -27,6 +28,7 @@ export function createAnalysisResource(blob: Blob): PaperResource {
       const image = await encodePage(pageNumber, 1800, signal);
       return { image, imageRegions };
     },
+    localFigure: (pageNumber, bbox, signal) => localFigureInput(resource, pageNumber, bbox, signal),
     preview: (pageNumber, signal) => encodePage(pageNumber, PDF_PREVIEW_EDGE, signal),
     dispose: () => resource.dispose(),
   };

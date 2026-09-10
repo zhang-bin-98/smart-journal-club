@@ -44,6 +44,10 @@ describe('M15 项目与论文的实际模块边界', () => {
       'modules/paper/migration.ts',
       'modules/paper/analysisUnits.ts',
       'modules/paper/figureOutput.ts',
+      'modules/paper/figureEditing.ts',
+      'modules/paper/figureCaptions.ts',
+      'modules/paper/figureGeometry.ts',
+      'modules/paper/figurePixels.ts',
     ]);
     const problems: string[] = [];
     for (const file of readdirSync(root, { recursive: true })

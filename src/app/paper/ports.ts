@@ -38,6 +38,15 @@ export type PaperResource = {
   ): Promise<{ width: number; height: number; text: string; blocks: { text: string }[] }>;
   discover(pageNumber: number, signal: AbortSignal): Promise<{ hasImages: boolean }>;
   figureInput(pageNumber: number, signal: AbortSignal): Promise<{ image: string; imageRegions: BBox[] }>;
+  localFigure?(
+    pageNumber: number,
+    bbox: BBox,
+    signal: AbortSignal,
+  ): Promise<{
+    image: string;
+    refine: (boxes: BBox[]) => Promise<import('../../modules/paper/figurePixels').PixelResult>;
+    release: () => void;
+  }>;
   preview(pageNumber: number, signal: AbortSignal): Promise<string>;
   dispose(): Promise<void>;
 };

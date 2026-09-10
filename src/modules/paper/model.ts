@@ -45,10 +45,11 @@ export const PaperSchema = z.strictObject({
   figures: z.array(FigureRefSchema),
   figureReview: FigureReviewSchema,
   pendingEvidenceFigureIds: z.array(identity),
-  studyProfile: StudyProfileSchema.optional(),
+  studyProfile: StudyProfileSchema.extend({ sourceIds: z.array(identity) }).optional(),
   story: StorySchema.optional(),
   claims: z.array(ClaimSchema),
-  evidences: z.array(EvidenceSchema),
+  // Saved facts may retain an explicit source gap after a user deletes image evidence.
+  evidences: z.array(EvidenceSchema.extend({ sourceIds: z.array(identity) })),
 });
 export type Paper = z.infer<typeof PaperSchema>;
 export type PaperDocument = z.infer<typeof PaperDocumentSchema>;
@@ -157,6 +158,10 @@ export function validatePaper(value: unknown): Paper {
   };
   for (const figure of paper.figures) {
     checkSources(figure.captionSourceIds ?? []);
+    for (const id of figure.captionSourceIds ?? []) {
+      const caption = sources.get(id)!;
+      if (caption.kind !== 'caption' || !caption.textSpan) fail('完整图注必须引用有效原文片段');
+    }
     for (const region of figure.regions) {
       const source = sources.get(region.sourceId);
       if (!source?.bbox) fail('图块来源无效');
@@ -170,7 +175,12 @@ export function validatePaper(value: unknown): Paper {
           fail('Panel 必须与所属图块同文件同页');
         if (source?.bbox && panelSource?.bbox && !containsBBox(source.bbox, panelSource.bbox))
           fail('Panel 超出所属图块范围');
-        checkSources(panel.captionAssociation?.links.map((link) => link.sourceId) ?? []);
+        const links = panel.captionAssociation?.links ?? [];
+        unique(links.map((link) => link.sourceId));
+        checkSources(links.map((link) => link.sourceId));
+        for (const link of links) {
+          if (!figure.captionSourceIds?.includes(link.sourceId)) fail('Panel 图注必须属于当前 Figure 的图注范围');
+        }
       }
     }
   }

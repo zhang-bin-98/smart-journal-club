@@ -27,6 +27,7 @@ function releaseModels() {
   held = [];
 }
 function fixedResult(data) {
+  if ('figureLabel' in data) return { panels: [], concerns: [] };
   if ('imageRegions' in data)
     return {
       figures: [
@@ -303,7 +304,7 @@ try {
   assert.equal(await page.getByRole('heading', { name: '论文分析', exact: true }).isVisible(), true);
   console.log('PASS: 就绪停留、补选保存失败挡导航、重试自动局部处理并保留其他单元');
   await page.getByRole('button', { name: '下一步：图源核对', exact: true }).click();
-  await page.getByRole('heading', { name: '图源核对 · 自动结果预览', exact: true }).waitFor();
+  await page.getByRole('button', { name: '确认切分', exact: true }).waitFor();
   assert.equal((await runtime(page)).project.lastOpenedStep, 'figure-review');
   await page.getByRole('button', { name: '1 论文分析', exact: true }).click();
   await page.getByRole('heading', { name: '论文分析', exact: true }).waitFor();

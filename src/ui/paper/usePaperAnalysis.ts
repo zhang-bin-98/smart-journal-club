@@ -52,7 +52,7 @@ export function usePaperAnalysis({
   id: string;
   settings: ModelSettings;
   registerLeaveGuard?: RegisterLeaveGuard;
-  onLegacyStep?: (step: 'slides' | 'outline-speech') => void;
+  onLegacyStep?: (step: 'slides' | 'outline-speech' | 'figure-review') => void;
 }) {
   const session = analysisService.session(id);
   const snapshot = useSyncExternalStore(session.subscribe, session.snapshot);
@@ -61,7 +61,6 @@ export function usePaperAnalysis({
   const [documentFilter, setDocumentFilter] = useState(previousLocation?.document ?? 'all');
   const [pageFilter, setPageFilter] = useState<PageFilter>(previousLocation?.filter ?? 'all');
   const [selectedPage, setSelectedPage] = useState<Target | undefined>(previousLocation?.selected);
-  const [step, setStep] = useState<'paper-analysis' | 'figure-review'>('paper-analysis');
   const [error, setError] = useState('');
   const [instruction, setInstruction] = useState('');
   const [saveStatus, setSaveStatus] = useState('已保存');
@@ -103,7 +102,6 @@ export function usePaperAnalysis({
     setInstruction(instructionRef.current);
     ready.current = true;
     setRequirementsReady(true);
-    if (data.project.lastOpenedStep === 'figure-review') setStep('figure-review');
     requestAnimationFrame(() => {
       if (list.current) list.current.scrollTop = locations.get(id)?.scrollTop ?? 0;
     });
@@ -193,8 +191,7 @@ export function usePaperAnalysis({
       if (failedSelection) throw new Error('图源页选择尚未保存，请先重试该选择。');
       await session.openStep(next);
       setError('');
-      if (next === 'paper-analysis' || next === 'figure-review') setStep(next);
-      else onLegacyStep?.(next);
+      if (next !== 'paper-analysis') onLegacyStep?.(next);
     } catch (cause) {
       setError(errorMessage(cause));
     }
@@ -294,7 +291,6 @@ export function usePaperAnalysis({
     setPageFilter,
     selectedPage,
     setSelectedPage,
-    step,
     navigate,
     start,
     select,
