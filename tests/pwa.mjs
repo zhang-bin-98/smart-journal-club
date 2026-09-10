@@ -148,7 +148,8 @@ const readState = (page) =>
     const project = await get('projects', id);
     const deck = await get('decks', project.currentDeckId);
     const paper = await get('papers', project.paperId);
-    const asset = await get('assets', project.pdfAssetId);
+    const assetId = project.pdfAssetId ?? paper.documents.find((document) => document.role === 'primary').pdfAssetId;
+    const asset = await get('assets', assetId);
     const settings = await get('settings', 'model');
     const result = { project, deck, paper, assetSize: asset.blob.size, settings };
     tx.oncomplete = () => db.close();

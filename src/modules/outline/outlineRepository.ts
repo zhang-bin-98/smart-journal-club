@@ -1,14 +1,18 @@
-import { get, request as idbRequest, stored, transaction } from '../../shared/persistence/indexedDb';
-import { ProjectSchema, type Project } from '../project/project.schema';
-import { validatePlan } from './validatePlan';
-import { PlanRecordSchema, type PlanRecord } from './planRecord.schema';
-import { PlanRequestSchema, type DeckPlan, type PlanRequest } from './outline.schema';
-import { PaperSchema } from '../paper/paper.schema';
-import { OutlineError } from './outlineError';
-import type { PlanSaveOptions } from './OutlineSession';
-import { DeckSchema } from '../deck/deck.schema';
-import { validatePlanNarrative } from './validateNarrative';
+import {
+  readLegacyPaper,
+  readLegacyProject,
+  writeLegacyProject,
+} from '../../infrastructure/persistence/legacyCompatibility';
 import { trimHistory } from '../../shared/persistence/historyStore';
+import { get, request as idbRequest, transaction } from '../../shared/persistence/indexedDb';
+import { DeckSchema } from '../deck/deck.schema';
+import type { Project } from '../project/project.schema';
+import type { PlanSaveOptions } from './OutlineSession';
+import { type DeckPlan, type PlanRequest, PlanRequestSchema } from './outline.schema';
+import { OutlineError } from './outlineError';
+import { type PlanRecord, PlanRecordSchema } from './planRecord.schema';
+import { validatePlanNarrative } from './validateNarrative';
+import { validatePlan } from './validatePlan';
 
 function assertActive(options: PlanSaveOptions) {
   options.signal?.throwIfAborted();
@@ -51,7 +55,7 @@ export function savePlanRevision(request: PlanRequest, value: DeckPlan, options:
     ['projects', 'papers', 'plans', 'decks', 'history'],
     'readwrite',
     async (tx) => {
-      const project = stored(ProjectSchema, await get(tx, 'projects', captured.projectId), '项目');
+      const project = await readLegacyProject(tx, captured.projectId);
       const record = PlanRecordSchema.parse(await get(tx, 'plans', project.id));
       await assertPlanBase(tx, record, project);
       if (await get(tx, 'history', captured.requestId))
@@ -69,7 +73,7 @@ export function savePlanRevision(request: PlanRequest, value: DeckPlan, options:
         candidate.revision !== record.plan.revision + 1
       )
         throw new OutlineError('invalid-revision', '计划提交版本不正确。');
-      const paper = PaperSchema.parse(await get(tx, 'papers', project.paperId));
+      const paper = await readLegacyPaper(tx, record.plan.paperId, project.id);
       const next = validatePlan(candidate, paper);
       if (options.command === 'confirm') {
         if (record.plan.status !== 'draft' || next.status !== 'confirmed' || content(next) !== content(record.plan))
@@ -83,7 +87,7 @@ export function savePlanRevision(request: PlanRequest, value: DeckPlan, options:
       }
       assertActive(options);
       tx.objectStore('plans').put({ ...record, plan: next }, project.id);
-      tx.objectStore('projects').put({ ...project, updatedAt: next.updatedAt }, project.id);
+      await writeLegacyProject(tx, { ...project, updatedAt: next.updatedAt });
       await idbRequest(
         tx.objectStore('history').add(
           {

@@ -1,7 +1,8 @@
-import { get, stored, transaction } from '../../shared/persistence/indexedDb';
-import { PaperSchema, type Paper } from './paper.schema';
-import { projectIn } from '../project/projectRepository';
+import { readLegacyPaper } from '../../infrastructure/persistence/legacyCompatibility';
+import { get, transaction } from '../../shared/persistence/indexedDb';
 import type { Project } from '../project/project.schema';
+import { projectIn } from '../project/projectRepository';
+import type { Paper } from './paper.schema';
 
 async function readProjectScoped<T>(
   projectId: string,
@@ -9,7 +10,8 @@ async function readProjectScoped<T>(
 ) {
   return transaction(['projects', 'papers', 'decks'], 'readonly', async (tx) => {
     const project = await projectIn(tx, projectId);
-    const paper = stored(PaperSchema, await get(tx, 'papers', project.paperId), '论文');
+    const deck = project.currentDeckId ? await get<{ paperId: string }>(tx, 'decks', project.currentDeckId) : undefined;
+    const paper = await readLegacyPaper(tx, deck?.paperId ?? project.paperId, project.id);
     return reader(tx, project, paper);
   });
 }

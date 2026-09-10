@@ -1,13 +1,14 @@
+import { readLegacyProject } from '../../infrastructure/persistence/legacyCompatibility';
 import { get, stored, transaction } from '../../shared/persistence/indexedDb';
-import { ProjectSchema, type Project } from '../project/project.schema';
-import { DeckSchema, type Deck } from '../deck/deck.schema';
-import { PaperSchema } from '../paper/paper.schema';
-import { PlanRecordSchema, type GenerationBase, type PlanRecord } from '../outline/planRecord.schema';
-import { assertPlanBase } from '../outline/outlineRepository';
-import { validatePlan } from '../outline/validatePlan';
+import { type Deck, DeckSchema } from '../deck/deck.schema';
 import { validateDeck } from '../deck/validateDeck';
-import { validatePlanNarrative } from '../outline/validateNarrative';
 import { OutlineError } from '../outline/outlineError';
+import { assertPlanBase } from '../outline/outlineRepository';
+import { type GenerationBase, type PlanRecord, PlanRecordSchema } from '../outline/planRecord.schema';
+import { validatePlanNarrative } from '../outline/validateNarrative';
+import { validatePlan } from '../outline/validatePlan';
+import { PaperSchema } from '../paper/paper.schema';
+import { type Project, ProjectSchema } from '../project/project.schema';
 import { validateBuiltDeckAgainstPlan } from './validateBuiltDeckAgainstPlan';
 
 /** 开始规划前捕获数据库中的版本；Current 在候选期间仍可编辑。 */
@@ -96,8 +97,8 @@ export function commitCandidate(captured: PlanRecord, deck: Deck, signal: AbortS
 }
 
 export function discardCandidate(projectId: string, planId: string, revision: number) {
-  return transaction(['projects', 'plans'], 'readwrite', async (tx) => {
-    stored(ProjectSchema, await get(tx, 'projects', projectId), '项目');
+  return transaction(['projects', 'papers', 'plans'], 'readwrite', async (tx) => {
+    await readLegacyProject(tx, projectId);
     const record = PlanRecordSchema.parse(await get(tx, 'plans', projectId));
     if (
       record.mode !== 'regeneration' ||

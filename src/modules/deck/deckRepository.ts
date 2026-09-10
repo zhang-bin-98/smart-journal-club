@@ -1,20 +1,21 @@
-import { get, request, stored, transaction } from '../../shared/persistence/indexedDb';
+import { readLegacyPaper, writeLegacyProject } from '../../infrastructure/persistence/legacyCompatibility';
+import { prompts } from '../../shared/llm/prompts';
+import { assertMessage, trimHistory } from '../../shared/persistence/historyStore';
+import { get, stored, transaction } from '../../shared/persistence/indexedDb';
+import type { ChatMessage } from '../assistant/assistant.schema';
+import type { Paper } from '../paper/paper.schema';
+import { validatePaper } from '../paper/sources';
+import { type PdfAsset, type Project, ProjectSchema } from '../project/project.schema';
+import { projectIn } from '../project/projectRepository';
 import {
+  type Deck,
   DeckSchema,
   DeckSchemaVersion,
-  RevisionRecordSchema,
-  type Deck,
   type RevisionRecord,
+  RevisionRecordSchema,
   type RevisionRequest,
 } from './deck.schema';
-import type { ChatMessage } from '../assistant/assistant.schema';
-import { PaperSchema, type Paper } from '../paper/paper.schema';
-import { ProjectSchema, type PdfAsset, type Project } from '../project/project.schema';
-import { projectIn } from '../project/projectRepository';
-import { assertMessage, trimHistory } from '../../shared/persistence/historyStore';
 import { validateDeck } from './validateDeck';
-import { validatePaper } from '../paper/sources';
-import { prompts } from '../../shared/llm/prompts';
 
 export type VersionCapture = {
   projectId: string;
@@ -51,12 +52,11 @@ async function versionIn(tx: IDBTransaction, captured: VersionCapture) {
     project.checkpoint !== 'deck-ready' ||
     project.currentDeckId !== captured.currentDeckId ||
     project.previousDeckId !== captured.previousDeckId ||
-    project.paperId !== captured.paperId ||
     project.pdfAssetId !== captured.pdfAssetId
   )
     throw new Error('项目版本已在其他页面变化，请重新打开最新项目。');
-  const paper = validatePaper(stored(PaperSchema, await get(tx, 'papers', project.paperId), '论文'), true);
-  if (paper.id !== project.paperId) throw new Error('论文关联不一致');
+  const paper = validatePaper(await readLegacyPaper(tx, captured.paperId, project.id), true);
+  if (paper.id !== captured.paperId) throw new Error('论文关联不一致');
   const current = stored(DeckSchema, await get(tx, 'decks', captured.currentDeckId), '当前幻灯片', DeckSchemaVersion);
   if (
     current.id !== captured.currentDeckId ||
@@ -78,7 +78,10 @@ async function previousIn(tx: IDBTransaction, project: Project, paper: Paper) {
   );
   if (previous.id !== project.previousDeckId || previous.id === project.currentDeckId)
     throw new Error('上一版关联无效，请保留项目并检查本地存储。');
-  const errors = validateDeck(previous, paper);
+  const errors = validateDeck(
+    previous,
+    previous.paperId === paper.id ? paper : await readLegacyPaper(tx, previous.paperId, project.id),
+  );
   if (errors.length) throw new Error(errors.join('；'));
   return previous;
 }
@@ -123,9 +126,9 @@ export function commitRegeneration(
       });
       tx.objectStore('decks').add(deck, deck.id);
       if (project.previousDeckId) tx.objectStore('decks').delete(project.previousDeckId);
-      await request(tx.objectStore('projects').put(next, next.id));
+      await writeLegacyProject(tx, next);
       assertVersionTask(signal, isTaskActive);
-      return { project: next, deck };
+      return { project: { ...next, paperId: deck.paperId }, deck };
     },
     signal,
   );
@@ -150,9 +153,9 @@ export function restorePrevious(captured: VersionCapture, signal?: AbortSignal, 
       });
       assertVersionTask(signal, isTaskActive);
       tx.objectStore('decks').put(deck, deck.id);
-      await request(tx.objectStore('projects').put(next, next.id));
+      await writeLegacyProject(tx, next);
       assertVersionTask(signal, isTaskActive);
-      return { project: next, deck };
+      return { project: { ...next, paperId: deck.paperId }, deck };
     },
     signal,
   );
@@ -191,22 +194,19 @@ export function saveRevision(
       )
         throw new Error('修改请求绑定的版本无效');
       if (await get(tx, 'history', record.id)) throw new Error('本次修改已经提交');
-      const paper = validatePaper(stored(PaperSchema, await get(tx, 'papers', project.paperId), '论文'));
+      const paper = validatePaper(await readLegacyPaper(tx, current.paperId, project.id));
       const errors = validateDeck(next, paper);
       if (errors.length) throw new Error(errors.join('；'));
       signal?.throwIfAborted();
       if (guard?.isTaskActive && !guard.isTaskActive()) throw new Error('修改请求已失效');
       tx.objectStore('decks').put(next, next.id);
-      tx.objectStore('projects').put(
-        {
-          ...project,
-          updatedAt: next.updatedAt,
-          lastOpenedSlideId: next.slides.some((slide) => slide.id === project.lastOpenedSlideId)
-            ? project.lastOpenedSlideId
-            : next.slides[0]?.id,
-        },
-        projectId,
-      );
+      await writeLegacyProject(tx, {
+        ...project,
+        updatedAt: next.updatedAt,
+        lastOpenedSlideId: next.slides.some((slide) => slide.id === project.lastOpenedSlideId)
+          ? project.lastOpenedSlideId
+          : next.slides[0]?.id,
+      });
       tx.objectStore('history').add(RevisionRecordSchema.parse({ ...record, projectId }), record.id);
       for (const message of guard?.messages ?? []) {
         assertMessage(message, projectId, previous);
@@ -228,9 +228,10 @@ export function captureRevision(projectId: string, deck: Deck): RevisionReadCont
 export function getDeck(projectId: string) {
   return transaction(['projects', 'papers', 'decks'], 'readonly', async (tx) => {
     const project = await projectIn(tx, projectId);
-    const paper = stored(PaperSchema, await get(tx, 'papers', project.paperId), '论文');
+
     if (!project.currentDeckId) throw new Error('项目尚未生成幻灯片');
     const deck = DeckSchema.parse(await get(tx, 'decks', project.currentDeckId));
+    const paper = await readLegacyPaper(tx, deck.paperId, project.id);
     const errors = validateDeck(deck, paper);
     if (errors.length) throw new Error(errors.join('；'));
     return structuredClone(deck);

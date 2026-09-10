@@ -1,30 +1,30 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { beginActivity, type LeaveGuard, type RegisterLeaveGuard, setDirty } from '../../app/activity';
+import type { ModelSettings } from '../../app/model';
+import { checkPresentation, type PresentationExportOptions } from '../../app/presentation/checkPresentation';
+import type { PersistAssistantRevision } from '../../modules/assistant/revision/applyRevision';
 import { DeckSession } from '../../modules/deck/DeckSession';
-import { PDF_EXPORT_EDGE } from '../../shared/pdf/pdfResource';
+import type { Deck, Element } from '../../modules/deck/deck.schema';
 import { captureVersion, restorePrevious, saveRevision } from '../../modules/deck/deckRepository';
-import { loadProject, updateProject, type ProjectData } from '../../modules/project/projectRepository';
-import { figureImage } from '../../modules/paper/sources';
-import { beginActivity, setDirty, type LeaveGuard, type RegisterLeaveGuard } from '../../app/activity';
+import { discardCandidate } from '../../modules/generation/candidateRepository';
 import {
   buildPresentation,
   prepareOutline,
   preparePaper,
   reanalyzePaper,
 } from '../../modules/generation/runGeneration';
-import { discardCandidate } from '../../modules/generation/candidateRepository';
-import { createReanalysisProject } from '../../modules/project/reanalysisRepository';
-import type { ModelSettings } from '../../app/model';
+import { OutlineSession } from '../../modules/outline/OutlineSession';
+import type { PlanMutation } from '../../modules/outline/outline.schema';
+import { savePlanRevision } from '../../modules/outline/outlineRepository';
+import { validatePlanNarrative } from '../../modules/outline/validateNarrative';
+import { figureImage } from '../../modules/paper/sources';
 import type { Project } from '../../modules/project/project.schema';
-import type { Deck, Element } from '../../modules/deck/deck.schema';
-import type { PersistAssistantRevision } from '../../modules/assistant/revision/applyRevision';
+import { loadProject, type ProjectData, updateProject } from '../../modules/project/projectRepository';
+import { createReanalysisProject } from '../../modules/project/reanalysisRepository';
+import { PDF_EXPORT_EDGE } from '../../shared/pdf/pdfResource';
 import { errorMessage } from '../controls';
 import type { SourceSelection } from '../SourceDialog';
 import type { OpenProject } from './useProjectWorkspace';
-import { OutlineSession } from '../../modules/outline/OutlineSession';
-import { savePlanRevision } from '../../modules/outline/outlineRepository';
-import { validatePlanNarrative } from '../../modules/outline/validateNarrative';
-import type { PlanMutation } from '../../modules/outline/outline.schema';
-import { checkPresentation, type PresentationExportOptions } from '../../app/presentation/checkPresentation';
 
 /** 项目工作区控制器：Deck 会话与修订持久化、偏好保存队列、生成/重生成/恢复/导出任务及对话框状态。 */
 export function useProjectController(
@@ -62,10 +62,13 @@ export function useProjectController(
   const parseTask = useRef<AbortController | undefined>(undefined);
   const outlineRef = useRef<OutlineSession | undefined>(undefined);
   if (data.plan && outlineRef.current?.current.id !== data.plan.id)
-    outlineRef.current = new OutlineSession(data.plan, data.paper, data.project.id, savePlanRevision);
+    outlineRef.current = new OutlineSession(data.plan, data.planPaper ?? data.paper, data.project.id, savePlanRevision);
   if (!data.plan) outlineRef.current = undefined;
   const outlineIssues = data.plan
-    ? validatePlanNarrative({ ...data.plan, status: 'confirmed', confirmedAt: Date.now() }, data.paper)
+    ? validatePlanNarrative(
+        { ...data.plan, status: 'confirmed', confirmedAt: Date.now() },
+        data.planPaper ?? data.paper,
+      )
     : undefined;
   const persistRevision: PersistAssistantRevision = (previous, next, record, options, messages) =>
     saveRevision(
@@ -172,6 +175,7 @@ export function useProjectController(
     setDirty(preferenceKey, false);
   }
   async function generate(nextInstruction?: string) {
+    if (dataRef.current.legacyGenerationAllowed === false) return;
     if (parseTask.current || !online || !settings.apiKey.trim() || (!session && !resource)) return;
     const task = new AbortController();
     const done = beginActivity();
@@ -242,6 +246,7 @@ export function useProjectController(
     }
   }
   async function reanalyze(nextInstruction: string) {
+    if (dataRef.current.legacyGenerationAllowed === false) return;
     if (parseTask.current || !resource || !online || !settings.apiKey.trim()) return;
     const task = new AbortController();
     parseTask.current = task;

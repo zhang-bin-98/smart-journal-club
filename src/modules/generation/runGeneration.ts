@@ -1,14 +1,14 @@
-import { researchPrompt } from '../../shared/llm/prompts';
 import type { ModelSettings } from '../../app/model';
+import { researchPrompt } from '../../shared/llm/prompts';
+import type { PdfResource } from '../../shared/pdf/pdfResource';
 import { analyzeFigures, understandPaper } from '../paper/analysis';
 import { parsePaper } from '../paper/parsePaper';
-import type { PdfResource } from '../../shared/pdf/pdfResource';
-import { loadProject, saveStage, type ProjectData } from '../project/projectRepository';
-import { assertReanalysisAvailable, saveReanalysis } from '../project/reanalysisRepository';
-import { planDeck } from './planDeck';
-import { generateDeck } from './buildDeck';
-import { captureGenerationBase, saveCandidate, commitCandidate } from './candidateRepository';
 import type { Project } from '../project/project.schema';
+import { assertLegacyGeneration, loadProject, type ProjectData, saveStage } from '../project/projectRepository';
+import { assertReanalysisAvailable, saveReanalysis } from '../project/reanalysisRepository';
+import { generateDeck } from './buildDeck';
+import { captureGenerationBase, commitCandidate, saveCandidate } from './candidateRepository';
+import { planDeck } from './planDeck';
 
 export const GENERATION_STEPS = [
   '解析论文',
@@ -27,6 +27,7 @@ export async function preparePaper(
   onSaved: (data: ProjectData) => void = () => {},
 ): Promise<ProjectData> {
   signal.throwIfAborted();
+  await assertLegacyGeneration(initial.project.id);
   let data = initial;
   const captured = data.project;
   if (captured.checkpoint === 'project-created') {
@@ -65,6 +66,7 @@ export async function prepareOutline(
   onStage: (stage: string) => void = () => {},
   preferences: Project['preferences'] = initial.project.preferences,
 ): Promise<ProjectData> {
+  await assertLegacyGeneration(initial.project.id);
   if (!['paper-ready', 'deck-ready'].includes(initial.project.checkpoint))
     throw new Error('论文尚未完成理解，不能规划大纲');
   const base =
@@ -96,6 +98,7 @@ export async function reanalyzePaper(
   signal: AbortSignal,
   instruction: string,
 ) {
+  await assertLegacyGeneration(initial.project.id);
   const captured = structuredClone({ project: initial.project, paper: initial.paper, plan: initial.plan });
   assertReanalysisAvailable(captured);
   signal.throwIfAborted();
@@ -111,6 +114,7 @@ export async function buildPresentation(
   signal: AbortSignal,
   onStage: (stage: string) => void = () => {},
 ): Promise<ProjectData> {
+  await assertLegacyGeneration(initial.project.id);
   if (!['deck-plan-ready', 'deck-ready'].includes(initial.project.checkpoint) || !initial.plan)
     throw new Error('请先确认有效的汇报计划');
   if (initial.candidateStale) throw new Error('候选已过期，请放弃后重新规划');

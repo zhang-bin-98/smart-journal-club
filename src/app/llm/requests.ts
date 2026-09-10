@@ -1,8 +1,8 @@
 import type { Context, Tool } from '@earendil-works/pi-ai';
 import { z } from 'zod';
-import { SettingsError, type ModelSettings } from '../settings/modelSettings';
-import type { ModelRequest, ModelAdapter } from './ports';
+import { type ModelSettings, SettingsError } from '../settings/modelSettings';
 import { ModelOutputError } from './modelError';
+import type { ModelAdapter, ModelRequest } from './ports';
 
 export function createModelRequests(adapter: ModelAdapter) {
   const requestModel = (input: ModelRequest) => adapter.request(input);
@@ -14,6 +14,7 @@ export function createModelRequests(adapter: ModelAdapter) {
     signal,
     stage,
     image,
+    maxTokens = 16384,
   }: {
     settings: ModelSettings;
     systemPrompt: string;
@@ -22,6 +23,7 @@ export function createModelRequests(adapter: ModelAdapter) {
     signal: AbortSignal;
     stage: string;
     image?: string;
+    maxTokens?: number;
   }): Promise<z.infer<T>> {
     const content: Exclude<Context['messages'][number], { role: 'assistant' | 'toolResult' }>['content'] = [
       { type: 'text', text: JSON.stringify(data) },
@@ -43,7 +45,7 @@ export function createModelRequests(adapter: ModelAdapter) {
       signal: signal,
       stage: stage,
       json: false,
-      maxTokens: 16384,
+      maxTokens,
       outputTool: 'submit_result',
     });
     const calls = response.content.filter((block) => block.type === 'toolCall');

@@ -1,12 +1,14 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { HomePage } from '../ui/HomePage';
 import { DEFAULT_SETTINGS, type ModelSettings } from './settings/modelSettings';
-import { settingsService } from './composition';
+import { settingsService, analysisService } from './composition';
 import { beginActivity, isAppIdle, setDirty, subscribeActivity, type LeaveGuard } from './activity';
 import { errorMessage } from '../ui/controls';
 import { PwaNotice } from '../ui/PwaNotice';
 import { SettingsPage } from '../ui/settings/SettingsPage';
-const ProjectPage = lazy(() => import('../ui/project/ProjectPage').then((module) => ({ default: module.ProjectPage })));
+const ProjectPage = lazy(() =>
+  import('../ui/project/ProjectWorkspace').then((module) => ({ default: module.ProjectWorkspace })),
+);
 const FixturePage = import.meta.env.DEV ? lazy(() => import('../ui/FixturePage')) : undefined;
 export function App() {
   const [hash, setHash] = useState(location.hash);
@@ -161,6 +163,14 @@ export function App() {
             />
           ) : (
             <HomePage
+              modelReady={!!settings.apiKey.trim()}
+              onStartAnalysis={(id) => {
+                void analysisService
+                  .session(id)
+                  .start(settings)
+                  .catch((cause) => setError(errorMessage(cause)));
+                void navigate(`#/project/${encodeURIComponent(id)}`);
+              }}
               onSettings={openSettings}
               openProject={(id) => {
                 void navigate(`#/project/${encodeURIComponent(id)}`);

@@ -1,22 +1,22 @@
-import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Check, Circle, FileText, LoaderCircle, Play, Settings, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import type { RegisterLeaveGuard } from '../../app/activity';
+import type { ModelSettings } from '../../app/model';
+import { type CheckLocation, checkPresentation } from '../../app/presentation/checkPresentation';
+import { GENERATION_STEPS } from '../../modules/generation/runGeneration';
+import { type OutlineIssueFocus, outlineIssueGuidance, outlineIssueKey } from '../../modules/outline/ui/issueGuidance';
+import { OutlineEditor } from '../../modules/outline/ui/OutlineEditor';
+import { OutlineIssues } from '../../modules/outline/ui/OutlineIssues';
+import { Checkpoints } from '../../modules/project/project.schema';
+import { updateProject } from '../../modules/project/projectRepository';
 import { Brand, Button, IconButton, inputClass, useOnline } from '../controls';
 import { Editor, type EditorFocusTarget } from '../editor/Editor';
 import { SourceDialog } from '../SourceDialog';
-import type { ModelSettings } from '../../app/model';
-import { Checkpoints } from '../../modules/project/project.schema';
-import { updateProject } from '../../modules/project/projectRepository';
-import { GENERATION_STEPS } from '../../modules/generation/runGeneration';
-import type { RegisterLeaveGuard } from '../../app/activity';
-import { useProjectWorkspace, type OpenProject } from './useProjectWorkspace';
-import { useProjectController } from './useProjectController';
-import { OutlineEditor } from '../../modules/outline/ui/OutlineEditor';
-import { OutlineIssues } from '../../modules/outline/ui/OutlineIssues';
-import { outlineIssueGuidance, outlineIssueKey, type OutlineIssueFocus } from '../../modules/outline/ui/issueGuidance';
-import { PaperUnderstanding } from './PaperUnderstanding';
-import { FinalOutline } from './FinalOutline';
 import { CheckExport } from './CheckExport';
-import { checkPresentation, type CheckLocation } from '../../app/presentation/checkPresentation';
+import { FinalOutline } from './FinalOutline';
+import { PaperUnderstanding } from './PaperUnderstanding';
+import { useProjectController } from './useProjectController';
+import { type OpenProject, useProjectWorkspace } from './useProjectWorkspace';
 
 export function ProjectPage({
   id,
@@ -25,6 +25,7 @@ export function ProjectPage({
   settings,
   onSettings,
   registerLeaveGuard,
+  initialStep,
 }: {
   id: string;
   onOpenProject: (id: string) => void;
@@ -32,6 +33,7 @@ export function ProjectPage({
   settings: ModelSettings;
   onSettings: () => void;
   registerLeaveGuard?: RegisterLeaveGuard;
+  initialStep?: 'slides' | 'outline-speech';
 }) {
   const { opened, error } = useProjectWorkspace(id);
   if (opened)
@@ -44,6 +46,7 @@ export function ProjectPage({
         settings={settings}
         onSettings={onSettings}
         registerLeaveGuard={registerLeaveGuard}
+        initialStep={initialStep}
       />
     );
   return (
@@ -66,6 +69,7 @@ function ProjectContent({
   settings,
   onSettings,
   registerLeaveGuard,
+  initialStep,
 }: {
   opened: OpenProject;
   onOpenProject: (id: string) => void;
@@ -73,11 +77,14 @@ function ProjectContent({
   settings: ModelSettings;
   onSettings: () => void;
   registerLeaveGuard?: RegisterLeaveGuard;
+  initialStep?: 'slides' | 'outline-speech';
 }) {
   const online = useOnline();
   const controller = useProjectController(opened, settings, online, registerLeaveGuard);
-  const [currentView, setCurrentView] = useState(false);
-  const [view, setView] = useState<'paper' | 'final-outline' | 'check'>();
+  const [currentView, setCurrentView] = useState(initialStep === 'slides');
+  const [view, setView] = useState<'paper' | 'final-outline' | 'check' | undefined>(
+    initialStep === 'outline-speech' && opened.data.deck && !opened.data.plan ? 'final-outline' : undefined,
+  );
   const [editorTarget, setEditorTarget] = useState<EditorFocusTarget>();
   const {
     data,
@@ -110,6 +117,7 @@ function ProjectContent({
     registerEditorLeave,
     resource,
   } = controller;
+  const legacyGenerationAllowed = data.legacyGenerationAllowed !== false;
   const completed = Checkpoints.indexOf(data.project.checkpoint);
   async function switchStep(next: 'paper' | 'outline' | 'slides' | 'check') {
     if (busy || exporting || source || regeneration || reanalysis || !(await refreshOutline())) return;
@@ -143,8 +151,8 @@ function ProjectContent({
         readOnly={busy && operationKind === 'restore'}
         resourceAvailable={!!resource}
         registerLeaveGuard={registerEditorLeave}
-        onRegenerate={() => openRegeneration(true)}
-        onReanalyze={() => openReanalysis(true)}
+        onRegenerate={legacyGenerationAllowed ? () => openRegeneration(true) : undefined}
+        onReanalyze={legacyGenerationAllowed ? () => openReanalysis(true) : undefined}
         onRestore={data.project.previousDeckId ? restore : undefined}
         taskStatus={
           busy
@@ -190,7 +198,7 @@ function ProjectContent({
         issues={outlineIssues!}
         error={error}
         onCancel={cancelTask}
-        canGenerate={!!settings.apiKey.trim() && online && !!resource}
+        canGenerate={legacyGenerationAllowed && !!settings.apiKey.trim() && online && !!resource}
         stale={!!data.candidateStale}
         onDiscard={data.planRecord?.mode === 'regeneration' ? discardOutline : undefined}
         onCurrent={session ? () => setCurrentView(true) : undefined}
@@ -288,17 +296,23 @@ function ProjectContent({
                       <FileText size={15} />
                       查看论文
                     </Button>
-                    {data.project.checkpoint === 'paper-ready' && !data.project.currentDeckId && (
-                      <Button
-                        disabled={busy || !resource || !settings.apiKey || !online}
-                        onClick={() => openReanalysis(true)}
-                      >
-                        重新分析
-                      </Button>
-                    )}
+                    {legacyGenerationAllowed &&
+                      data.project.checkpoint === 'paper-ready' &&
+                      !data.project.currentDeckId && (
+                        <Button
+                          disabled={busy || !resource || !settings.apiKey || !online}
+                          onClick={() => openReanalysis(true)}
+                        >
+                          重新分析
+                        </Button>
+                      )}
                   </>
                 )}
-                <Button primary disabled={!resource || !settings.apiKey || !online} onClick={() => void generate()}>
+                <Button
+                  primary
+                  disabled={!legacyGenerationAllowed || !resource || !settings.apiKey || !online}
+                  onClick={() => void generate()}
+                >
                   <Play size={15} />
                   {data.project.checkpoint === 'paper-ready'
                     ? '生成学术大纲'
@@ -422,7 +436,7 @@ function ProjectContent({
             )}
             <div className="mt-6 flex flex-wrap justify-end gap-2">
               <Button
-                disabled={busy || !resource || !online || !settings.apiKey.trim()}
+                disabled={!legacyGenerationAllowed || busy || !resource || !online || !settings.apiKey.trim()}
                 onClick={() => openReanalysis(true)}
               >
                 {session ? '在新项目中重新分析同一论文' : '重新分析'}
@@ -444,7 +458,7 @@ function ProjectContent({
                 !data.plan && (
                   <Button
                     primary
-                    disabled={busy || !resource || !online || !settings.apiKey.trim()}
+                    disabled={!legacyGenerationAllowed || busy || !resource || !online || !settings.apiKey.trim()}
                     onClick={() => {
                       setView(undefined);
                       void generate();

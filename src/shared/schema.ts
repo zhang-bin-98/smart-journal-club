@@ -25,3 +25,13 @@ export const BBoxSchema = z
     '完整 PDF 页的归一化矩形：x/y 是左上角，width/height 是宽高；x+width <= 1 且 y+height <= 1，不使用像素或右下角坐标。',
   );
 export type BBox = z.infer<typeof BBoxSchema>;
+
+export function containsBBox(outer: BBox, inner: BBox) {
+  const tolerance = 1e-8;
+  return (
+    inner.x >= outer.x - tolerance &&
+    inner.y >= outer.y - tolerance &&
+    inner.x + inner.width <= outer.x + outer.width + tolerance &&
+    inner.y + inner.height <= outer.y + outer.height + tolerance
+  );
+}

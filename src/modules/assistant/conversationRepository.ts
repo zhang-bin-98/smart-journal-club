@@ -1,11 +1,11 @@
+import { assertMessage, type HistoryEntry, isMessage, trimHistory } from '../../shared/persistence/historyStore';
 import { get, request, stored, transaction } from '../../shared/persistence/indexedDb';
-import { assertMessage, isMessage, trimHistory, type HistoryEntry } from '../../shared/persistence/historyStore';
-import type { ChatMessage } from './assistant.schema';
 import { DeckSchema, DeckSchemaVersion } from '../deck/deck.schema';
 import { projectIn } from '../project/projectRepository';
+import type { ChatMessage } from './assistant.schema';
 
 export function loadHistory(projectId: string): Promise<ChatMessage[]> {
-  return transaction(['projects', 'history'], 'readonly', async (tx) => {
+  return transaction(['projects', 'papers', 'history'], 'readonly', async (tx) => {
     await projectIn(tx, projectId);
     return ((await request(tx.objectStore('history').getAll())) as HistoryEntry[])
       .filter(isMessage)
@@ -21,7 +21,7 @@ export function saveConversation(
   isTaskActive?: () => boolean,
 ) {
   return transaction(
-    ['projects', 'decks', 'history'],
+    ['projects', 'papers', 'decks', 'history'],
     'readwrite',
     async (tx) => {
       const project = await projectIn(tx, projectId);

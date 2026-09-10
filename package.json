@@ -16,7 +16,10 @@
     "check:browser": "node tests/browser.mjs",
     "check:pwa": "node tests/pwa.mjs",
     "check:settings": "node tests/model-settings.mjs",
-    "check:responses-live": "node tests/model-responses-live.mjs"
+    "check:responses-live": "node tests/model-responses-live.mjs",
+    "check:legacy": "node tests/legacy-editor.mjs",
+    "check:m15:browser": "node tests/m15-browser.mjs",
+    "check:m15:live": "node tests/m15-live.mjs"
   },
   "dependencies": {
     "@earendil-works/pi-agent-core": "^0.85.1",

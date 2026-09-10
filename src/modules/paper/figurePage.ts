@@ -1,28 +1,9 @@
-import { z } from 'zod';
-import { BBoxSchema } from '../../shared/schema';
+import { FigurePageSchema } from './figureOutput';
+export { FigurePageSchema } from './figureOutput';
+
 import { ModelError, ModelOutputError, requestJson, type ModelSettings } from '../../app/model';
 import { prompts } from '../../shared/llm/prompts';
 import type { PdfResource } from '../../shared/pdf/pdfResource';
-
-export const FigurePageSchema = z.strictObject({
-  figures: z.array(
-    z.strictObject({
-      label: z.string().min(1),
-      caption: z.string(),
-      description: z.string(),
-      bbox: BBoxSchema,
-      panels: z.array(
-        z.strictObject({
-          label: z.string().min(1),
-          description: z.string(),
-          bbox: BBoxSchema.describe(
-            '必填：此 Panel 在完整 PDF 页中的 x/y/width/height 归一化矩形；x+width <= 1 且 y+height <= 1。无法确定坐标则不返回该 Panel。',
-          ),
-        }),
-      ),
-    }),
-  ),
-});
 
 function outputProblem(error: ModelOutputError) {
   if (error.diagnostics.some((issue) => issue.path.split('.').includes('bbox')))

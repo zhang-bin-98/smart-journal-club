@@ -1,24 +1,33 @@
-import { get, request, stored, stores, transaction } from '../../shared/persistence/indexedDb';
-import { ProjectSchema, type PdfAsset, type Project } from './project.schema';
-import { PaperSchema, type Paper } from '../paper/paper.schema';
-import { DeckSchema, DeckSchemaVersion, type Deck, type RevisionRecord } from '../deck/deck.schema';
-import { migrateDeckV1, readableSlideCount, schemaVersionOf } from '../deck/migrateDeck';
-import { DeckPlanSchema, type DeckPlan } from '../outline/outline.schema';
-import { PlanRecordSchema, type PlanRecord } from '../outline/planRecord.schema';
-import { migratePlanV1 } from '../outline/migrateDeckPlan';
+import {
+  readLegacyPaper,
+  readLegacyProject,
+  writeLegacyProject,
+} from '../../infrastructure/persistence/legacyCompatibility';
+import { deleteProject as deleteManagedProject } from '../../infrastructure/persistence/projectStore';
 import { UnsupportedSchemaVersionError } from '../../shared/errors/migration';
-import { validatePlan } from '../outline/validatePlan';
-import { validateDeck } from '../deck/validateDeck';
-import { validatePaper } from '../paper/sources';
 import { prompts } from '../../shared/llm/prompts';
+import { get, request, stored, stores, transaction } from '../../shared/persistence/indexedDb';
+import { type Deck, DeckSchema, DeckSchemaVersion, type RevisionRecord } from '../deck/deck.schema';
+import { migrateDeckV1, readableSlideCount, schemaVersionOf } from '../deck/migrateDeck';
+import { validateDeck } from '../deck/validateDeck';
 import { validateBuiltDeckAgainstPlan } from '../generation/validateBuiltDeckAgainstPlan';
-import { assertPlanBase } from '../outline/outlineRepository';
+import { migratePlanV1 } from '../outline/migrateDeckPlan';
+import { type DeckPlan, DeckPlanSchema } from '../outline/outline.schema';
 import { OutlineError } from '../outline/outlineError';
+import { assertPlanBase } from '../outline/outlineRepository';
+import { type PlanRecord, PlanRecordSchema } from '../outline/planRecord.schema';
+import { validatePlan } from '../outline/validatePlan';
+import { toLegacyProject } from '../paper/migration';
+import { validatePaper as validateCurrentPaper } from '../paper/model';
+import type { Paper } from '../paper/paper.schema';
+import { validatePaper } from '../paper/sources';
+import { ProjectSchema as CurrentProjectSchema, ProjectError } from './model';
+import { type PdfAsset, type Project, ProjectSchema } from './project.schema';
 
 export async function projectIn(tx: IDBTransaction, id: string) {
   const value = await get<Project>(tx, 'projects', id);
   if (!value) throw new Error('项目已被删除，请返回首页');
-  return stored(ProjectSchema, value, '项目');
+  return readLegacyProject(tx, id);
 }
 export async function createProject(file: File): Promise<Project> {
   const now = Date.now();
@@ -72,8 +81,10 @@ export type ProjectData = {
   asset?: PdfAsset;
   deck?: Deck;
   plan?: DeckPlan;
+  planPaper?: Paper;
   planRecord?: PlanRecord;
   candidateStale?: boolean;
+  legacyGenerationAllowed?: boolean;
 };
 function planRecord(project: Project, plan: DeckPlan): PlanRecord {
   return PlanRecordSchema.parse({
@@ -87,9 +98,18 @@ function planRecord(project: Project, plan: DeckPlan): PlanRecord {
 // v1 Deck/Plan 在同一 readwrite 事务内确定性迁移并原子写回；全部已是 v2 时不产生任何写入。
 export function loadProject(id: string): Promise<ProjectData> {
   return transaction(['projects', 'papers', 'assets', 'decks', 'plans'], 'readwrite', async (tx) => {
-    const project = await projectIn(tx, id);
+    let project = await projectIn(tx, id);
+    const canonical = await get(tx, 'projects', id);
+    if ((canonical as { schemaVersion?: number })?.schemaVersion === 2 && project.currentDeckId) {
+      const current = await get<{ paperId: string }>(tx, 'decks', project.currentDeckId);
+      if (current) {
+        const bound = validateCurrentPaper(await get(tx, 'papers', current.paperId));
+        if (bound.projectId !== id) throw new Error('旧稿底稿归属不一致');
+        project = { ...toLegacyProject(CurrentProjectSchema.parse(canonical), bound), paperId: bound.id };
+      }
+    }
     const paper = validatePaper(
-      stored(PaperSchema, await get(tx, 'papers', project.paperId), '论文'),
+      await readLegacyPaper(tx, project.paperId, project.id),
       ['paper-ready', 'deck-plan-ready', 'deck-ready'].includes(project.checkpoint),
     );
     const asset = await get<PdfAsset>(tx, 'assets', project.pdfAssetId);
@@ -107,7 +127,10 @@ export function loadProject(id: string): Promise<ProjectData> {
     if (project.checkpoint === 'deck-ready' && !deck) throw new Error('已保存的幻灯片缺失');
     for (const candidate of [deck, previous]) {
       if (!candidate) continue;
-      const errors = validateDeck(candidate, paper);
+      const errors = validateDeck(
+        candidate,
+        candidate.paperId === paper.id ? paper : await readLegacyPaper(tx, candidate.paperId, project.id),
+      );
       if (errors.length) throw new Error(errors.join('；'));
     }
     let plan: DeckPlan | undefined;
@@ -123,7 +146,7 @@ export function loadProject(id: string): Promise<ProjectData> {
       if (raw !== undefined) {
         const wrapped = raw && typeof raw === 'object' && 'recordVersion' in raw;
         const record = wrapped ? PlanRecordSchema.parse(raw) : undefined;
-        if (record && (record.projectId !== project.id || record.plan.paperId !== project.paperId))
+        if (record && record.projectId !== project.id)
           throw new Error('汇报计划关联不一致，请保留项目并检查本地存储。');
         wrapPlan = !wrapped;
         const candidate = record ? record.plan : raw;
@@ -135,7 +158,9 @@ export function loadProject(id: string): Promise<ProjectData> {
               projectCreatedAt: project.createdAt,
               projectUpdatedAt: project.updatedAt,
             }),
-            paper,
+            record?.plan.paperId && record.plan.paperId !== paper.id
+              ? await readLegacyPaper(tx, record.plan.paperId, project.id)
+              : paper,
           );
         } catch (cause) {
           // 未来版本与当前格式损坏照常报错；仅无法安全迁移的 v1 临时计划原子回退，等待重新规划。
@@ -147,7 +172,11 @@ export function loadProject(id: string): Promise<ProjectData> {
           try {
             await assertPlanBase(tx, planRecordValue, project);
           } catch (cause) {
-            if (!(cause instanceof OutlineError) || cause.code !== 'stale-candidate') throw cause;
+            const migratedPaperConflict =
+              (canonical as { schemaVersion?: number })?.schemaVersion === 2 &&
+              planRecordValue.plan.paperId !== project.paperId;
+            if (!(cause instanceof OutlineError) || (cause.code !== 'stale-candidate' && !migratedPaperConflict))
+              throw cause;
             candidateStale = true;
           }
         }
@@ -162,7 +191,7 @@ export function loadProject(id: string): Promise<ProjectData> {
       tx.objectStore('plans').delete(id);
       if (!deck) {
         opened = ProjectSchema.parse({ ...project, checkpoint: 'paper-ready' });
-        tx.objectStore('projects').put(opened, id);
+        await writeLegacyProject(tx, opened);
       }
     } else if (plan && wrapPlan) {
       tx.objectStore('plans').put(planRecord(opened, plan), id);
@@ -174,7 +203,9 @@ export function loadProject(id: string): Promise<ProjectData> {
       deck,
       plan,
       planRecord: planRecordValue,
+      planPaper: plan ? await readLegacyPaper(tx, plan.paperId, project.id) : undefined,
       candidateStale,
+      legacyGenerationAllowed: (canonical as { schemaVersion?: number })?.schemaVersion === 1,
     };
   });
 }
@@ -182,7 +213,7 @@ export function updateProject(
   id: string,
   changes: Partial<Pick<Project, 'name' | 'preferences' | 'lastOpenedSlideId'>>,
 ) {
-  return transaction(['projects', 'decks'], 'readwrite', async (tx) => {
+  return transaction(['projects', 'papers', 'decks'], 'readwrite', async (tx) => {
     const project = await projectIn(tx, id);
     if ('lastOpenedSlideId' in changes && changes.lastOpenedSlideId) {
       const deck = project.currentDeckId
@@ -197,11 +228,13 @@ export function updateProject(
       nameIsCustom: 'name' in changes ? true : project.nameIsCustom,
       updatedAt: Date.now(),
     });
-    tx.objectStore('projects').put(next, id);
+    await writeLegacyProject(tx, next);
     return next;
   });
 }
-export function deleteProject(id: string) {
+export async function deleteProject(id: string) {
+  const value = await transaction(['projects'], 'readonly', (tx) => get<{ schemaVersion: number }>(tx, 'projects', id));
+  if (value?.schemaVersion === 2) return deleteManagedProject(id);
   return transaction([...stores.filter((store) => store !== 'settings')], 'readwrite', async (tx) => {
     const project = await projectIn(tx, id);
     tx.objectStore('projects').delete(id);
@@ -240,6 +273,8 @@ export function saveStage(captured: StageCapture, output: StageOutput, signal: A
     ['projects', 'papers', 'assets', 'plans', 'decks'],
     'readwrite',
     async (tx) => {
+      if ((await get<{ schemaVersion: number }>(tx, 'projects', captured.id))?.schemaVersion === 2)
+        throw new Error('该项目已升级，请从论文分析工作台继续。');
       const project = await projectIn(tx, captured.id);
       if (
         project.checkpoint !== captured.checkpoint ||
@@ -249,7 +284,7 @@ export function saveStage(captured: StageCapture, output: StageOutput, signal: A
         throw new Error('项目阶段已在其他页面变化，请重新打开');
       if (!((await get<PdfAsset>(tx, 'assets', project.pdfAssetId))?.blob instanceof Blob))
         throw new Error('原 PDF 缺失，无法保存本阶段');
-      const savedPaper = stored(PaperSchema, await get(tx, 'papers', project.paperId), '论文');
+      const savedPaper = await readLegacyPaper(tx, project.paperId, project.id);
       if (savedPaper.id !== project.paperId) throw new Error('论文关联不一致');
       const paper = validatePaper(
         'paper' in output ? output.paper : savedPaper,
@@ -296,9 +331,21 @@ export function saveStage(captured: StageCapture, output: StageOutput, signal: A
         next.lastOpenedSlideId = output.deck.slides[0].id;
         next.preferences = { ...project.preferences, strategyId: output.strategyId };
       }
-      tx.objectStore('projects').put(next, next.id);
+      await writeLegacyProject(tx, next);
       return next;
     },
     signal,
   );
+}
+
+/** 历史单文件生成仅处理尚未升级的记录；升级后必须在调用模型前切换到工作台流程。 */
+export function assertLegacyGeneration(projectId: string) {
+  return transaction(['projects'], 'readonly', async (tx) => {
+    const project = await get<{ schemaVersion?: number }>(tx, 'projects', projectId);
+    if (project?.schemaVersion !== 1)
+      throw new ProjectError(
+        'legacy-generation-disabled',
+        '请从论文分析工作台继续；已保存的讲稿和幻灯片仍可查看、编辑与导出。',
+      );
+  });
 }
