@@ -1,5 +1,5 @@
 import { researchPrompt } from '../../shared/llm/prompts';
-import type { ModelSettings } from '../../shared/llm/model';
+import type { ModelSettings } from '../../app/model';
 import { analyzeFigures, understandPaper } from '../paper/analysis';
 import { parsePaper } from '../paper/parsePaper';
 import type { PdfResource } from '../../shared/pdf/pdfResource';

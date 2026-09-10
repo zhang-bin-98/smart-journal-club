@@ -27,7 +27,7 @@ import { computeLayout } from '../../modules/deck/layout/computeLayout';
 import { AiPanel } from './AiPanel';
 import { setDirty, type RegisterLeaveGuard } from '../../app/activity';
 import { useEditorController } from './useEditorController';
-import { DEFAULT_SETTINGS } from '../../shared/llm/model';
+import { DEFAULT_SETTINGS } from '../../app/model';
 import { useAssistantController } from './useAssistantController';
 import { AiCommandBar } from './AiCommandBar';
 import { Inspector, type InspectorTab } from './Inspector';
@@ -79,7 +79,7 @@ export function Editor({
   focusTarget?: EditorFocusTarget;
   onSelection?: (id?: string) => Promise<void>;
   onSettings?: () => void;
-  aiSettings?: import('../../shared/llm/model').ModelSettings;
+  aiSettings?: import('../../app/model').ModelSettings;
   aiPaper?: Paper;
   aiProjectId?: string;
   aiPreferences?: import('../../modules/project/project.schema').Project['preferences'];
@@ -273,7 +273,7 @@ export function Editor({
           {exporting ? '正在导出…' : '导出 PPTX'}
         </Button>
         {onSettings && (
-          <IconButton label="模型设置" disabled={exporting || aiBusy || readOnly} onClick={() => void run(onSettings)}>
+          <IconButton label="模型设置" onClick={onSettings}>
             <Settings size={17} />
           </IconButton>
         )}

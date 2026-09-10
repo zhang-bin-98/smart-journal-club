@@ -3,7 +3,7 @@ import { ArrowLeft, Check, Circle, FileText, LoaderCircle, Play, Settings, X } f
 import { Brand, Button, IconButton, inputClass, useOnline } from '../controls';
 import { Editor, type EditorFocusTarget } from '../editor/Editor';
 import { SourceDialog } from '../SourceDialog';
-import type { ModelSettings } from '../../shared/llm/model';
+import type { ModelSettings } from '../../app/model';
 import { Checkpoints } from '../../modules/project/project.schema';
 import { updateProject } from '../../modules/project/projectRepository';
 import { GENERATION_STEPS } from '../../modules/generation/runGeneration';
@@ -203,7 +203,7 @@ function ProjectContent({
           </IconButton>
           <Brand />
           <h1 className="min-w-0 flex-1 truncate text-sm">{data.project.name}</h1>
-          <IconButton label="模型设置" disabled={busy} onClick={onSettings}>
+          <IconButton label="模型设置" onClick={onSettings}>
             <Settings size={17} />
           </IconButton>
         </header>
@@ -384,7 +384,7 @@ function ProjectContent({
             </IconButton>
             <Brand />
             <h1 className="min-w-0 flex-1 truncate text-sm">{data.project.name}</h1>
-            <IconButton label="模型设置" disabled={busy} onClick={onSettings}>
+            <IconButton label="模型设置" onClick={onSettings}>
               <Settings size={17} />
             </IconButton>
           </header>

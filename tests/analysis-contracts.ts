@@ -4,7 +4,7 @@ import { mapUnderstanding, UnderstandingSchema } from '../src/modules/paper/anal
 import { prompts } from '../src/shared/llm/prompts';
 import { parsePromptFiles } from '../src/shared/llm/prompt-config';
 import { createProject, deleteProject, loadProject, saveStage } from '../src/modules/project/projectRepository';
-import { DEFAULT_SETTINGS, requestJson } from '../src/shared/llm/model';
+import { DEFAULT_SETTINGS, requestJson } from '../src/app/model';
 import type { Paper } from '../src/modules/paper/paper.schema';
 
 const assert = (value: unknown, message: string) => {
@@ -93,12 +93,17 @@ export async function runAnalysisContracts() {
   return 'PASS: evidence mapping/primary claims/strategy/atomic paper-ready/invalid output/prompt config';
 }
 export async function fixedModelRequest() {
-  return requestJson(
-    { ...DEFAULT_SETTINGS, apiKey: 'fixed-test-key' },
-    'Return JSON.',
-    { test: true },
-    z.strictObject({ connected: z.literal(true) }),
-    new AbortController().signal,
-    'fixed-check',
-  );
+  return requestJson({
+    settings: {
+      ...DEFAULT_SETTINGS,
+      baseUrl: 'https://api.deepseek.com',
+      modelId: 'deepseek-flash',
+      apiKey: 'fixed-test-key',
+    },
+    systemPrompt: 'Return JSON.',
+    data: { test: true },
+    schema: z.strictObject({ connected: z.literal(true) }),
+    signal: new AbortController().signal,
+    stage: 'fixed-check',
+  });
 }

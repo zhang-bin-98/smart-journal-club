@@ -1,16 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AssistantMessage } from '@earendil-works/pi-ai';
 import { AssistantMessageEventStream } from '@earendil-works/pi-ai/utils/event-stream';
-import { stream } from '@earendil-works/pi-ai/api/openai-completions';
-import { DEFAULT_SETTINGS, requestModel } from '../../src/shared/llm/model';
+import { stream } from '@earendil-works/pi-ai/api/openai-responses';
+import { DEFAULT_SETTINGS, requestModel } from '../../src/app/model';
 
-vi.mock('@earendil-works/pi-ai/api/openai-completions', () => ({ stream: vi.fn() }));
+vi.mock('@earendil-works/pi-ai/api/openai-responses', () => ({ stream: vi.fn() }));
 
 const message: AssistantMessage = {
   role: 'assistant',
   content: [{ type: 'text', text: 'fixed' }],
-  api: 'openai-completions',
-  provider: 'deepseek',
+  api: 'openai-responses',
+  provider: 'responses',
   model: DEFAULT_SETTINGS.modelId,
   stopReason: 'stop',
   timestamp: 0,
@@ -28,16 +28,21 @@ async function start(onText?: (delta: string) => void) {
   const controller = new AbortController();
   const events = new AssistantMessageEventStream();
   vi.mocked(stream).mockReturnValue(events);
-  const result = requestModel(
-    { ...DEFAULT_SETTINGS, apiKey: 'fixed-test-key' },
-    { messages: [] },
-    controller.signal,
-    'figures',
-    false,
-    16384,
-    undefined,
-    onText,
-  ).then(
+  const result = requestModel({
+    settings: {
+      ...DEFAULT_SETTINGS,
+      baseUrl: 'https://api.deepseek.com',
+      modelId: 'deepseek-flash',
+      apiKey: 'fixed-test-key',
+    },
+    context: { messages: [] },
+    signal: controller.signal,
+    stage: 'figures',
+    json: false,
+    maxTokens: 16384,
+    outputTool: undefined,
+    onText: onText,
+  }).then(
     (value) => value,
     (error) => error,
   );

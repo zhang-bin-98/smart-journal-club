@@ -3,10 +3,10 @@ import { DeckPlanSchema, type PlannedSlide } from '../outline/outline.schema';
 import type { Project } from '../project/project.schema';
 import type { Paper } from '../paper/paper.schema';
 import { validatePlan } from '../outline/validatePlan';
-import { requestJson, type ModelSettings } from '../../shared/llm/model';
+import { requestJson, type ModelSettings } from '../../app/model';
 import { prompts, researchPrompt } from '../../shared/llm/prompts';
 import { layoutRules } from '../deck/layoutRules';
-import { ModelOutputError } from '../../shared/llm/model';
+import { ModelOutputError } from '../../app/model';
 import { OutlineError } from '../outline/outlineError';
 
 export const PlanningContentSchema = DeckPlanSchema.options[0].pick({
@@ -111,7 +111,14 @@ export async function planDeck(
   const basePrompt = [prompts.common, strategy.body, prompts.stages.plan].join('\n\n');
   let raw: PlanningContent | undefined;
   try {
-    raw = await requestJson(settings, basePrompt, context, PlanningContentSchema, signal, 'plan');
+    raw = await requestJson({
+      settings: settings,
+      systemPrompt: basePrompt,
+      data: context,
+      schema: PlanningContentSchema,
+      signal: signal,
+      stage: 'plan',
+    });
     return assignPlanIds(raw, paper);
   } catch (cause) {
     signal.throwIfAborted();
@@ -133,14 +140,14 @@ export async function planDeck(
               message: issue.message,
             }))
           : [{ code: cause.code, path: '', message: cause.message }];
-    const repaired = await requestJson(
-      settings,
-      `${basePrompt}\n\n修复约束：这是唯一一次修复请求。根据 failedOutput 和 diagnostics 只修复 schema、ID 唯一性、章节归属与连续性、Claim/Source/Figure/Panel 引用及 layoutRules 兼容性。不要改写叙事质量、背景/结果比例、讨论深度或收尾判断；保留与诊断无关的内容。返回完整规划内容，不返回应用封套。`,
-      { ...context, failedOutput, diagnostics },
-      PlanningContentSchema,
-      signal,
-      'plan-repair',
-    );
+    const repaired = await requestJson({
+      settings: settings,
+      systemPrompt: `${basePrompt}\n\n修复约束：这是唯一一次修复请求。根据 failedOutput 和 diagnostics 只修复 schema、ID 唯一性、章节归属与连续性、Claim/Source/Figure/Panel 引用及 layoutRules 兼容性。不要改写叙事质量、背景/结果比例、讨论深度或收尾判断；保留与诊断无关的内容。返回完整规划内容，不返回应用封套。`,
+      data: { ...context, failedOutput, diagnostics },
+      schema: PlanningContentSchema,
+      signal: signal,
+      stage: 'plan-repair',
+    });
     try {
       return assignPlanIds(repaired, paper);
     } catch (repairCause) {

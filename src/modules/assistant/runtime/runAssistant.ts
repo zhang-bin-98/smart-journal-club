@@ -4,7 +4,7 @@ import type { Paper } from '../../paper/paper.schema';
 import type { Project } from '../../project/project.schema';
 import type { DeckSession } from '../../deck/DeckSession';
 import type { ChatMessage } from '../assistant.schema';
-import { model, type ModelSettings } from '../../../shared/llm/model';
+import { describeModel, type ModelSettings } from '../../../app/model';
 import { prompts, researchPrompt } from '../../../shared/llm/prompts';
 import { saveConversation } from '../conversationRepository';
 import { layoutRules } from '../../deck/layoutRules';
@@ -145,7 +145,7 @@ export async function runAiRevision({
   const strategy = mode === 'revision' && !target.titleOnly ? researchPrompt(preferences?.strategyId) : undefined;
   const agent = new Agent({
     initialState: {
-      model,
+      model: describeModel(settings),
       tools,
       systemPrompt: [
         prompts.common,

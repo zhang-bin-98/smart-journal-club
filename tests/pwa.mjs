@@ -56,9 +56,7 @@ const pwaDeck = {
     { ...fixtureSummary, message: '结论回到固定发现及其证据链。' },
   ],
 };
-const MODEL_ID = (await readFile(resolve('src/shared/llm/model.ts'), 'utf8')).match(
-  /export const MODEL_ID = '([^']+)'/,
-)[1];
+const MODEL_ID = 'deepseek-flash';
 
 const { chromium } = await import(process.env.SMARTJC_PLAYWRIGHT_MODULE || 'playwright');
 const directory = resolve('dist');
@@ -222,7 +220,16 @@ try {
         },
         pdfAssetId,
       );
-      tx.objectStore('settings').put({ modelId, apiKey: 'fixed-test-key' }, 'model');
+      tx.objectStore('settings').put(
+        {
+          protocol: 'responses',
+          baseUrl: 'https://api.deepseek.com',
+          modelId,
+          reasoningEffort: null,
+          apiKey: 'fixed-test-key',
+        },
+        'model',
+      );
       await new Promise((resolve, reject) => {
         tx.oncomplete = resolve;
         tx.onabort = () => reject(tx.error);
@@ -356,7 +363,7 @@ try {
   const modelHeld = new Promise((resolve) => {
     markHeld = resolve;
   });
-  await page.route('https://api.deepseek.com/chat/completions', (route) => {
+  await page.route('https://api.deepseek.com/responses', (route) => {
     heldRequest = route;
     markHeld();
   });
@@ -368,7 +375,7 @@ try {
   await heldRequest.abort().catch(() => {});
   await page.getByRole('button', { name: '取消', exact: true }).waitFor({ state: 'hidden' });
   assert.equal(await update.isDisabled(), false);
-  await page.unroute('https://api.deepseek.com/chat/completions');
+  await page.unroute('https://api.deepseek.com/responses');
   const second = await context.newPage();
   await second.goto(`${base}#/project/${projectId}`);
   await second.getByRole('textbox', { name: '幻灯片标题', exact: true }).fill('另一标签页未保存草稿');

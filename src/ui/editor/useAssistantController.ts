@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import type { ModelSettings } from '../../shared/llm/model';
+import type { ModelSettings } from '../../app/model';
 import type { ChatMessage } from '../../modules/assistant/assistant.schema';
 import type { Paper } from '../../modules/paper/paper.schema';
 import type { Project } from '../../modules/project/project.schema';

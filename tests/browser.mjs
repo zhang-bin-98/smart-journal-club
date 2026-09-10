@@ -1,3 +1,4 @@
+import { responsesEvent, decodeResponseRequest } from './responses-fixture.ts';
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -12,6 +13,7 @@ await mkdir(output, { recursive: true });
 const browser = await chromium.launch({ channel: process.env.SMARTJC_BROWSER || 'msedge', headless: true });
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, acceptDownloads: true });
+  page.setDefaultTimeout(90000);
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto(base);
@@ -27,7 +29,7 @@ try {
   );
   console.log(await page.evaluate(async () => (await import('/tests/ai-contracts.ts')).runAiContracts()));
   let modelCase = 'success';
-  await page.route('https://api.deepseek.com/chat/completions', async (route) => {
+  await page.route('https://api.deepseek.com/responses', async (route) => {
     if (modelCase === 'authentication') {
       await route.fulfill({
         status: 401,
@@ -37,7 +39,7 @@ try {
       return;
     }
     const content = modelCase === 'invalid' ? '{"result":{"unexpected":true}}' : '{"result":{"connected":true}}';
-    const body = `data: ${JSON.stringify({ id: 'fixed', object: 'chat.completion.chunk', choices: [{ index: 0, delta: { role: 'assistant', tool_calls: [{ index: 0, id: 'call-fixed', type: 'function', function: { name: 'submit_result', arguments: content } }] }, finish_reason: null }] })}\n\ndata: ${JSON.stringify({ id: 'fixed', object: 'chat.completion.chunk', choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] })}\n\ndata: [DONE]\n\n`;
+    const body = responsesEvent({ tool_calls: [{ function: { name: 'submit_result', arguments: content } }] });
     await route.fulfill({ status: 200, contentType: 'text/event-stream', body });
   });
   assert.deepEqual(
@@ -60,7 +62,7 @@ try {
       code,
     );
   }
-  await page.unroute('https://api.deepseek.com/chat/completions');
+  await page.unroute('https://api.deepseek.com/responses');
   console.log('PASS: Pi AI fixed SSE/JSON/authentication/invalid output');
   await checkOutlineGuidance(page, base, output);
   await checkFigureStalls(page, base);
@@ -111,8 +113,8 @@ try {
   let figurePageImage;
   let holdDeck = true;
   let heldRoute;
-  await page.route('https://api.deepseek.com/chat/completions', async (route) => {
-    const request = route.request().postDataJSON();
+  await page.route('https://api.deepseek.com/responses', async (route) => {
+    const request = decodeResponseRequest(route.request().postDataJSON());
     const content = request.messages.find((message) => message.role === 'user').content;
     const data = JSON.parse(typeof content === 'string' ? content : content.find((item) => item.type === 'text').text);
     const stage = data.plan ? 'generate' : data.layoutRules ? 'plan' : data.strategies ? 'understand' : 'figures';
@@ -162,7 +164,7 @@ try {
       { stage, data },
     );
     if (stage === 'figures' && data.pageNumber === 8) {
-      const image = content.find((item) => item.type === 'image_url').image_url.url;
+      const image = content.find((item) => item.type === 'input_image').image_url;
       if (data.diagnostics) {
         figureRepairCalls++;
         assert.equal(image, figurePageImage);
@@ -170,14 +172,21 @@ try {
       } else figurePageImage = image;
       if (failFigurePage || !data.diagnostics) delete result.figures[0].bbox;
     }
-    const body = `data: ${JSON.stringify({ id: 'fixed', object: 'chat.completion.chunk', choices: [{ index: 0, delta: { role: 'assistant', tool_calls: [{ index: 0, id: 'call-fixed', type: 'function', function: { name: 'submit_result', arguments: JSON.stringify({ result }) } }] }, finish_reason: null }] })}\n\ndata: ${JSON.stringify({ id: 'fixed', object: 'chat.completion.chunk', choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] })}\n\ndata: [DONE]\n\n`;
+    const body = responsesEvent({
+      tool_calls: [{ function: { name: 'submit_result', arguments: JSON.stringify({ result }) } }],
+    });
     await route.fulfill({ status: 200, contentType: 'text/event-stream', body });
   });
   await page.goto(base);
   await page.evaluate(async () => {
-    const { saveSettings } = await import('/src/shared/llm/settingsRepository.ts');
-    const { DEFAULT_SETTINGS } = await import('/src/shared/llm/model.ts');
-    await saveSettings({ ...DEFAULT_SETTINGS, apiKey: 'fixed-test-key' });
+    const { settingsService } = await import('/src/app/composition.ts');
+    const { DEFAULT_SETTINGS } = await import('/src/app/model.ts');
+    await settingsService.save({
+      ...DEFAULT_SETTINGS,
+      baseUrl: 'https://api.deepseek.com',
+      modelId: 'deepseek-flash',
+      apiKey: 'fixed-test-key',
+    });
   });
   await page.reload();
   await page.getByLabel('选择论文 PDF').setInputFiles(resolve('test-fixtures/papers/mechanism-modt-cdifficile.pdf'));
@@ -300,20 +309,16 @@ try {
   assert.ok(
     (await page.locator('[data-slide-preview="current"] img').getAttribute('src')).startsWith('data:image/png;base64,'),
   );
-  await page.unroute('https://api.deepseek.com/chat/completions');
+  await page.unroute('https://api.deepseek.com/responses');
   let aiMode = 'first';
   let heldAiRoute;
   let markAiHeld;
   const aiHeld = new Promise((resolve) => {
     markAiHeld = resolve;
   });
-  const aiEvent = (delta, reason) => {
-    const chunk = (value, finish_reason) =>
-      `data: ${JSON.stringify({ id: 'fixed-ai-ui', object: 'chat.completion.chunk', choices: [{ index: 0, delta: value, finish_reason }] })}\n\n`;
-    return `${chunk({ role: 'assistant', ...delta }, null) + chunk({}, reason)}data: [DONE]\n\n`;
-  };
-  await page.route('https://api.deepseek.com/chat/completions', async (route) => {
-    const request = route.request().postDataJSON();
+  const aiEvent = responsesEvent;
+  await page.route('https://api.deepseek.com/responses', async (route) => {
+    const request = decodeResponseRequest(route.request().postDataJSON());
     const afterTool = request.messages.some((message) => message.role === 'tool');
     if (aiMode === 'held') {
       heldAiRoute = route;
@@ -415,7 +420,11 @@ try {
   await page.getByRole('button', { name: '发送', exact: true }).click();
   await aiHeld;
   assert.equal(await aiInput.isDisabled(), true);
-  assert.equal(await page.getByRole('button', { name: '模型设置', exact: true }).isDisabled(), true);
+  assert.equal(await page.getByRole('button', { name: '模型设置', exact: true }).isEnabled(), true);
+  await page.getByRole('button', { name: '模型设置', exact: true }).click();
+  assert.equal(await page.getByRole('button', { name: '保存并返回', exact: true }).isDisabled(), true);
+  await page.getByRole('button', { name: '返回项目', exact: true }).click();
+  assert.equal(await aiInput.isDisabled(), true);
   await page.locator(`[data-slide-id="${generated.slides[2].id}"]`).click();
   assert.equal(await aiInput.isDisabled(), true);
   await page.locator('[data-slide-id][aria-current=page]').filter({ hasText: generated.slides[2].title }).waitFor();
@@ -460,7 +469,7 @@ try {
     ).length,
     4,
   );
-  await page.unroute('https://api.deepseek.com/chat/completions');
+  await page.unroute('https://api.deepseek.com/responses');
   console.log('PASS: AI send/explicit target/summary top undo/manual draft cancels staged candidate/history reopen');
   const beforeRegeneration = await page.evaluate(
     async (id) => (await import('/src/modules/project/projectRepository.ts')).loadProject(id),
@@ -473,8 +482,8 @@ try {
   const regenerationHeld = new Promise((resolve) => {
     markRegenerationHeld = resolve;
   });
-  await page.route('https://api.deepseek.com/chat/completions', async (route) => {
-    const request = route.request().postDataJSON();
+  await page.route('https://api.deepseek.com/responses', async (route) => {
+    const request = decodeResponseRequest(route.request().postDataJSON());
     const content = request.messages.find((message) => message.role === 'user').content;
     const data = JSON.parse(typeof content === 'string' ? content : content.find((item) => item.type === 'text').text);
     const stage = data.plan ? 'generate' : 'plan';
@@ -583,7 +592,7 @@ try {
   assert.equal(restoredVersion.deck.revision, candidateBase.deck.revision + 1);
   assert.equal(restoredVersion.project.previousDeckId, versionData.deck.id);
   assert.deepEqual(restoredVersion.deck.slides, candidateBase.deck.slides);
-  await page.unroute('https://api.deepseek.com/chat/completions');
+  await page.unroute('https://api.deepseek.com/responses');
   console.log(
     'PASS: regenerate only plan/generate/cancel preserves current/success preferences/restore/reopen/clear undo',
   );
@@ -811,8 +820,8 @@ try {
   const cloneId = page.url().split('/project/')[1];
   const reanalysisCalls = [];
   let failReanalysis = false;
-  await page.route('https://api.deepseek.com/chat/completions', async (route) => {
-    const body = route.request().postDataJSON();
+  await page.route('https://api.deepseek.com/responses', async (route) => {
+    const body = decodeResponseRequest(route.request().postDataJSON());
     const text = body.messages.find((message) => message.role === 'user').content;
     const data = JSON.parse(typeof text === 'string' ? text : text.find((item) => item.type === 'text').text);
     const stage = body.messages[0].content.includes('规划汇报结构') ? 'plan' : 'understand';

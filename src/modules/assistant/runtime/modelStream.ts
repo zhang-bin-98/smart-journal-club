@@ -1,10 +1,11 @@
 import type { StreamFn } from '@earendil-works/pi-agent-core';
 import { createAssistantMessageEventStream } from '@earendil-works/pi-ai/utils/event-stream';
 import type { AssistantMessage } from '@earendil-works/pi-ai';
-import { model, ModelError, requestModel, type ModelSettings } from '../../../shared/llm/model';
+import { describeModel, ModelError, requestModel, type ModelSettings } from '../../../app/model';
 
 /** 将已有供应商适配器接入 Agent 流协议；错误体和隐藏推理不进入 UI 事件。 */
 export function assistantStream(settings: ModelSettings): StreamFn {
+  const model = describeModel(settings);
   return (_model, context, options) => {
     const stream = createAssistantMessageEventStream();
     const partial: AssistantMessage = {
@@ -27,10 +28,19 @@ export function assistantStream(settings: ModelSettings): StreamFn {
     const signal = options?.signal ?? new AbortController().signal;
     stream.push({ type: 'start', partial });
     stream.push({ type: 'text_start', contentIndex: 0, partial });
-    void requestModel(settings, context, signal, 'ai', false, 16384, undefined, (delta) => {
-      const block = partial.content[0];
-      if (block.type === 'text') block.text += delta;
-      stream.push({ type: 'text_delta', contentIndex: 0, delta, partial });
+    void requestModel({
+      settings: settings,
+      context: context,
+      signal: signal,
+      stage: 'ai',
+      json: false,
+      maxTokens: 16384,
+      outputTool: undefined,
+      onText: (delta) => {
+        const block = partial.content[0];
+        if (block.type === 'text') block.text += delta;
+        stream.push({ type: 'text_delta', contentIndex: 0, delta, partial });
+      },
     }).then(
       (message) => {
         const block = partial.content[0];

@@ -108,7 +108,7 @@ export function HomePage({
     <main className="mx-auto min-h-screen max-w-[1080px] px-5 py-6 text-ink">
       <header className="flex items-center justify-between border-b border-line pb-5">
         <Brand />
-        <IconButton label="模型设置" disabled={saving || acting} onClick={onSettings}>
+        <IconButton label="模型设置" onClick={onSettings}>
           <Settings size={17} />
         </IconButton>
       </header>

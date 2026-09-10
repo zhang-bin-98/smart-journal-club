@@ -7,3 +7,6 @@ dist/
 
 # 本地论文测试夹具不进入仓库
 test-fixtures/papers/*.pdf
+
+# 浏览器验收截图与临时结果
+output/playwright/

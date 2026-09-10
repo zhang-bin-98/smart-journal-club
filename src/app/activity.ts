@@ -1,3 +1,12 @@
+import { SettingsError } from './settings/modelSettings';
+let settingsWrite = false;
+export function beginSettingsWrite() {
+  if (settingsWrite || hasRunningActivity()) throw new SettingsError('busy', '任务正在运行，请稍后修改配置。');
+  settingsWrite = true;
+  return () => {
+    settingsWrite = false;
+  };
+}
 const activities = new Set<symbol>();
 const dirty = new Set<string>();
 const listeners = new Set<() => void>();
@@ -5,6 +14,7 @@ const notify = () => {
   for (const listener of listeners) listener();
 };
 export function beginActivity() {
+  if (settingsWrite) throw new SettingsError('busy', '配置正在保存，请稍后再启动任务。');
   const token = Symbol();
   activities.add(token);
   notify();
@@ -18,6 +28,7 @@ export function setDirty(key: string, value: boolean) {
   else dirty.delete(key);
   if (changed) notify();
 }
+export const hasRunningActivity = () => activities.size > 0;
 export const isAppIdle = () => activities.size === 0 && dirty.size === 0;
 export function subscribeActivity(listener: () => void) {
   listeners.add(listener);

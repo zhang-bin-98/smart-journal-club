@@ -5,7 +5,7 @@ import type { Project } from '../project/project.schema';
 import type { Paper } from '../paper/paper.schema';
 import { validatePlan } from '../outline/validatePlan';
 import { validateDeck } from '../deck/validateDeck';
-import { requestJson, type ModelSettings } from '../../shared/llm/model';
+import { requestJson, type ModelSettings } from '../../app/model';
 import { prompts, researchPrompt } from '../../shared/llm/prompts';
 import { layoutRules } from '../deck/layoutRules';
 import { paperContext } from './planDeck';
@@ -72,19 +72,19 @@ export async function generateDeck(
 ) {
   assertBuildablePlan(plan, paper);
   const { strategy } = researchPrompt(preferences.strategyId);
-  const raw = await requestJson(
-    settings,
-    [prompts.common, strategy.body, prompts.stages.generate].join('\n\n'),
-    {
+  const raw = await requestJson({
+    settings: settings,
+    systemPrompt: [prompts.common, strategy.body, prompts.stages.generate].join('\n\n'),
+    data: {
       preferences,
       plan,
       paper: paperContext(paper),
       layoutRules,
       textBudget: { title: 56, message: 95, figureText: 100, bulletItems: 4, bulletItem: 70 },
     },
-    GenerationOutputSchema,
-    signal,
-    'generate',
-  );
+    schema: GenerationOutputSchema,
+    signal: signal,
+    stage: 'generate',
+  });
   return assembleDeck(plan, raw, paper);
 }

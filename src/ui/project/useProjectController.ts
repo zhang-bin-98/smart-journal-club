@@ -13,7 +13,7 @@ import {
 } from '../../modules/generation/runGeneration';
 import { discardCandidate } from '../../modules/generation/candidateRepository';
 import { createReanalysisProject } from '../../modules/project/reanalysisRepository';
-import type { ModelSettings } from '../../shared/llm/model';
+import type { ModelSettings } from '../../app/model';
 import type { Project } from '../../modules/project/project.schema';
 import type { Deck, Element } from '../../modules/deck/deck.schema';
 import type { PersistAssistantRevision } from '../../modules/assistant/revision/applyRevision';

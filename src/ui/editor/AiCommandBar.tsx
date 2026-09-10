@@ -1,6 +1,6 @@
 import { CircleStop, MessageCircle, Pencil, Send } from 'lucide-react';
 import type { DeckSession } from '../../modules/deck/DeckSession';
-import type { ModelSettings } from '../../shared/llm/model';
+import type { ModelSettings } from '../../app/model';
 import { Button, inputClass } from '../controls';
 import type { AssistantController } from './useAssistantController';
 

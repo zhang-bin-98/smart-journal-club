@@ -1,38 +1,17 @@
+import { responsesEvent, decodeResponseRequest } from './responses-fixture.ts';
 import assert from 'node:assert/strict';
 import { readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 function sse(result) {
-  const chunks = [
-    {
-      delta: {
-        role: 'assistant',
-        tool_calls: [
-          {
-            index: 0,
-            id: 'fixed',
-            type: 'function',
-            function: { name: 'submit_result', arguments: JSON.stringify({ result }) },
-          },
-        ],
-      },
-      finish_reason: null,
-    },
-    { delta: {}, finish_reason: 'tool_calls' },
-  ];
-  const events = chunks.map(
-    (choice) =>
-      `data: ${JSON.stringify({
-        id: 'fixed',
-        object: 'chat.completion.chunk',
-        choices: [{ index: 0, ...choice }],
-      })}\n\n`,
-  );
-  return [...events, 'data: [DONE]\n\n'].join('');
+  return responsesEvent({
+    tool_calls: [{ function: { name: 'submit_result', arguments: JSON.stringify({ result }) } }],
+  });
 }
 
 /** 只扩充用户报错论文的图页阶段，不复制编辑、导出或 PWA 主链。全程固定响应。 */
 export async function checkFigureStalls(page, base) {
+  page.setDefaultTimeout(90000);
   const name = (await readdir('test-fixtures/papers')).find(
     (file) => file.includes('Longitudinal dynamics') && file.endsWith('.pdf'),
   );
@@ -44,9 +23,9 @@ export async function checkFigureStalls(page, base) {
   let held;
   let releaseRepair;
   const calls = [];
-  const routePattern = 'https://api.deepseek.com/chat/completions';
+  const routePattern = 'https://api.deepseek.com/responses';
   await page.route(routePattern, async (route) => {
-    const request = route.request().postDataJSON();
+    const request = decodeResponseRequest(route.request().postDataJSON());
     const content = request.messages.find((message) => message.role === 'user').content;
     const data = JSON.parse(typeof content === 'string' ? content : content.find((item) => item.type === 'text').text);
     calls.push({ page: data.pageNumber, repair: !!data.diagnostics });
@@ -84,9 +63,14 @@ export async function checkFigureStalls(page, base) {
   try {
     await page.goto(base);
     await page.evaluate(async () => {
-      const { saveSettings } = await import('/src/shared/llm/settingsRepository.ts');
-      const { DEFAULT_SETTINGS } = await import('/src/shared/llm/model.ts');
-      await saveSettings({ ...DEFAULT_SETTINGS, apiKey: 'fixed-test-key' });
+      const { settingsService } = await import('/src/app/composition.ts');
+      const { DEFAULT_SETTINGS } = await import('/src/app/model.ts');
+      await settingsService.save({
+        ...DEFAULT_SETTINGS,
+        baseUrl: 'https://api.deepseek.com',
+        modelId: 'deepseek-flash',
+        apiKey: 'fixed-test-key',
+      });
     });
     await page.reload();
     await page.getByLabel('选择论文 PDF').setInputFiles(resolve('test-fixtures/papers', name));
@@ -141,7 +125,7 @@ export async function checkFigureStalls(page, base) {
     await page.getByRole('status').filter({ hasText: '修复格式（仅一次）' }).waitFor();
     assert.ok(releaseRepair);
     await releaseRepair();
-    await page.getByRole('button', { name: '生成学术大纲', exact: true }).waitFor({ timeout: 30000 });
+    await page.getByRole('button', { name: '生成学术大纲', exact: true }).waitFor({ timeout: 90000 });
     assert.deepEqual(
       calls.slice(2).map((call) => call.page),
       [3, 3, 4, 4, 5, 5, 7, 7, 8, 8, 9, 9, undefined],

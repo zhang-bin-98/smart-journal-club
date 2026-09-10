@@ -6,10 +6,10 @@ import {
   planDeck,
   PlanningContentSchema,
 } from '../../src/modules/generation/planDeck';
-import { DEFAULT_SETTINGS, ModelError, ModelOutputError, requestJson } from '../../src/shared/llm/model';
+import { DEFAULT_SETTINGS, ModelError, ModelOutputError, requestJson } from '../../src/app/model';
 
-vi.mock('../../src/shared/llm/model', async (original) => ({
-  ...(await original<typeof import('../../src/shared/llm/model')>()),
+vi.mock('../../src/app/model', async (original) => ({
+  ...(await original<typeof import('../../src/app/model')>()),
   requestJson: vi.fn(),
 }));
 const content = () => {
@@ -46,9 +46,9 @@ describe('规划内容与一次修复', () => {
     expect((await run()).status).toBe('draft');
     expect(requestJson).toHaveBeenCalledTimes(2);
     const call = vi.mocked(requestJson).mock.calls[1];
-    expect(call[5]).toBe('plan-repair');
-    expect(call[2]).toMatchObject({ failedOutput: raw, diagnostics: [{ code: 'invalid-plan' }] });
-    expect(call[1]).toContain('不要改写叙事质量');
+    expect(call[0].stage).toBe('plan-repair');
+    expect(call[0].data).toMatchObject({ failedOutput: raw, diagnostics: [{ code: 'invalid-plan' }] });
+    expect(call[0].systemPrompt).toContain('不要改写叙事质量');
   });
 
   it('唯一 Figure/Panel 展示标签映射回内部 ID，并纠正确定的布局容量', () => {
@@ -88,7 +88,7 @@ describe('规划内容与一次修复', () => {
     vi.mocked(requestJson).mockRejectedValue(failure);
     await expect(run()).rejects.toBe(failure);
     expect(requestJson).toHaveBeenCalledTimes(2);
-    expect(vi.mocked(requestJson).mock.calls[1][2]).toMatchObject({
+    expect(vi.mocked(requestJson).mock.calls[1][0].data).toMatchObject({
       failedOutput: failure.failedOutput,
       diagnostics: failure.diagnostics,
     });

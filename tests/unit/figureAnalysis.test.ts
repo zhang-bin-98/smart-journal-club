@@ -2,13 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { fixturePaper, fixtureSource } from '../fixtures';
 import { BBoxSchema } from '../../src/shared/schema';
-import { DEFAULT_SETTINGS, ModelError, ModelOutputError, requestJson } from '../../src/shared/llm/model';
+import { DEFAULT_SETTINGS, ModelError, ModelOutputError, requestJson } from '../../src/app/model';
 import { analyzeFigures } from '../../src/modules/paper/analysis';
 import { FigurePageSchema, requestFigurePage } from '../../src/modules/paper/figurePage';
 import type { PdfResource } from '../../src/shared/pdf/pdfResource';
 
-vi.mock('../../src/shared/llm/model', async (original) => ({
-  ...(await original<typeof import('../../src/shared/llm/model')>()),
+vi.mock('../../src/app/model', async (original) => ({
+  ...(await original<typeof import('../../src/app/model')>()),
   requestJson: vi.fn(),
 }));
 
@@ -60,15 +60,15 @@ describe('图页输出、有限修复与阶段原子性', () => {
     expect(await requestFigurePage(request)).toEqual(pageResult());
     expect(requestJson).toHaveBeenCalledTimes(2);
     const repair = vi.mocked(requestJson).mock.calls[1];
-    expect(repair[2]).toEqual({
+    expect(repair[0].data).toEqual({
       ...request.context,
       failedOutput: failure.failedOutput,
       diagnostics: failure.diagnostics,
     });
-    expect(repair[3]).toBe(FigurePageSchema);
-    expect(repair[4]).toBe(request.signal);
-    expect(repair[5]).toBe('figures-repair');
-    expect(repair[6]).toBe(request.image);
+    expect(repair[0].schema).toBe(FigurePageSchema);
+    expect(repair[0].signal).toBe(request.signal);
+    expect(repair[0].stage).toBe('figures-repair');
+    expect(repair[0].image).toBe(request.image);
   });
 
   it('合法空页不发修复请求', async () => {
@@ -132,9 +132,9 @@ describe('图页输出、有限修复与阶段原子性', () => {
     await expect(analyzeFigures(paper, resource, DEFAULT_SETTINGS, input().signal)).rejects.toMatchObject({
       pageNumber: 2,
     });
-    expect(vi.mocked(requestJson).mock.calls.map((call) => (call[2] as { pageNumber: number }).pageNumber)).toEqual([
-      1, 2, 2,
-    ]);
+    expect(
+      vi.mocked(requestJson).mock.calls.map((call) => (call[0].data as { pageNumber: number }).pageNumber),
+    ).toEqual([1, 2, 2]);
     expect(paper).toEqual(before);
     expect(resource.render).toHaveBeenCalledTimes(2);
   });

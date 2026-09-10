@@ -1,18 +1,19 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { HomePage } from '../ui/HomePage';
-import { DEFAULT_SETTINGS, type ModelSettings } from '../shared/llm/model';
-import { loadSettings } from '../shared/llm/settingsRepository';
+import { DEFAULT_SETTINGS, type ModelSettings } from './settings/modelSettings';
+import { settingsService } from './composition';
 import { beginActivity, isAppIdle, setDirty, subscribeActivity, type LeaveGuard } from './activity';
 import { errorMessage } from '../ui/controls';
 import { PwaNotice } from '../ui/PwaNotice';
-const SettingsDialog = lazy(() =>
-  import('../ui/SettingsDialog').then((module) => ({ default: module.SettingsDialog })),
-);
+import { SettingsPage } from '../ui/settings/SettingsPage';
 const ProjectPage = lazy(() => import('../ui/project/ProjectPage').then((module) => ({ default: module.ProjectPage })));
 const FixturePage = import.meta.env.DEV ? lazy(() => import('../ui/FixturePage')) : undefined;
 export function App() {
   const [hash, setHash] = useState(location.hash);
   const [settings, setSettings] = useState<ModelSettings>(DEFAULT_SETTINGS);
+  const [legacySettings, setLegacySettings] = useState(false);
+  const settingsTrigger = useRef<HTMLElement | null>(null);
+  const settingsScroll = useRef({ x: 0, y: 0 });
   const [showSettings, setShowSettings] = useState(false);
   const [error, setError] = useState('');
   const [navigationError, setNavigationError] = useState('');
@@ -35,7 +36,7 @@ export function App() {
     pendingHash.current = nextHash;
     const done = beginActivity();
     try {
-      if (settingsOpen.current) throw new Error('请先保存或关闭模型设置');
+      if (settingsOpen.current) throw new Error('请先保存或返回模型配置');
       await leaveGuard.current?.();
       if (!changed) history.pushState(null, '', nextHash);
       else history.replaceState(null, '', nextHash || location.pathname + location.search);
@@ -61,10 +62,14 @@ export function App() {
   useEffect(() => {
     let active = true;
     const done = beginActivity();
-    loadSettings()
+    settingsService
+      .load()
       .then(
         (value) => {
-          if (active) setSettings(value);
+          if (active) {
+            setSettings(value.settings);
+            setLegacySettings(value.legacy);
+          }
         },
         (cause) => {
           if (active) setError(errorMessage(cause));
@@ -92,15 +97,34 @@ export function App() {
       setDirty('settings-dialog', false);
     };
   }, [navigate]);
-  function openSettings() {
+  async function openSettings() {
+    if (settingsOpen.current) return;
+    settingsTrigger.current = document.activeElement as HTMLElement;
+    settingsScroll.current = { x: window.scrollX, y: window.scrollY };
     settingsOpen.current = true;
-    setDirty('settings-dialog', true);
-    setShowSettings(true);
+    try {
+      const record = await settingsService.load();
+      setSettings((previous) =>
+        (Object.keys(previous) as (keyof ModelSettings)[]).every((key) => previous[key] === record.settings[key])
+          ? previous
+          : record.settings,
+      );
+      setLegacySettings(record.legacy);
+      setDirty('settings-dialog', true);
+      setShowSettings(true);
+    } catch (cause) {
+      settingsOpen.current = false;
+      setError(errorMessage(cause));
+    }
   }
   function closeSettings() {
     settingsOpen.current = false;
     setDirty('settings-dialog', false);
     setShowSettings(false);
+    requestAnimationFrame(() => {
+      settingsTrigger.current?.focus({ preventScroll: true });
+      window.scrollTo(settingsScroll.current.x, settingsScroll.current.y);
+    });
   }
   const projectId = /^#\/project\/([^/]+)$/.exec(hash)?.[1];
   return (
@@ -118,32 +142,45 @@ export function App() {
           </p>
         }
       >
-        {hash === '#/fixture' && FixturePage ? (
-          <FixturePage />
-        ) : projectId ? (
-          <ProjectPage
-            key={projectId}
-            id={decodeURIComponent(projectId)}
-            onOpenProject={(id) => {
-              void navigate(`#/project/${encodeURIComponent(id)}`);
-            }}
+        <div hidden={showSettings} inert={showSettings}>
+          {hash === '#/fixture' && FixturePage ? (
+            <FixturePage />
+          ) : projectId ? (
+            <ProjectPage
+              key={projectId}
+              id={decodeURIComponent(projectId)}
+              onOpenProject={(id) => {
+                void navigate(`#/project/${encodeURIComponent(id)}`);
+              }}
+              settings={settings}
+              onSettings={openSettings}
+              onLeave={() => {
+                void navigate('#/');
+              }}
+              registerLeaveGuard={registerLeaveGuard}
+            />
+          ) : (
+            <HomePage
+              onSettings={openSettings}
+              openProject={(id) => {
+                void navigate(`#/project/${encodeURIComponent(id)}`);
+              }}
+              registerLeaveGuard={registerLeaveGuard}
+            />
+          )}
+        </div>
+        {showSettings && (
+          <SettingsPage
             settings={settings}
-            onSettings={openSettings}
-            onLeave={() => {
-              void navigate('#/');
+            legacy={legacySettings}
+            returnLabel={projectId ? '返回项目' : '返回项目列表'}
+            onSaved={(next) => {
+              setSettings(next);
+              setLegacySettings(false);
             }}
-            registerLeaveGuard={registerLeaveGuard}
-          />
-        ) : (
-          <HomePage
-            onSettings={openSettings}
-            openProject={(id) => {
-              void navigate(`#/project/${encodeURIComponent(id)}`);
-            }}
-            registerLeaveGuard={registerLeaveGuard}
+            onClose={closeSettings}
           />
         )}
-        {showSettings && <SettingsDialog settings={settings} onSaved={setSettings} onClose={closeSettings} />}
       </Suspense>
     </>
   );

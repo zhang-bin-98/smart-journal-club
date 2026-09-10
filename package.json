@@ -14,7 +14,9 @@
     "typecheck": "tsc --noEmit",
     "check": "npm run lint && npm run format:check && npm run test && npm run build",
     "check:browser": "node tests/browser.mjs",
-    "check:pwa": "node tests/pwa.mjs"
+    "check:pwa": "node tests/pwa.mjs",
+    "check:settings": "node tests/model-settings.mjs",
+    "check:responses-live": "node tests/model-responses-live.mjs"
   },
   "dependencies": {
     "@earendil-works/pi-agent-core": "^0.85.1",

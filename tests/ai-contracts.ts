@@ -1,3 +1,4 @@
+import { responsesEvent, decodeResponseRequest } from './responses-fixture';
 import { DeckSession, type PersistRevision } from '../src/modules/deck/DeckSession';
 import type { RevisionRequest } from '../src/modules/deck/deck.schema';
 import { fixtureDeck, fixturePaper } from './fixtures';
@@ -6,7 +7,7 @@ import { validateAiCandidate } from '../src/modules/assistant/revision/validateR
 import { runAiRevision } from '../src/modules/assistant/runtime/runAssistant';
 import { applyProposal } from '../src/modules/assistant/revision/applyProposal';
 import { narrativeDeck } from './narrative-fixture';
-import { DEFAULT_SETTINGS } from '../src/shared/llm/model';
+import { DEFAULT_SETTINGS } from '../src/app/model';
 import { createProject, deleteProject, loadProject, saveStage } from '../src/modules/project/projectRepository';
 import { saveRevision } from '../src/modules/deck/deckRepository';
 import { loadHistory, saveConversation } from '../src/modules/assistant/conversationRepository';
@@ -231,22 +232,15 @@ type WireRequest = {
   tools: { function: { name: string; parameters?: WireSchema } }[];
   messages: { role: string; content?: string }[];
 };
-function event(delta: unknown, reason: string) {
-  const chunk = (value: unknown, finish_reason: string | null) =>
-    `data: ${JSON.stringify({ id: 'fixed-ai', object: 'chat.completion.chunk', choices: [{ index: 0, delta: value, finish_reason }] })}\n\n`;
-  return new Response(
-    `${chunk({ role: 'assistant', ...(delta as object) }, null) + chunk({}, reason)}data: [DONE]\n\n`,
-    { headers: { 'Content-Type': 'text/event-stream' } },
-  );
+function event(delta: Parameters<typeof responsesEvent>[0], reason: string) {
+  return new Response(responsesEvent(delta, reason), { headers: { 'Content-Type': 'text/event-stream' } });
 }
 function call(name: string, args: unknown) {
   return event(
     {
       tool_calls: [
         {
-          index: 0,
           id: crypto.randomUUID(),
-          type: 'function',
           function: { name: name.replaceAll('.', '__'), arguments: JSON.stringify(args) },
         },
       ],
@@ -262,7 +256,7 @@ async function fixedResponses(steps: (() => Response | Promise<Response>)[], wor
   globalThis.fetch = async (input, init) => {
     const request = new Request(input, init);
     if (!request.url.startsWith('https://api.deepseek.com/')) return originalFetch(input, init);
-    requests.push(JSON.parse(await request.text()) as WireRequest);
+    requests.push(decodeResponseRequest(JSON.parse(await request.text())) as WireRequest);
     const step = steps[used++];
     if (!step) throw new Error('固定响应已用尽');
     return step();
@@ -354,7 +348,12 @@ async function runAiModelContracts() {
       ),
     '标题微调不能扩散到正文',
   );
-  const settings = { ...DEFAULT_SETTINGS, apiKey: 'fixed-test-key' };
+  const settings = {
+    ...DEFAULT_SETTINGS,
+    baseUrl: 'https://api.deepseek.com',
+    modelId: 'deepseek-flash',
+    apiKey: 'fixed-test-key',
+  };
   const run = (
     session: DeckSession,
     signal = new AbortController().signal,

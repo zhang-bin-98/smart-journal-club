@@ -7,7 +7,7 @@ import {
   StudyProfileSchema,
   type Paper,
 } from './paper.schema';
-import { requestJson, type ModelSettings } from '../../shared/llm/model';
+import { requestJson, type ModelSettings } from '../../app/model';
 import { prompts } from '../../shared/llm/prompts';
 import { validatePaper } from './sources';
 import type { PdfResource } from '../../shared/pdf/pdfResource';
@@ -139,17 +139,17 @@ export function mapUnderstanding(paper: Paper, raw: unknown) {
   return { paper: next, strategyId: output.strategyId };
 }
 export async function understandPaper(paper: Paper, settings: ModelSettings, instruction: string, signal: AbortSignal) {
-  const result = await requestJson(
-    settings,
-    `${prompts.common}\n\n${prompts.stages.understand}`,
-    {
+  const result = await requestJson({
+    settings: settings,
+    systemPrompt: `${prompts.common}\n\n${prompts.stages.understand}`,
+    data: {
       instruction,
       strategies: prompts.strategies,
       paper,
     },
-    UnderstandingSchema,
-    signal,
-    'understand',
-  );
+    schema: UnderstandingSchema,
+    signal: signal,
+    stage: 'understand',
+  });
   return mapUnderstanding(paper, result);
 }

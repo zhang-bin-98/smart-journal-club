@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { BBoxSchema } from '../../shared/schema';
-import { ModelError, ModelOutputError, requestJson, type ModelSettings } from '../../shared/llm/model';
+import { ModelError, ModelOutputError, requestJson, type ModelSettings } from '../../app/model';
 import { prompts } from '../../shared/llm/prompts';
 import type { PdfResource } from '../../shared/pdf/pdfResource';
 
@@ -61,21 +61,29 @@ export async function requestFigurePage({ settings, context, image, signal, onRe
   const prompt = `${prompts.common}\n\n${prompts.stages.figures}`;
   signal.throwIfAborted();
   try {
-    return await requestJson(settings, prompt, context, FigurePageSchema, signal, 'figures', image);
+    return await requestJson({
+      settings: settings,
+      systemPrompt: prompt,
+      data: context,
+      schema: FigurePageSchema,
+      signal: signal,
+      stage: 'figures',
+      image: image,
+    });
   } catch (cause) {
     signal.throwIfAborted();
     if (!(cause instanceof ModelOutputError)) throw cause;
     onRepair?.();
     try {
-      return await requestJson(
-        settings,
-        `${prompt}\n\n这是当前图页唯一一次修复请求。根据 failedOutput 和 diagnostics 修复返回格式、必填字段和图源矩形。重新核对同一张原页图片；不要更换页码、编造图源或为通过校验而清空 figures。矩形必须相对完整 PDF 页，不能把像素、百分数或右下角坐标当作 x/y/width/height。无法可靠定位的 Panel 可以不返回，但必须保留可定位的完整 Figure。返回本页完整结果。`,
-        { ...context, failedOutput: cause.failedOutput, diagnostics: cause.diagnostics },
-        FigurePageSchema,
-        signal,
-        'figures-repair',
-        image,
-      );
+      return await requestJson({
+        settings: settings,
+        systemPrompt: `${prompt}\n\n这是当前图页唯一一次修复请求。根据 failedOutput 和 diagnostics 修复返回格式、必填字段和图源矩形。重新核对同一张原页图片；不要更换页码、编造图源或为通过校验而清空 figures。矩形必须相对完整 PDF 页，不能把像素、百分数或右下角坐标当作 x/y/width/height。无法可靠定位的 Panel 可以不返回，但必须保留可定位的完整 Figure。返回本页完整结果。`,
+        data: { ...context, failedOutput: cause.failedOutput, diagnostics: cause.diagnostics },
+        schema: FigurePageSchema,
+        signal: signal,
+        stage: 'figures-repair',
+        image: image,
+      });
     } catch (repairCause) {
       signal.throwIfAborted();
       if (!(repairCause instanceof ModelOutputError)) throw repairCause;
