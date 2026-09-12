@@ -14,6 +14,7 @@ import { Brand, Button, errorMessage, IconButton, inputClass } from './controls'
 import { CreateProjectDialog } from './projects/CreateProjectDialog';
 import { ProjectDialog } from './projects/ProjectDialog';
 import { StorageOverview } from './projects/StorageOverview';
+import { AppHeaderActions } from './PwaNotice';
 
 const stages = [
   { id: 'analysis', label: '分析' },
@@ -159,10 +160,13 @@ export function HomePage({
           <span className="text-line">│</span>
           <h1 className="text-sm font-medium">项目管理</h1>
         </div>
-        <Button aria-label="模型设置" disabled={acting || !!rename || !!deleting} onClick={onSettings}>
-          <Settings size={16} />
-          模型设置 · {modelReady ? '已配置' : '未配置'}
-        </Button>
+        <div className="flex items-center gap-2">
+          <AppHeaderActions />
+          <Button aria-label="模型设置" disabled={acting || !!rename || !!deleting} onClick={onSettings}>
+            <Settings size={16} />
+            模型设置 · {modelReady ? '已配置' : '未配置'}
+          </Button>
+        </div>
       </header>
       <main className="flex min-h-0 flex-1 flex-col px-8 pt-7">
         <div className="mb-5 flex shrink-0 items-center justify-between gap-5">

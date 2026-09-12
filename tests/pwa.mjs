@@ -170,13 +170,19 @@ const workerStatus = (page) =>
 try {
   let page = await context.newPage();
   await page.goto(base);
-  await page.getByRole('button', { name: '重试检查', exact: true }).waitFor({ timeout: 120000 });
+  const retry = page.getByRole('button', { name: '重试检查', exact: true });
+  await retry.waitFor({ timeout: 120000 });
+  const github = page.getByRole('link', { name: '在新标签页打开 GitHub 项目', exact: true });
+  assert.equal(await github.getAttribute('href'), 'https://github.com/zhang-bin-98/smart-journal-club');
+  assert.equal(await github.getAttribute('target'), '_blank');
+  assert.equal(await github.evaluate((link) => !!link.closest('header')), true);
+  assert.equal(await retry.evaluate((button) => !!button.closest('header')), true);
   await page.evaluate(() => {
     window.__firstInstallNoReload = true;
   });
   failInitialInstall = false;
-  await page.getByRole('button', { name: '重试检查', exact: true }).click();
-  await page.getByText('本地离线功能已就绪', { exact: true }).waitFor({ timeout: 120000 });
+  await retry.click();
+  await page.getByText('离线就绪', { exact: true }).waitFor({ timeout: 120000 });
   assert.equal(await page.evaluate(() => window.__firstInstallNoReload), true);
   console.log('PASS: failed first install/retry without reload');
   await page.waitForFunction(() => !!navigator.serviceWorker.controller);
@@ -330,6 +336,16 @@ try {
   });
   const update = page.getByRole('button', { name: '更新并刷新', exact: true });
   await update.waitFor({ timeout: 120000 });
+  assert.equal(await update.evaluate((button) => !!button.closest('header')), true);
+  await page.setViewportSize({ width: 1100, height: 900 });
+  assert.equal(
+    await page
+      .locator('header')
+      .first()
+      .evaluate((header) => header.scrollWidth <= header.clientWidth),
+    true,
+  );
+  await page.setViewportSize({ width: 1440, height: 1000 });
   assert.equal(await page.evaluate(() => window.__pwaNoReload), 'preserved');
   assert.equal((await workerStatus(page)).version, initialWorker.version);
   assert.equal(await page.evaluate(async () => !!(await navigator.serviceWorker.ready).waiting), true);
@@ -403,7 +419,7 @@ try {
   await second.close();
   const beforeUpdate = await readState(page);
   await Promise.all([page.waitForEvent('load'), update.click()]);
-  await page.getByText('本地离线功能已就绪', { exact: true }).waitFor();
+  await page.getByText('离线就绪', { exact: true }).waitFor();
   assert.equal((await workerStatus(page)).version, `${initialWorker.version}-test-update`);
   assert.deepEqual(await readState(page), beforeUpdate);
   assert.equal(await page.evaluate(async () => (await caches.keys()).includes('other-app-fixed-cache')), true);

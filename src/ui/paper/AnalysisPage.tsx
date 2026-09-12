@@ -5,6 +5,7 @@ import type { ModelSettings } from '../../app/settings/modelSettings';
 import { isSelected, unitComplete } from '../../modules/paper/analysisUnits';
 import { Brand, Button, IconButton, inputClass } from '../controls';
 import { ProjectDialog } from '../projects/ProjectDialog';
+import { AppHeaderActions } from '../PwaNotice';
 import { PagePreview, WorkspaceDivider } from './PagePreview';
 import { PaperAssistant } from './PaperAssistant';
 import { type PageFilter, pageProcessingLabel, pageSelectionLabel, usePaperAnalysis } from './usePaperAnalysis';
@@ -178,9 +179,12 @@ export function AnalysisPage({
             4 幻灯片
           </Button>
         </nav>
-        <IconButton label="模型设置" onClick={() => void settingsPage()}>
-          <Settings size={16} />
-        </IconButton>
+        <div className="flex shrink-0 items-center gap-2">
+          <AppHeaderActions />
+          <IconButton label="模型设置" onClick={() => void settingsPage()}>
+            <Settings size={16} />
+          </IconButton>
+        </div>
       </header>
       <div className="flex shrink-0 items-center justify-between gap-4 border-b border-line bg-white px-5 py-3">
         <div className="min-w-0">

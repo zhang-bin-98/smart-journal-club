@@ -6,6 +6,7 @@ import { paragraphText, uncoveredClaims, type ContentCommand } from '../../modul
 import { researchStrategies } from '../../app/composition';
 import { Button, Brand, inputClass } from '../controls';
 import { WorkspaceDivider } from '../paper/PagePreview';
+import { AppHeaderActions } from '../PwaNotice';
 import { useSpeechController } from './useSpeechController';
 import { SpeechAi } from './SpeechAi';
 import { SpeechEvidence } from './SpeechEvidence';
@@ -104,6 +105,7 @@ export function SpeechPage({
           </span>
         </div>
         <div className="flex gap-2">
+          <AppHeaderActions />
           <Button onClick={onSettings}>模型配置</Button>
           <Button
             primary

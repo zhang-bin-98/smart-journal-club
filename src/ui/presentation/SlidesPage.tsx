@@ -10,6 +10,7 @@ import { checkPresentation } from '../../app/presentation/checkPresentation';
 import { figureSource } from '../../modules/paper/sources';
 import { Button, Brand, inputClass } from '../controls';
 import { WorkspaceDivider } from '../paper/PagePreview';
+import { AppHeaderActions } from '../PwaNotice';
 import type { Editing } from './SlidePreview';
 import { SlideCanvas, VisibleSlide, slideTextMutation } from './SlideCanvas';
 import { SlidesInspector } from './SlidesInspector';
@@ -156,6 +157,7 @@ export function SlidesPage({
           </span>
         </div>
         <div className="flex gap-2">
+          <AppHeaderActions />
           <Button onClick={onSettings}>模型配置</Button>
           <Button
             disabled={c.running}

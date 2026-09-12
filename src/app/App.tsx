@@ -4,7 +4,7 @@ import { DEFAULT_SETTINGS, type ModelSettings } from './settings/modelSettings';
 import { settingsService, analysisService } from './composition';
 import { beginActivity, isAppIdle, setDirty, subscribeActivity, type LeaveGuard } from './activity';
 import { errorMessage } from '../ui/controls';
-import { PwaNotice } from '../ui/PwaNotice';
+import { PwaUpdateOverlay } from '../ui/PwaNotice';
 import { SettingsPage } from '../ui/settings/SettingsPage';
 const ProjectWorkspace = lazy(() =>
   import('../ui/project/ProjectWorkspace').then((module) => ({ default: module.ProjectWorkspace })),
@@ -130,7 +130,7 @@ export function App() {
   const projectId = /^#\/project\/([^/]+)$/.exec(hash)?.[1];
   return (
     <>
-      <PwaNotice />
+      <PwaUpdateOverlay />
       {(error || navigationError) && (
         <p role="alert" className="p-3 text-sm text-red-700">
           {error || navigationError}

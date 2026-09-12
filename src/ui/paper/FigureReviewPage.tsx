@@ -6,6 +6,7 @@ import { recognizeReviewFigure } from '../../app/composition';
 import type { RegisterLeaveGuard } from '../../app/activity';
 import type { ModelSettings } from '../../app/settings/modelSettings';
 import { Brand, Button, IconButton, inputClass, errorMessage } from '../controls';
+import { AppHeaderActions } from '../PwaNotice';
 import { WorkspaceDivider } from './PagePreview';
 import { FigureCard } from './FigureCard';
 import { FigureDestinationInput } from './FigureDestination';
@@ -104,6 +105,7 @@ export function FigureReviewPage({
           <span className="text-xs text-muted">{busy ? '正在保存…' : state.dirty ? '未保存输入' : '已保存'}</span>
         </div>
         <div className="flex gap-2">
+          <AppHeaderActions />
           <IconButton label="模型配置" onClick={onSettings}>
             <Settings size={16} />
           </IconButton>

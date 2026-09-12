@@ -3,6 +3,7 @@ import { ArrowLeft, Check, Eye, EyeOff, KeyRound, RotateCcw, Trash2 } from 'luci
 import { normalizeBaseUrl, type ModelSettings } from '../../app/settings/modelSettings';
 import { capabilityLabels, type Capability } from '../../app/settings/settingsChecks';
 import { Brand, Button, inputClass, useOnline } from '../controls';
+import { AppHeaderActions } from '../PwaNotice';
 import { reasoningOptions } from '../../app/settings/reasoningOptions';
 import { useSettingsController } from './useSettingsController';
 
@@ -42,6 +43,7 @@ export function SettingsPage(props: {
           <p className="mt-1 text-xs text-muted">{saving ? '正在保存…' : '全局设置 · 保存后用于后续请求'}</p>
         </div>
         <div className="ml-auto flex gap-3">
+          <AppHeaderActions />
           <Button disabled={saving} onClick={controller.close}>
             <ArrowLeft size={15} />
             {props.returnLabel}
