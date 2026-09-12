@@ -10,14 +10,13 @@ const FigureReviewPage = lazy(() =>
   import('../paper/FigureReviewPage').then((module) => ({ default: module.FigureReviewPage })),
 );
 const SpeechPage = lazy(() => import('../presentation/SpeechPage').then((module) => ({ default: module.SpeechPage })));
-const LegacyPage = lazy(() => import('./ProjectPage').then((module) => ({ default: module.ProjectPage })));
+const SlidesPage = lazy(() => import('../presentation/SlidesPage').then((module) => ({ default: module.SlidesPage })));
 
 export function ProjectWorkspace({
   id,
   settings,
   onSettings,
   onLeave,
-  onOpenProject,
   registerLeaveGuard,
 }: {
   id: string;
@@ -31,6 +30,8 @@ export function ProjectWorkspace({
   const [step, setStep] = useState<WorkspaceStep>();
   const [error, setError] = useState('');
   const [startSpeech, setStartSpeech] = useState(false);
+  const [startSlides, setStartSlides] = useState(false);
+  const [preferPlan, setPreferPlan] = useState(false);
   const [readAttempt, setReadAttempt] = useState(0);
   const guard = useRef<LeaveGuard | undefined>(undefined);
   const register = useCallback<RegisterLeaveGuard>(
@@ -76,7 +77,7 @@ export function ProjectWorkspace({
         {error && <Button onClick={() => setReadAttempt((value) => value + 1)}>重试读取</Button>}
       </main>
     );
-  const legacy = step === 'slides';
+
   return (
     <>
       {error && (
@@ -91,22 +92,30 @@ export function ProjectWorkspace({
           </p>
         }
       >
-        {legacy ? (
-          <>
-            <div className="flex items-center gap-3 border-b border-line bg-white px-5 py-2">
-              <Button onClick={() => void changeStep('paper-analysis')}>论文分析与全部原页</Button>
-              <span className="text-xs text-muted">已保存成果</span>
-            </div>
-            <LegacyPage
-              id={id}
-              initialStep={step}
-              settings={settings}
-              onSettings={onSettings}
-              onLeave={onLeave}
-              onOpenProject={onOpenProject}
-              registerLeaveGuard={register}
-            />
-          </>
+        {step === 'slides' ? (
+          <SlidesPage
+            id={id}
+            settings={settings}
+            onSettings={onSettings}
+            onLeave={onLeave}
+            onStep={(next) => {
+              setPreferPlan(false);
+              void changeStep(next);
+            }}
+            autoStart={startSlides}
+            onStarted={() => setStartSlides(false)}
+            onOpenPlan={() => {
+              setPreferPlan(true);
+              setStartSpeech(false);
+              void changeStep('outline-speech');
+            }}
+            onRegenerate={() => {
+              setPreferPlan(true);
+              setStartSpeech(true);
+              void changeStep('outline-speech');
+            }}
+            registerLeaveGuard={register}
+          />
         ) : step === 'outline-speech' ? (
           <SpeechPage
             id={id}
@@ -114,6 +123,11 @@ export function ProjectWorkspace({
             onSettings={onSettings}
             onLeave={onLeave}
             onStep={(next) => void changeStep(next)}
+            preferPlan={preferPlan}
+            onNext={() => {
+              setStartSlides(true);
+              void changeStep('slides');
+            }}
             autoStart={startSpeech}
             onStarted={() => setStartSpeech(false)}
             registerLeaveGuard={register}

@@ -29,7 +29,7 @@ export type SpeechSave = {
   assertActive: () => void;
 };
 export type SpeechStore = {
-  open(projectId: string): Promise<SpeechWorkspace>;
+  open(projectId: string, preferPlan?: boolean): Promise<SpeechWorkspace>;
   save(input: SpeechSave): Promise<SpeechWorkspace>;
   saveGenerated(input: {
     record: PlanRecord;

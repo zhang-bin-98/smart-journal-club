@@ -19,7 +19,7 @@ export type Editing = {
   hasDraft: (key: string) => boolean;
 };
 
-function Editable({
+export function Editable({
   value,
   editKey,
   editing,

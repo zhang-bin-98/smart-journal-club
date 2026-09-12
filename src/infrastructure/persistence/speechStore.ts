@@ -11,7 +11,7 @@ import {
 import { migrateDeckV1 } from '../../modules/deck/migrateDeck';
 import { trimHistory } from '../../shared/persistence/historyStore';
 
-async function read(tx: IDBTransaction, projectId: string): Promise<SpeechWorkspace> {
+async function read(tx: IDBTransaction, projectId: string, preferPlan = false): Promise<SpeechWorkspace> {
   const project = await projectIn(tx, projectId);
   const working = await paperIn(tx, project);
   const raw = await get<{ recordVersion?: number }>(tx, 'plans', projectId);
@@ -38,7 +38,7 @@ async function read(tx: IDBTransaction, projectId: string): Promise<SpeechWorksp
     }
   }
   // 生成后永远读取 Current 的唯一讲述，不能把消费后的计划当可写副本。
-  if (current) {
+  if (current && !preferPlan) {
     const paper = await paperIn(tx, project, current.paperId);
     if (current.paperRevision !== undefined && current.paperRevision !== paper.revision)
       throw new ContentError('paper-version', '当前稿绑定的论文版本不一致。');
@@ -93,14 +93,14 @@ async function read(tx: IDBTransaction, projectId: string): Promise<SpeechWorksp
 }
 const names = ['projects', 'papers', 'plans', 'decks', 'history'] as const;
 export const speechStore: SpeechStore = {
-  async open(id) {
+  async open(id, preferPlan = false) {
     await openProject(id);
-    return transaction([...names], 'readonly', (tx) => read(tx, id));
+    return transaction([...names], 'readonly', (tx) => read(tx, id, preferPlan));
   },
   save(input) {
     return transaction([...names], 'readwrite', async (tx) => {
       input.assertActive();
-      const state = await read(tx, input.projectId);
+      const state = await read(tx, input.projectId, input.target.kind === 'plan');
       if (
         !state.target ||
         state.stale ||
@@ -117,7 +117,8 @@ export const speechStore: SpeechStore = {
       if (state.target.kind === 'plan') {
         const record = PlanRecordSchema.parse({
           ...state.record,
-          plan: { ...state.record!.plan, ...content, revision, status: 'draft', updatedAt },
+          stage: 'outline-ready',
+          plan: { ...state.record!.plan, ...content, slides: [], revision, status: 'draft', updatedAt },
         });
         tx.objectStore('plans').put(record, state.project.id);
       } else {
@@ -181,7 +182,7 @@ export const speechStore: SpeechStore = {
         input.requestId,
       );
       await trimHistory(tx, state.project.id);
-      return read(tx, input.projectId);
+      return read(tx, input.projectId, input.target.kind === 'plan');
     });
   },
   saveGenerated(input) {

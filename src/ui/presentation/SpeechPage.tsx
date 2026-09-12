@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { RegisterLeaveGuard } from '../../app/activity';
 import type { ModelSettings } from '../../app/settings/modelSettings';
 import type { WorkspaceStep } from '../../modules/project/model';
@@ -17,6 +17,8 @@ export function SpeechPage({
   onStep,
   autoStart,
   onStarted,
+  onNext,
+  preferPlan,
   registerLeaveGuard,
 }: {
   id: string;
@@ -26,9 +28,11 @@ export function SpeechPage({
   onStep: (step: WorkspaceStep) => void;
   autoStart?: boolean;
   onStarted?: () => void;
+  onNext?: () => void;
+  preferPlan?: boolean;
   registerLeaveGuard?: RegisterLeaveGuard;
 }) {
-  const c = useSpeechController({ id, settings, autoStart, onStarted, registerLeaveGuard });
+  const c = useSpeechController({ id, settings, autoStart, onStarted, preferPlan, registerLeaveGuard });
   const [selectedId, setSelectedId] = useState<string>();
   const [sectionId, setSectionId] = useState<string>();
   const [query, setQuery] = useState('');
@@ -39,6 +43,14 @@ export function SpeechPage({
   const [drag, setDrag] = useState<{ kind: 'section' | 'paragraph'; id: string }>();
   const [replace, setReplace] = useState(false);
   const data = c.state.data;
+  useEffect(() => {
+    const focus = sessionStorage.getItem('smartjc-speech-focus:' + id);
+    if (focus && data?.target) {
+      document.getElementById('paragraph-' + focus)?.scrollIntoView({ block: 'center' });
+      setSelectedId(focus);
+      sessionStorage.removeItem('smartjc-speech-focus:' + id);
+    }
+  }, [data?.target, id]);
   if (!data)
     return (
       <main className="p-6">
@@ -95,11 +107,11 @@ export function SpeechPage({
           <Button onClick={onSettings}>模型配置</Button>
           <Button
             primary
-            disabled={!data.project.currentDeckId || c.running}
-            title={data.project.currentDeckId ? '打开已有幻灯片' : '幻灯片生成尚未开放，当前可继续编辑讲稿'}
-            onClick={() => void c.act(async () => onStep('slides'))}
+            disabled={!content || data.stale || c.running}
+            title={data.target?.kind === 'deck' ? '打开已有幻灯片' : '按已保存讲稿规划并制作幻灯片'}
+            onClick={() => void c.act(async () => (data.target?.kind === 'deck' ? onStep('slides') : onNext?.()))}
           >
-            {data.project.currentDeckId ? '查看已有幻灯片' : '下一步：生成幻灯片'}
+            {data.target?.kind === 'deck' ? '查看已有幻灯片' : '下一步：生成幻灯片'}
           </Button>
         </div>
       </header>
@@ -110,7 +122,7 @@ export function SpeechPage({
         <button onClick={() => onStep('paper-analysis')}>1 论文分析</button>
         <button onClick={() => onStep('figure-review')}>2 图源核对</button>
         <span className="font-semibold text-accent">3 大纲与演讲稿</span>
-        <button disabled={!data.project.currentDeckId} onClick={() => onStep('slides')}>
+        <button disabled={!content} onClick={() => onStep('slides')}>
           4 幻灯片
         </button>
         <span className="ml-auto text-muted">{c.stage || '完整讲述 · 多图证据 · 自动保存'}</span>
@@ -233,7 +245,7 @@ export function SpeechPage({
             <Button onClick={() => setCoverage(!coverage)}>
               发现覆盖 {data.paper.claims.length - missing.length}/{data.paper.claims.length}
             </Button>
-            {!data.project.currentDeckId && (
+            {(!data.project.currentDeckId || preferPlan) && (
               <Button
                 disabled={c.running || c.state.dirty}
                 onClick={() => (content || data.legacyPlan ? setReplace(true) : void c.generate())}

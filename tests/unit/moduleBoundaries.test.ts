@@ -67,6 +67,11 @@ describe('M15 项目与论文的实际模块边界', () => {
           /^modules\/paper\/(model|paper\.schema|analysisUnits)(?:\.ts)?$/.test(target)
         )
           problems.push(`${name}: child imports aggregate`);
+        if (
+          /^modules\/presentation\/(content|layout|planning)\//.test(name) &&
+          /^modules\/(?:deck|presentation\/editing|presentation\/build)(?:\/|$)/.test(target)
+        )
+          problems.push(name + ': shared content/planning depends on editing');
         const browserDependency = /^(react(?:-dom)?(?:\/|$)|pdfjs-dist|pptxgenjs|@earendil-works\/pi)/.test(specifier);
         const adapter =
           /^(infrastructure|shared\/persistence|shared\/pdf)\//.test(target) ||

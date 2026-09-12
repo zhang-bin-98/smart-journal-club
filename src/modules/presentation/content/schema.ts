@@ -49,8 +49,8 @@ export type SpeechParagraph = z.infer<typeof SpeechParagraphSchema>;
 export type SpeechSegment = z.infer<typeof SpeechSegmentSchema>;
 
 export class ContentError extends Error {
-  readonly stage = 'outline';
-  readonly recovery = '保留已有讲稿，检查当前对象后重试。';
+  readonly stage = 'presentation';
+  readonly recovery = '保留已有讲稿和幻灯片，检查当前对象后重试。';
   constructor(
     readonly code: string,
     message: string,

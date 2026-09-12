@@ -37,6 +37,11 @@ export async function validateAiCandidate(raw: unknown, target: AiTarget, deck: 
         } else if (!allowed.has(mutation.afterSlideId)) throw new Error('新增页面超出请求范围');
         continue;
       }
+      if ('segmentId' in mutation) {
+        if (deck.slides.filter((s) => s.speechIds?.includes(mutation.segmentId)).some((s) => !allowed.has(s.id)))
+          throw new Error('讲稿修改超出页面范围');
+        continue;
+      }
       if (!allowed.has(mutation.slideId)) throw new Error('修改超出本次请求绑定的页面范围');
     }
   }
@@ -60,7 +65,7 @@ export async function validateAiCandidate(raw: unknown, target: AiTarget, deck: 
       if (id !== target.elementId && !layoutOnly) throw new Error('修改超出本次请求绑定的元素范围');
     }
     if (target.figureId) {
-      if (mutation.type === 'set-language' || mutation.type === 'add-slide')
+      if (mutation.type === 'set-language' || mutation.type === 'add-slide' || 'segmentId' in mutation)
         throw new Error('Figure 请求不能改写其他内容');
       const previous = deck.slides.find((slide) => slide.id === mutation.slideId);
       const element =
@@ -96,7 +101,9 @@ export async function validateAiCandidate(raw: unknown, target: AiTarget, deck: 
           ? deck.slides.map((slide) => slide.id)
           : mutation.type === 'add-slide'
             ? [mutation.slide.id]
-            : [mutation.slideId],
+            : 'segmentId' in mutation
+              ? deck.slides.filter((s) => s.speechIds?.includes(mutation.segmentId)).map((s) => s.id)
+              : [mutation.slideId],
       ),
     ),
   ];

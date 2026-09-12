@@ -6,7 +6,7 @@ import { ContentError } from '../../modules/presentation/content';
 export const PlanRecordSchema = z.strictObject({
   recordVersion: z.literal(2),
   projectId: z.string().min(1),
-  stage: z.literal('outline-ready'),
+  stage: z.enum(['outline-ready', 'deck-plan-ready']),
   plan: SpeechPlanSchema,
   generationPreferences: PreferencesSchema,
   mode: z.enum(['initial', 'regeneration']),

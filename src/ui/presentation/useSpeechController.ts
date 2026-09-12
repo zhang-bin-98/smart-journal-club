@@ -11,10 +11,15 @@ export function useSpeechController(input: {
   id: string;
   settings: ModelSettings;
   autoStart?: boolean;
+  preferPlan?: boolean;
   onStarted?: () => void;
   registerLeaveGuard?: RegisterLeaveGuard;
 }) {
-  const session = useMemo(() => createSpeechSession(input.id), [input.id]);
+  const preferPlan = useRef(input.preferPlan ?? false);
+  const session = useMemo(() => {
+    preferPlan.current = input.preferPlan ?? false;
+    return createSpeechSession(input.id, () => preferPlan.current);
+  }, [input.id, input.preferPlan]);
   const state = useSyncExternalStore(session.subscribe, session.snapshot);
   const [error, setError] = useState('');
   const [stage, setStage] = useState('');
@@ -66,6 +71,7 @@ export function useSpeechController(input: {
         },
         onStage: setStage,
       });
+      preferPlan.current = true;
       await session.load();
       setStage('完整讲稿已保存，可继续编辑');
     } catch (cause) {

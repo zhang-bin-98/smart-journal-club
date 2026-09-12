@@ -1,12 +1,27 @@
-import { PaperSchema, type Paper } from './paper.schema';
+import { PaperSchema, type Paper as LegacyPaper } from './paper.schema';
+import { type Paper as CurrentPaper } from './model';
+type Paper = LegacyPaper | CurrentPaper;
 import { BBoxSchema, type BBox } from '../../shared/schema';
 import type { PdfResource } from '../../shared/pdf/pdfResource';
 
 /** 论文图源定位：Deck 侧先把 Figure 元素转换为本结构，Paper 来源解析不感知 Deck 元素。 */
-export type FigureSourceLocator = { figureId: string; panelId?: string };
+export type FigureSourceLocator = { figureId: string; regionId?: string; panelId?: string };
 export function figureSource(paper: Paper, locator: FigureSourceLocator) {
   const figure = paper.figures.find((item) => item.id === locator.figureId);
   if (!figure) throw new Error('Figure 不存在');
+  if ('regions' in figure) {
+    const region = locator.regionId
+      ? figure.regions.find((item) => item.id === locator.regionId)
+      : locator.panelId
+        ? figure.regions.find((item) => item.panels.some((panel) => panel.id === locator.panelId))
+        : figure.regions[0];
+    const id = locator.panelId
+      ? region?.panels.find((panel) => panel.id === locator.panelId)?.sourceId
+      : region?.sourceId;
+    const source = paper.sources.find((item) => item.id === id);
+    if (!source?.bbox) throw new Error('图源缺失，无法查看或导出');
+    return source;
+  }
   const sourceId = locator.panelId
     ? figure.panels.find((panel) => panel.id === locator.panelId)?.sourceId
     : figure.sourceId;
@@ -26,7 +41,7 @@ export function figureImage(
   return resource.image(source, BBoxSchema.parse(cropOverride ?? source.bbox), edge);
 }
 
-export function validatePaper(input: unknown, ready = false): Paper {
+export function validatePaper(input: unknown, ready = false): LegacyPaper {
   const paper = PaperSchema.parse(input);
   const ids = new Set<string>();
   const addId = (id: string) => {
@@ -85,6 +100,20 @@ export function validatePaper(input: unknown, ready = false): Paper {
 }
 
 export function sourceText(paper: Paper, sourceIds: string[]) {
+  if (paper.schemaVersion === 2)
+    return [
+      ...new Set(
+        sourceIds
+          .map((id) => {
+            const source = paper.sources.find((item) => item.id === id);
+            const doc = paper.documents.find((item) => item.id === source?.documentId);
+            return source
+              ? (doc?.role === 'supplement' ? '补充材料' : '主论文') + '第 ' + source.pageNumber + ' 页'
+              : '';
+          })
+          .filter(Boolean),
+      ),
+    ].join(' · ');
   return [
     ...new Set(sourceIds.map((id) => paper.sources.find((source) => source.id === id)?.pageNumber).filter(Boolean)),
   ]
@@ -96,12 +125,12 @@ export function sourceText(paper: Paper, sourceIds: string[]) {
 export function sourceIdsExcludingPages(paper: Paper, sourceIds: string[], excludedSourceIds: string[]) {
   const excludedPages = new Set(
     excludedSourceIds.flatMap((id) => {
-      const page = paper.sources.find((source) => source.id === id)?.pageNumber;
-      return page === undefined ? [] : [page];
+      const source = paper.sources.find((source) => source.id === id);
+      return source ? [('documentId' in source ? source.documentId : '') + ':' + source.pageNumber] : [];
     }),
   );
   return sourceIds.filter((id) => {
-    const page = paper.sources.find((source) => source.id === id)?.pageNumber;
-    return page === undefined || !excludedPages.has(page);
+    const source = paper.sources.find((source) => source.id === id);
+    return !source || !excludedPages.has(('documentId' in source ? source.documentId : '') + ':' + source.pageNumber);
   });
 }

@@ -7,7 +7,9 @@ import {
   type RevisionRequest,
   type RevisionScope,
 } from '../../modules/deck/deck.schema';
-import type { Paper } from '../../modules/paper/paper.schema';
+import type { Paper as LegacyPaper } from '../../modules/paper/paper.schema';
+import type { Paper as CurrentPaper } from '../../modules/paper/model';
+type Paper = LegacyPaper | CurrentPaper;
 import { validateDeck } from '../../modules/deck/validateDeck';
 import { applyMutation, ensureScope, findSlide } from '../../modules/deck/mutations';
 
@@ -39,6 +41,33 @@ export class DeckSession {
   private undoStack: DeckSnapshot[] = [];
   private redoStack: DeckSnapshot[] = [];
   private saving = false;
+  private epoch = 0;
+  private draftVersion: number | undefined;
+  registerDraft() {
+    this.epoch++;
+    this.draftVersion = this.epoch;
+    return this.epoch;
+  }
+  releaseDraft(version: number) {
+    if (this.draftVersion === version) this.draftVersion = undefined;
+  }
+  get dirty() {
+    return this.draftVersion !== undefined;
+  }
+  capture() {
+    if (this.dirty || this.saving) throw new Error('请先保存当前输入。');
+    return { id: this.current.id, revision: this.current.revision, epoch: this.epoch };
+  }
+  assertCapture(capture: { id: string; revision: number; epoch: number }) {
+    if (
+      this.dirty ||
+      this.saving ||
+      capture.id !== this.current.id ||
+      capture.revision !== this.current.revision ||
+      capture.epoch !== this.epoch
+    )
+      throw new Error('页面或人工输入已变化，请重新请求修改。');
+  }
   private committedRequests = new Set<string>();
   constructor(
     initial: Deck,
@@ -96,7 +125,13 @@ export class DeckSession {
     this.saving = true;
     try {
       await (options?.persist ?? this.persist)?.(clone(this.current), clone(next), record, options);
+      const savedSlides = new Map(this.current.slides.map((slide) => [slide.id, slide]));
+      next.slides = next.slides.map((slide) => {
+        const previous = savedSlides.get(slide.id);
+        return previous && JSON.stringify(previous) === JSON.stringify(slide) ? previous : slide;
+      });
       this.current = next;
+      this.epoch++;
       this.committedRequests.add(requestId);
       if (this.committedRequests.size > 100)
         this.committedRequests.delete(this.committedRequests.values().next().value!);
@@ -191,6 +226,8 @@ export class DeckSession {
   }
   reset(initial: Deck) {
     this.current = clone(initial);
+    this.epoch++;
+    this.draftVersion = undefined;
     this.undoStack = [];
     this.redoStack = [];
     this.assertValid(this.current);

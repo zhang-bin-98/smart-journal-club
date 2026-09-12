@@ -3,7 +3,10 @@ import { computeLayout } from '../../modules/deck/layout/computeLayout';
 import { validateDeck } from '../../modules/deck/validateDeck';
 import type { NarrativeIssue } from '../../modules/outline/narrativeRules';
 import { validateDeckNarrative } from '../../modules/outline/validateNarrative';
-import type { Paper } from '../../modules/paper/paper.schema';
+import type { Paper as LegacyPaper } from '../../modules/paper/paper.schema';
+import type { Paper as CurrentPaper } from '../../modules/paper/model';
+import { toLegacyPaper } from '../../modules/paper/migration';
+type Paper = LegacyPaper | CurrentPaper;
 
 export type CheckCategory = 'structure' | 'narrative' | 'visual' | 'resource';
 export type PresentationIssue = NarrativeIssue & { category: CheckCategory };
@@ -61,7 +64,7 @@ function visualIssues(deck: Deck): PresentationIssue[] {
     if (layout.titleText.overflow || layout.messageText.overflow || layout.elements.some((item) => item.text.overflow))
       issues.push({
         code: 'text-overflow',
-        severity: 'warning',
+        severity: deck.schemaVersion === 3 ? 'error' : 'warning',
         category: 'visual',
         message: '文字可能溢出或过于拥挤，请精简内容、调整布局或拆页。',
         sectionId: slide.sectionId,
@@ -96,7 +99,10 @@ function uniqueIssues(issues: PresentationIssue[]) {
 
 /** 检查页、章节导航和导出用例共用的确定性检查；人工复核项只作提醒，不冒充科学判定。 */
 export function checkPresentation(deck: Deck, paper: Paper, resourceAvailable: boolean): PresentationCheck {
-  const narrative = validateDeckNarrative(deck, paper);
+  const narrative =
+    deck.schemaVersion === 3
+      ? { errors: [], warnings: [] }
+      : validateDeckNarrative(deck, paper.schemaVersion === 2 ? toLegacyPaper(paper) : paper);
   const hasFigures = deck.slides.some((slide) => slide.elements.some((element) => element.type === 'figure'));
   const resourceIssues: PresentationIssue[] = !resourceAvailable
     ? [
@@ -114,8 +120,77 @@ export function checkPresentation(deck: Deck, paper: Paper, resourceAvailable: b
   const narrativeIssues = [...narrative.errors, ...narrative.warnings].map((item) => ({
     ...item,
     category: 'narrative' as const,
+    severity: deck.schemaVersion === 3 ? ('warning' as const) : item.severity,
   }));
-  const all = uniqueIssues([...structural, ...narrativeIssues, ...visualIssues(deck), ...resourceIssues]);
+  const assigned = new Set(deck.slides.flatMap((s) => s.speechIds ?? []));
+  const unassigned: PresentationIssue[] = deck.speech?.some((s) => !assigned.has(s.id))
+    ? [
+        {
+          code: 'unassigned-speech',
+          severity: 'warning',
+          category: 'narrative',
+          message: '部分讲稿尚未安排页面；原文保留，可在讲述分配中移入页面。',
+        },
+      ]
+    : [];
+  const contentWarnings: PresentationIssue[] =
+    deck.schemaVersion === 3
+      ? deck.slides
+          .filter((slide) => !slide.title.trim())
+          .map((slide) => ({
+            code: 'empty-title',
+            severity: 'warning',
+            category: 'narrative',
+            message: '本页标题为空，可按需要补充。',
+            slideId: slide.id,
+          }))
+      : [];
+  if (deck.schemaVersion === 3) {
+    const covered = new Set([
+      ...(deck.speech ?? []).flatMap((s) => s.claimIds),
+      ...(deck.omissions ?? []).map((o) => o.claimId),
+    ]);
+    const missing = paper.claims.filter((claim) => !covered.has(claim.id));
+    if (missing.length)
+      contentWarnings.push({
+        code: 'coverage-change',
+        severity: 'warning',
+        category: 'narrative',
+        message: '有 ' + missing.length + ' 项论文发现尚未在讲稿中表达，可回到大纲核对。',
+      });
+    if (deck.omissions?.length)
+      contentWarnings.push({
+        code: 'user-omissions',
+        severity: 'warning',
+        category: 'narrative',
+        message: '本稿保留了用户主动省略的发现记录。',
+      });
+    for (const slide of deck.slides) {
+      const assigned = (deck.speech ?? []).filter((s) => slide.speechIds?.includes(s.id));
+      if (
+        assigned.some(
+          (s) =>
+            s.claimIds.some((id) => !slide.claimIds.includes(id)) ||
+            s.sourceIds.some((id) => !slide.sourceIds.includes(id)),
+        )
+      )
+        contentWarnings.push({
+          code: 'page-update',
+          severity: 'warning',
+          category: 'narrative',
+          slideId: slide.id,
+          message: '讲稿的证据关联与本页不同，可按需要请求更新页面。',
+        });
+    }
+  }
+  const all = uniqueIssues([
+    ...contentWarnings,
+    ...structural,
+    ...narrativeIssues,
+    ...unassigned,
+    ...visualIssues(deck),
+    ...resourceIssues,
+  ]);
   return {
     version: presentationVersion(deck),
     errors: all.filter((item) => item.severity === 'error'),

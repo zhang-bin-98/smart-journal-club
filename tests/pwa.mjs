@@ -66,7 +66,7 @@ await mkdir(output, { recursive: true });
 const workerSource = await readFile(join(directory, 'sw.js'), 'utf8');
 assert.match(workerSource, /^const VERSION = "[a-f0-9]+";/);
 const files = JSON.parse(workerSource.match(/^const FILES = (.+);$/m)[1]);
-const blockedAsset = files.find((file) => /^assets\/export-/.test(file));
+const blockedAsset = files.find((file) => /^assets\/SlidesPage-/.test(file));
 assert.ok(blockedAsset);
 const indexSource = await readFile(join(directory, 'index.html'), 'utf8');
 const secondIndex = `${indexSource}\n<!-- fixed second production build -->`;
@@ -246,34 +246,40 @@ try {
   await page.close();
   page = await context.newPage();
   await page.goto(`${base}#/project/${projectId}`);
+  await page.getByRole('button', { name: '专注当前页', exact: true }).click();
+  await page.getByRole('button', { name: '展开 AI 输入', exact: true }).click();
   await page
-    .locator('[data-slide-preview=current] img')
+    .locator('[data-slide-preview=current] canvas')
     .waitFor()
     .catch(async (cause) => {
       console.error({ body: await page.locator('body').innerText(), errors });
       throw cause;
     });
   await page.locator('[data-slide-preview=current] [data-element-id=f1]').click();
-  await page.getByRole('button', { name: '裁图', exact: true }).click();
-  await page.getByText('正在加载原页…').waitFor({ state: 'hidden' });
-  assert.equal(await page.locator('canvas').evaluate((canvas) => canvas.width > 0 && canvas.height > 0), true);
-  const bounds = await page.locator('[data-pdf-page]').boundingBox();
-  await page.mouse.move(bounds.x + bounds.width * 0.15, bounds.y + bounds.height * 0.15);
-  await page.mouse.down();
-  await page.mouse.move(bounds.x + bounds.width * 0.65, bounds.y + bounds.height * 0.5, { steps: 8 });
-  await page.mouse.up();
-  await page.getByRole('button', { name: '应用到本页', exact: true }).click();
-  await page.getByRole('dialog').waitFor({ state: 'hidden' });
+  await page.getByRole('button', { name: '本页裁图', exact: true }).click();
+  await page.waitForFunction(
+    () => document.querySelector('[role="dialog"] [role="application"]')?.getAttribute('aria-busy') === 'false',
+  );
+  const crop = page.getByRole('dialog', { name: '本页裁图', exact: true });
+  assert.equal(
+    await crop
+      .locator('canvas')
+      .first()
+      .evaluate((canvas) => canvas.width > 0 && canvas.height > 0),
+    true,
+  );
+  await crop.getByRole('button', { name: '调整w边界', exact: true }).press('ArrowLeft');
+  await crop.getByRole('button', { name: '保存本页裁图', exact: true }).click();
+  await crop.waitFor({ state: 'hidden' });
   const title = page.getByRole('textbox', { name: '幻灯片标题', exact: true });
   await title.fill('离线修改仍可保存');
-  await page.getByRole('textbox', { name: 'AI 输入', exact: true }).click();
-  await page.getByRole('status').filter({ hasText: '已保存' }).waitFor();
+  await page.getByRole('textbox', { name: '幻灯片 AI 输入', exact: true }).click();
+  await page.getByRole('status').filter({ hasText: '已保存' }).first().waitFor();
   const download = page.waitForEvent('download').catch(async (cause) => {
     console.error({ body: await page.locator('body').innerText(), errors });
     throw cause;
   });
   await page.getByRole('button', { name: '导出 PPTX', exact: true }).click();
-  await page.getByRole('button', { name: '确认警告并导出', exact: true }).click();
   const artifact = join(output, 'pwa-offline.pptx');
   await (await download).saveAs(artifact);
   assert.equal((await readFile(artifact)).subarray(0, 2).toString(), 'PK');
@@ -291,8 +297,10 @@ try {
   await page.close();
   page = await context.newPage();
   await page.goto(`${base}#/project/${projectId}`);
+  await page.getByRole('button', { name: '专注当前页', exact: true }).click();
+  await page.getByRole('button', { name: '展开 AI 输入', exact: true }).click();
   await page
-    .locator('[data-slide-preview=current] img')
+    .locator('[data-slide-preview=current] canvas')
     .waitFor()
     .catch(async (cause) => {
       console.error({ body: await page.locator('body').innerText(), errors });
@@ -356,8 +364,8 @@ try {
   console.log('PASS: incomplete old cache does not mix new index while update waits');
   await page.getByRole('textbox', { name: '幻灯片标题', exact: true }).fill('更新前保存的文字');
   assert.equal(await update.isDisabled(), true);
-  await page.getByRole('textbox', { name: 'AI 输入', exact: true }).click();
-  await page.getByRole('status').filter({ hasText: '已保存' }).waitFor();
+  await page.getByRole('textbox', { name: '幻灯片 AI 输入', exact: true }).click();
+  await page.getByRole('status').filter({ hasText: '已保存' }).first().waitFor();
   assert.equal(await update.isDisabled(), false);
   let heldRequest;
   let markHeld;
@@ -368,17 +376,18 @@ try {
     heldRequest = route;
     markHeld();
   });
-  await page.getByRole('textbox', { name: 'AI 输入', exact: true }).fill('解释这页');
+  await page.getByRole('textbox', { name: '幻灯片 AI 输入', exact: true }).fill('解释这页');
   await page.getByRole('button', { name: '发送', exact: true }).click();
   await modelHeld;
   assert.equal(await update.isDisabled(), true);
-  await page.getByRole('button', { name: '取消', exact: true }).click();
+  await page.getByRole('button', { name: '取消 AI', exact: true }).click();
   await heldRequest.abort().catch(() => {});
-  await page.getByRole('button', { name: '取消', exact: true }).waitFor({ state: 'hidden' });
+  await page.getByRole('button', { name: '取消 AI', exact: true }).waitFor({ state: 'hidden' });
   assert.equal(await update.isDisabled(), false);
   await page.unroute('https://api.deepseek.com/responses');
   const second = await context.newPage();
   await second.goto(`${base}#/project/${projectId}`);
+  await second.getByRole('button', { name: '专注当前页', exact: true }).click();
   await second.getByRole('textbox', { name: '幻灯片标题', exact: true }).fill('另一标签页未保存草稿');
   await second.evaluate(() => {
     window.__pwaOtherNoReload = true;

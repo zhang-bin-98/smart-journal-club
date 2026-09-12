@@ -23,7 +23,11 @@
     "check:m16:browser": "node tests/m16-browser.mjs",
     "check:m16:live": "node tests/m16-live.mjs",
     "check:m17:browser": "node tests/m17-browser.mjs",
-    "check:m17:live": "node tests/m17-live.mjs"
+    "check:m17:live": "node tests/m17-live.mjs",
+    "check:m18:browser": "node tests/m18-browser.mjs",
+    "check:m18:live": "node tests/m18-live.mjs",
+    "check:m18:layout": "node tests/m18-layout.mjs",
+    "check:m18:review": "node tests/m18-review.mjs"
   },
   "dependencies": {
     "@earendil-works/pi-agent-core": "^0.85.1",

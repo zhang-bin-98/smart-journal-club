@@ -27,7 +27,7 @@ export function parsePromptFiles(files: Record<string, string>) {
   }
   if (
     !common ||
-    !['figures', 'understand', 'plan', 'speech', 'speech-structure', 'generate', 'ai'].every(
+    !['figures', 'understand', 'plan', 'speech', 'speech-structure', 'slides', 'generate', 'ai'].every(
       (stage) => stages[stage],
     ) ||
     !strategies.some((item) => item.id === 'general')

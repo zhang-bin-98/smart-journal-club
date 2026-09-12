@@ -85,8 +85,6 @@ export async function prepareOutline(input: {
     const data = { ...opened, paper: opened.workingPaper ?? opened.paper };
     const expectedPlan = data.planKey;
     const paper = data.paper;
-    if (data.project.currentDeckId)
-      throw new ContentError('current-deck', '已有稿请编辑当前讲述，完整新稿候选在幻灯片阶段生成。');
     if (paper.figureReview.confirmedRevision !== paper.figureReview.revision || paper.pendingEvidenceFigureIds.length)
       throw new ContentError('review-required', '请先确认图源切分并完成必要证据关联。');
     if (!paper.claims.length) throw new ContentError('no-findings', '论文尚无可生成讲述的发现，请先完成论文分析。');
@@ -218,7 +216,7 @@ export async function prepareOutline(input: {
         stage: 'outline-ready',
         plan,
         generationPreferences: preferences,
-        mode: 'initial',
+        mode: data.project.currentDeckId ? 'regeneration' : 'initial',
         base: data.base,
       },
       expectedPlan,

@@ -219,7 +219,7 @@ export async function openStep(projectId: string, step: WorkspaceStep) {
       paper.figureReview.confirmedRevision !== paper.figureReview.revision
     )
       throw new ProjectError('outline-missing', '尚未保存讲稿。');
-    if (step === 'slides' && (!project.currentDeckId || !(await get(tx, 'decks', project.currentDeckId))))
+    if (step === 'slides' && !project.currentDeckId && !(await get(tx, 'plans', project.id)))
       throw new ProjectError('deck-missing', '尚未保存幻灯片。');
     const next = { ...project, lastOpenedStep: step };
     tx.objectStore('projects').put(next, project.id);
