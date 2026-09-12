@@ -204,6 +204,17 @@ export function SettingsPage(props: {
                 后仍可本地查看、编辑和导出。
               </p>
             </section>
+            <section aria-label="本地数据管理" className="rounded-lg border border-red-200 bg-white p-6">
+              <h2 className="text-base font-semibold">本地数据管理</h2>
+              <p className="my-4 text-sm leading-7 text-muted">
+                永久删除本应用全部项目、PDF、成果、模型配置及 Key
+                和离线缓存。下一页将说明范围并要求确认，当前未保存配置将丢弃。
+              </p>
+              <Button disabled={disabled || checking} onClick={() => controller.openStorageReset()}>
+                <Trash2 size={15} />
+                清除本应用所有数据
+              </Button>
+            </section>
           </aside>
         </div>
       </div>

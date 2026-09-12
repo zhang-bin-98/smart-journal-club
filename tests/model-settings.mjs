@@ -128,6 +128,7 @@ try {
   });
   await page.waitForFunction((button) => button.disabled, await save.elementHandle());
   assert.equal(await save.isDisabled(), true);
+  assert.equal(await settings.getByRole('button', { name: '清除本应用所有数据', exact: true }).isDisabled(), true);
   await page.waitForFunction((button) => button.disabled, await check.elementHandle());
   assert.equal(await check.isDisabled(), true);
   const rejected = await page.evaluate(async () => {
@@ -144,6 +145,7 @@ try {
   await page.getByRole('button', { name: '模型设置', exact: true }).click();
   await page.waitForFunction((button) => button.disabled, await save.elementHandle());
   assert.equal(await save.isDisabled(), true);
+  assert.equal(await settings.getByRole('button', { name: '清除本应用所有数据', exact: true }).isDisabled(), true);
   await page.evaluate(() => {
     window.__finishSettingsTask();
     delete window.__finishSettingsTask;

@@ -144,6 +144,19 @@ export function useSettingsController({
     close,
     save,
     check,
+    openStorageReset: () => {
+      if (
+        savingRef.current ||
+        checking ||
+        hasRunningActivity() ||
+        settingsService.isWriting() ||
+        scheduler.running ||
+        scheduler.queued
+      )
+        return;
+      invalidate();
+      location.assign(`${import.meta.env.BASE_URL}?smartjc-reset-storage=1`);
+    },
     cancel: () => {
       invalidate();
       setStatus('已取消检查，迟到结果不会回填。');

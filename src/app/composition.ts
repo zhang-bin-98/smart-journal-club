@@ -107,3 +107,15 @@ export const slidesService = createSlidesService({
   download: downloadDeck,
 });
 export const askSlides = createSlidesAssistant(createReadOnlyAgent(adapter));
+
+import { clearAppStorage, holdStorageSession } from '../infrastructure/persistence/storageReset';
+import { createStorageReset } from './settings/resetStorage';
+export const storageReset = createStorageReset(
+  clearAppStorage,
+  () =>
+    hasRunningActivity() ||
+    settingsService.isWriting() ||
+    modelScheduler.snapshot().running > 0 ||
+    modelScheduler.snapshot().queued > 0,
+);
+export const initializeStorageSession = holdStorageSession;

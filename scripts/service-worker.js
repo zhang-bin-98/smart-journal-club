@@ -4,6 +4,8 @@ const INTEGRITY = __SMARTJC_INTEGRITY__;
 const ROOT = new URL('./', self.location.href);
 const PREFIX = `smartjc-static:${ROOT.pathname}:`;
 const CACHE = PREFIX + VERSION;
+let resettingStorage = false;
+let preparingResources = false;
 const URLS = FILES.map((file) => new URL(file, ROOT).href);
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -31,6 +33,7 @@ self.addEventListener('activate', (event) => {
   );
 });
 self.addEventListener('fetch', (event) => {
+  if (resettingStorage) return;
   const request = event.request;
   const url = new URL(request.url);
   if (
@@ -62,6 +65,32 @@ self.addEventListener('fetch', (event) => {
 });
 self.addEventListener('message', (event) => {
   const reply = (value) => event.ports[0]?.postMessage(value);
+  if (event.data?.type === 'RESUME_AFTER_STORAGE_RESET') {
+    resettingStorage = false;
+    reply({ accepted: true });
+    return;
+  }
+  if (event.data?.type === 'PREPARE_STORAGE_RESET') {
+    if (preparingResources) {
+      reply({ accepted: false, busy: true });
+      return;
+    }
+    event.waitUntil(
+      (async () => {
+        const clients = (await self.clients.matchAll({ type: 'window', includeUncontrolled: true })).filter((client) =>
+          client.url.startsWith(ROOT.href),
+        );
+        const accepted = !clients.some((client) => client.id !== event.source?.id);
+        if (accepted) resettingStorage = true;
+        reply({ accepted });
+      })(),
+    );
+    return;
+  }
+  if (resettingStorage) {
+    reply({ ready: false, accepted: false });
+    return;
+  }
   if (event.data?.type === 'CACHE_STATUS') {
     event.waitUntil(
       (async () => {
@@ -72,6 +101,11 @@ self.addEventListener('message', (event) => {
     );
   }
   if (event.data?.type === 'CACHE_RESOURCES') {
+    if (preparingResources) {
+      reply({ ready: false });
+      return;
+    }
+    preparingResources = true;
     event.waitUntil(
       (async () => {
         try {
@@ -86,6 +120,8 @@ self.addEventListener('message', (event) => {
           reply({ ready: true });
         } catch {
           reply({ ready: false });
+        } finally {
+          preparingResources = false;
         }
       })(),
     );
