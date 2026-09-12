@@ -1,7 +1,7 @@
 import type { Context, Model } from '@earendil-works/pi-ai';
 import type { ModelAdapter, ModelRequest } from '../../app/llm/ports';
 import { ModelError } from '../../app/llm/modelError';
-import { normalizeSettings, type ModelSettings } from '../../app/settings/modelSettings';
+import type { normalizeSettings, ModelSettings } from '../../app/settings/modelSettings';
 import { type RequestScheduler, retryAfterMs, TemporaryRateLimit } from './requestScheduler';
 
 export function describeModel(settings: ModelSettings): Model<'openai-responses'> {
@@ -99,11 +99,11 @@ function estimateTokens(request: ModelRequest) {
   return Math.ceil(text.length / 2) + images * 4096 + (request.maxTokens ?? 16384);
 }
 
-export function createResponsesAdapter(scheduler: RequestScheduler): ModelAdapter {
+export function createResponsesAdapter(scheduler: RequestScheduler, normalize: typeof normalizeSettings): ModelAdapter {
   return {
     describe: describeModel,
     async request(input) {
-      const settings = normalizeSettings(input.settings);
+      const settings = normalize(input.settings);
       const request = { ...input, settings };
       const { signal, stage } = request;
       if (!settings.apiKey) throw new ModelError(stage, 'missing-key', '请先在模型配置中填写 API Key。');

@@ -1,11 +1,11 @@
 import type { Paper } from '../../modules/paper/model';
-import { ContentError, type Content } from '../../modules/presentation/content';
+import { type Content, ContentError } from '../../modules/presentation/content';
 import { speechContext } from './speechContext';
 
-/** 全部发现和全文块均进入生成；按传输体积拆批，完整成果仍只提交一次。 */
+/** 全部发现和全文块均进入生成；按发现数量及传输体积拆批，完整成果仍只提交一次。 */
 export function speechBatches(paper: Paper) {
   const size = (batch: Paper) => JSON.stringify(speechContext(batch, paper).context).length;
-  if (size(paper) < 90000) return [paper];
+  if (paper.claims.length <= 16 && size(paper) < 90000) return [paper];
   const empty = (): Paper => ({ ...paper, claims: [], evidences: [], sources: [], blocks: [], figures: [] });
   function withReferences(batch: Paper): Paper {
     const evidenceIds = new Set(batch.claims.flatMap((c) => c.evidenceIds));
@@ -37,7 +37,7 @@ export function speechBatches(paper: Paper) {
   let current = empty();
   for (const claim of paper.claims) {
     const candidate = withReferences({ ...current, claims: [...current.claims, claim] });
-    if (current.claims.length && (candidate.claims.length > 32 || size(candidate) > 90000)) {
+    if (current.claims.length && (candidate.claims.length > 16 || size(candidate) > 90000)) {
       groups.push(current);
       current = withReferences({ ...empty(), claims: [claim] });
     } else current = candidate;

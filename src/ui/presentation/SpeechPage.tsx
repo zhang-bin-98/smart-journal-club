@@ -3,7 +3,7 @@ import type { RegisterLeaveGuard } from '../../app/activity';
 import type { ModelSettings } from '../../app/settings/modelSettings';
 import type { WorkspaceStep } from '../../modules/project/model';
 import { paragraphText, uncoveredClaims, type ContentCommand } from '../../modules/presentation/content';
-import { prompts } from '../../shared/llm/prompts';
+import { researchStrategies } from '../../app/composition';
 import { Button, Brand, inputClass } from '../controls';
 import { WorkspaceDivider } from '../paper/PagePreview';
 import { useSpeechController } from './useSpeechController';
@@ -44,11 +44,11 @@ export function SpeechPage({
   const [replace, setReplace] = useState(false);
   const data = c.state.data;
   useEffect(() => {
-    const focus = sessionStorage.getItem('smartjc-speech-focus:' + id);
+    const focus = sessionStorage.getItem(`smartjc-speech-focus:${id}`);
     if (focus && data?.target) {
-      document.getElementById('paragraph-' + focus)?.scrollIntoView({ block: 'center' });
+      document.getElementById(`paragraph-${focus}`)?.scrollIntoView({ block: 'center' });
       setSelectedId(focus);
-      sessionStorage.removeItem('smartjc-speech-focus:' + id);
+      sessionStorage.removeItem(`smartjc-speech-focus:${id}`);
     }
   }, [data?.target, id]);
   if (!data)
@@ -185,9 +185,7 @@ export function SpeechPage({
                       command({ type: 'move-section', sectionId: drag.id, afterId: s.id });
                     setDrag(undefined);
                   }}
-                  className={
-                    'mb-2 rounded border p-3 ' + (s.id === activeSection ? 'border-accent bg-accent/5' : 'border-line')
-                  }
+                  className={`mb-2 rounded border p-3 ${s.id === activeSection ? 'border-accent bg-accent/5' : 'border-line'}`}
                 >
                   <button className="w-full text-left font-medium" onClick={() => jump(s.id, true)}>
                     {s.title || '未命名章节'}
@@ -302,15 +300,15 @@ export function SpeechPage({
             {content?.sections.map((s) => {
               const peers = content.speechParagraphs.filter((p) => p.sectionId === s.id);
               return (
-                <section key={s.id} id={'chapter-' + s.id} className="mx-auto mb-8 max-w-3xl scroll-mt-4">
+                <section key={s.id} id={`chapter-${s.id}`} className="mx-auto mb-8 max-w-3xl scroll-mt-4">
                   <div className="mb-4 rounded border border-line bg-white p-4">
                     <input
                       aria-label="章节标题"
-                      className={inputClass + ' text-lg font-semibold'}
-                      value={editValue('section-title:' + s.id, s.title, 'title')}
+                      className={`${inputClass} text-lg font-semibold`}
+                      value={editValue(`section-title:${s.id}`, s.title, 'title')}
                       disabled={c.running || data.stale}
                       onChange={(e) =>
-                        c.change('section-title:' + s.id, {
+                        c.change(`section-title:${s.id}`, {
                           type: 'update-section',
                           sectionId: s.id,
                           patch: { title: e.target.value },
@@ -341,12 +339,12 @@ export function SpeechPage({
                     </div>
                     <input
                       aria-label="章节目的"
-                      className={inputClass + ' mt-3'}
+                      className={`${inputClass} mt-3`}
                       placeholder="讲述目的"
-                      value={editValue('section-purpose:' + s.id, s.purpose, 'purpose')}
+                      value={editValue(`section-purpose:${s.id}`, s.purpose, 'purpose')}
                       disabled={c.running || data.stale}
                       onChange={(e) =>
-                        c.change('section-purpose:' + s.id, {
+                        c.change(`section-purpose:${s.id}`, {
                           type: 'update-section',
                           sectionId: s.id,
                           patch: { purpose: e.target.value },
@@ -358,7 +356,7 @@ export function SpeechPage({
                   {peers.map((p, index) => (
                     <article
                       key={p.id}
-                      id={'paragraph-' + p.id}
+                      id={`paragraph-${p.id}`}
                       data-paragraph={p.id}
                       className={
                         'mb-4 scroll-mt-4 rounded border bg-white p-4 ' +
@@ -392,10 +390,10 @@ export function SpeechPage({
                         <input
                           aria-label="讲述目的"
                           className={inputClass}
-                          value={editValue('purpose:' + p.id, p.purpose, 'purpose')}
+                          value={editValue(`purpose:${p.id}`, p.purpose, 'purpose')}
                           disabled={c.running || data.stale}
                           onChange={(e) =>
-                            c.change('purpose:' + p.id, {
+                            c.change(`purpose:${p.id}`, {
                               type: 'update-paragraph',
                               paragraphId: p.id,
                               purpose: e.target.value,
@@ -406,12 +404,12 @@ export function SpeechPage({
                       </div>
                       <textarea
                         aria-label="讲稿正文"
-                        className={inputClass + ' min-h-40 resize-y leading-7'}
+                        className={`${inputClass} min-h-40 resize-y leading-7`}
                         rows={Math.max(6, Math.min(18, Math.ceil(paragraphText(content, p.id).length / 40)))}
-                        value={editValue('text:' + p.id, paragraphText(content, p.id), 'text')}
+                        value={editValue(`text:${p.id}`, paragraphText(content, p.id), 'text')}
                         disabled={c.running || data.stale}
                         onChange={(e) =>
-                          c.change('text:' + p.id, {
+                          c.change(`text:${p.id}`, {
                             type: 'update-paragraph',
                             paragraphId: p.id,
                             text: e.target.value,
@@ -555,7 +553,7 @@ export function SpeechPage({
               }
               onChange={(e) => c.setStrategyId(e.target.value)}
             >
-              {prompts.strategies.map((strategy) => (
+              {researchStrategies.map((strategy) => (
                 <option key={strategy.id} value={strategy.id}>
                   {strategy.name}
                 </option>

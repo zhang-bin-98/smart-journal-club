@@ -1,11 +1,11 @@
 import type { Slide } from '../../modules/presentation/content';
 import type { Paper } from '../../modules/paper/model';
 import type { FigureResources } from '../../app/paper/figureResources';
-import { type FigureGroup, type FigureGroupNode } from '../../modules/presentation/layout';
+import type { FigureGroup, FigureGroupNode } from '../../modules/presentation/layout';
 import { figureArea } from '../../modules/presentation/layout/figureGeometry';
 import type { BBox } from '../../shared/schema';
 import { SlideCanvas } from './SlideCanvas';
-import { position } from '../editor/SlidePreview';
+import { position } from './SlidePreview';
 
 /** The preview uses exported geometry; moving a divider keeps the draft local until pointer/key release. */
 export function GroupPreview({
@@ -75,7 +75,7 @@ export function GroupPreview({
           key={path.join('.') || 'root'}
           role="separator"
           tabIndex={0}
-          aria-label={'图组分隔线' + (path.join('-') || '根')}
+          aria-label={`图组分隔线${path.join('-') || '根'}`}
           aria-orientation={node.direction === 'row' ? 'vertical' : 'horizontal'}
           aria-valuemin={10}
           aria-valuemax={90}

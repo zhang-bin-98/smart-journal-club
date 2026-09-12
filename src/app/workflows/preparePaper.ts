@@ -1,3 +1,4 @@
+import type { PromptCatalog } from '../llm/promptCatalog';
 import { z } from 'zod';
 import { LocalPanelsSchema } from '../paper/recognizeFigure';
 import { toPageBox } from '../../modules/paper/figureGeometry';
@@ -15,7 +16,6 @@ import {
 import { FigurePageSchema } from '../../modules/paper/figureOutput';
 import type { AnalysisStage, AnalysisUnitTarget, Paper } from '../../modules/paper/model';
 import { ClaimSchema, EvidenceSchema } from '../../modules/paper/paper.schema';
-import { prompts } from '../../shared/llm/prompts';
 import { ModelError, ModelOutputError } from '../llm/modelError';
 import type { createModelRequests } from '../llm/requests';
 import type { AnalysisProject, AnalysisStore, PaperResource, ResourceFactory } from '../paper/ports';
@@ -64,6 +64,7 @@ export class AnalysisUnitError extends Error {
 
 /** 固定分析工作流：独立页受限并行，完整单元逐个提交，整篇汇总等待全部真实依赖。 */
 export async function preparePaper({
+  prompts,
   projectId,
   settings,
   store,
@@ -72,6 +73,7 @@ export async function preparePaper({
   signal,
   onProgress,
 }: {
+  prompts: PromptCatalog;
   projectId: string;
   settings: ModelSettings;
   store: AnalysisStore;
@@ -409,7 +411,7 @@ export async function preparePaper({
     });
     data = await store.openProject(projectId);
     if (!getAnalysisProgress(data.paper).figuresReady)
-      return preparePaper({ projectId, settings, store, createResource, requests, signal, onProgress });
+      return preparePaper({ prompts, projectId, settings, store, createResource, requests, signal, onProgress });
     if (!unitComplete(data.paper, 'evidence', { kind: 'paper' })) {
       report('汇总全部材料与跨文件证据');
       const paper = data.paper;

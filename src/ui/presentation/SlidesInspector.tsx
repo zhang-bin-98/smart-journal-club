@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { GroupPreview } from './GroupPreview';
 import type { FigureResources } from '../../app/paper/figureResources';
-import type { Deck, DeckMutation, Slide, Element } from '../../modules/deck/deck.schema';
+import type { Deck, DeckMutation, Slide, Element } from '../../modules/presentation/editing/schema';
 import type { Paper } from '../../modules/paper/model';
 import {
   groupPreset,
@@ -39,7 +39,7 @@ function Partition({
       <label className="block text-xs">
         {path} · {node.direction === 'row' ? '左侧' : '上方'}比例
         <input
-          aria-label={path + '比例'}
+          aria-label={`${path}比例`}
           type="range"
           min="0.1"
           max="0.9"
@@ -51,7 +51,7 @@ function Partition({
           className="w-full"
         />
         <input
-          aria-label={path + '比例数值'}
+          aria-label={`${path}比例数值`}
           className={inputClass}
           type="number"
           min="0.1"
@@ -64,13 +64,13 @@ function Partition({
       </label>
       <Partition
         node={node.first}
-        path={path + '一'}
+        path={`${path}一`}
         onChange={(first) => onChange({ ...node, first })}
         onSave={onSave}
       />
       <Partition
         node={node.second}
-        path={path + '二'}
+        path={`${path}二`}
         onChange={(second) => onChange({ ...node, second })}
         onSave={onSave}
       />

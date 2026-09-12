@@ -1,8 +1,9 @@
+import ts from 'typescript';
 import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-describe('M14 已迁移模块依赖与模型唯一入口', () => {
+describe('配置边界与模型唯一入口', () => {
   it('配置纯契约和应用用例不引用 UI/数据库/具体适配器，只有 Responses 适配器发模型请求', () => {
     const root = resolve('src');
     const problems: string[] = [];
@@ -31,33 +32,20 @@ describe('M14 已迁移模块依赖与模型唯一入口', () => {
   });
 });
 
-// 只约束 M15 已迁移职责；旧 Deck/Outline 仓库在其后续里程碑归位。
-describe('M15 项目与论文的实际模块边界', () => {
+describe('M19 四层及三个领域的完整边界', () => {
   it('纯规则、应用编排和工作台分别守住依赖方向', () => {
     const root = resolve('src');
-    const pure = new Set([
-      'modules/project/model.ts',
-      'modules/paper/model.ts',
-      'modules/paper/document.ts',
-      'modules/paper/figures.ts',
-      'modules/paper/evidence.ts',
-      'modules/paper/migration.ts',
-      'modules/paper/analysisUnits.ts',
-      'modules/paper/figureOutput.ts',
-      'modules/paper/figureEditing.ts',
-      'modules/paper/figureCaptions.ts',
-      'modules/paper/figureGeometry.ts',
-      'modules/paper/figurePixels.ts',
-    ]);
     const problems: string[] = [];
     for (const file of readdirSync(root, { recursive: true })
       .map(String)
       .filter((name) => /\.(ts|tsx)$/.test(name))) {
       const name = file.replaceAll('\\', '/');
-      if (name.startsWith('modules/presentation/')) pure.add(name);
-      const application = /^(app\/paper|app\/projects|app\/workflows|app\/presentation|app\/assistant)\//.test(name);
-      const ui = /^ui\/(paper|projects|presentation)\//.test(name);
-      if (!pure.has(name) && !application && !ui) continue;
+      const pure = name.startsWith('modules/');
+      if (pure && !/^modules\/(project|paper|presentation)\//.test(name)) problems.push(`${name}: obsolete domain`);
+      const application =
+        name.startsWith('app/') && !['app/composition.ts', 'app/App.tsx', 'app/pwa.ts'].includes(name);
+      const ui = name.startsWith('ui/');
+      if (!pure && !application && !ui) continue;
       const source = readFileSync(resolve(root, file), 'utf8');
       const imports = [...source.matchAll(/(?:from\s*|import\s*\()\s*['"]([^'"]+)['"]/g)].map((match) => match[1]);
       for (const specifier of imports) {
@@ -71,21 +59,21 @@ describe('M15 项目与论文的实际模块边界', () => {
           /^modules\/presentation\/(content|layout|planning)\//.test(name) &&
           /^modules\/(?:deck|presentation\/editing|presentation\/build)(?:\/|$)/.test(target)
         )
-          problems.push(name + ': shared content/planning depends on editing');
+          problems.push(`${name}: shared content/planning depends on editing`);
         const browserDependency = /^(react(?:-dom)?(?:\/|$)|pdfjs-dist|pptxgenjs|@earendil-works\/pi)/.test(specifier);
         const adapter =
           /^(infrastructure|shared\/persistence|shared\/pdf)\//.test(target) ||
           /(?:Repository|Store)(?:\.ts)?$/.test(target);
-        if (pure.has(name) && (/^(app|ui)\//.test(target) || adapter || browserDependency))
+        if (pure && (/^(app|ui)\//.test(target) || adapter || browserDependency))
           problems.push(`${name} -> ${specifier}`);
-        if (application && (/^ui\//.test(target) || adapter || browserDependency))
+        if (application && (/^ui\//.test(target) || adapter || (browserDependency && !name.startsWith('app/llm/'))))
           problems.push(`${name} -> ${specifier}`);
         if (ui && adapter) problems.push(`${name} -> ${specifier}`);
       }
       if (/\bindexedDB\s*\.|\bIDB(?:Database|Transaction|ObjectStore)\b/.test(source))
         problems.push(`${name}: direct IndexedDB`);
       if (
-        pure.has(name) &&
+        pure &&
         /\b(?:window|navigator)\s*\.|\bdocument\s*\.\s*(?:createElement|querySelector|body|documentElement|addEventListener)\b/.test(
           source,
         )
@@ -94,4 +82,68 @@ describe('M15 项目与论文的实际模块边界', () => {
     }
     expect(problems).toEqual([]);
   });
+});
+
+// 类型契约允许反向引用；运行时循环和适配器调用应用业务均需阻止。
+it('运行时导入无环，适配器只读取应用类型与公共模型错误', () => {
+  const root = resolve('src');
+  const files = readdirSync(root, { recursive: true })
+    .map(String)
+    .filter((name) => /\.(ts|tsx)$/.test(name));
+  const known = new Set(files.map((file) => resolve(root, file)));
+  const graph = new Map<string, string[]>();
+  const problems: string[] = [];
+  for (const file of known) {
+    const source = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true);
+    const imports: string[] = [];
+    for (const statement of source.statements) {
+      if (!ts.isImportDeclaration(statement) && !ts.isExportDeclaration(statement)) continue;
+      if (!statement.moduleSpecifier || !ts.isStringLiteral(statement.moduleSpecifier)) continue;
+      if (ts.isImportDeclaration(statement)) {
+        const clause = statement.importClause;
+        if (clause?.isTypeOnly) continue;
+        if (
+          !clause?.name &&
+          clause?.namedBindings &&
+          ts.isNamedImports(clause.namedBindings) &&
+          clause.namedBindings.elements.every((item) => item.isTypeOnly)
+        )
+          continue;
+      } else if (statement.isTypeOnly) continue;
+      const specifier = statement.moduleSpecifier.text;
+      if (!specifier.startsWith('.')) continue;
+      const base = resolve(dirname(file), specifier);
+      const target = [base, base + '.ts', base + '.tsx', resolve(base, 'index.ts'), resolve(base, 'index.tsx')].find(
+        (path) => known.has(path),
+      );
+      if (!target) continue;
+      const from = relative(root, file).replaceAll('\\', '/');
+      const to = relative(root, target).replaceAll('\\', '/');
+      if (from.startsWith('infrastructure/') && to.startsWith('app/') && to !== 'app/llm/modelError.ts')
+        problems.push(from + ' -> ' + to);
+      imports.push(target);
+    }
+    graph.set(file, imports);
+  }
+  const done = new Set<string>();
+  const active: string[] = [];
+  function visit(file: string) {
+    if (active.includes(file)) {
+      problems.push(
+        active
+          .slice(active.indexOf(file))
+          .concat(file)
+          .map((path) => relative(root, path))
+          .join(' -> '),
+      );
+      return;
+    }
+    if (done.has(file)) return;
+    active.push(file);
+    for (const dependency of graph.get(file) ?? []) visit(dependency);
+    active.pop();
+    done.add(file);
+  }
+  for (const file of known) visit(file);
+  expect(problems).toEqual([]);
 });

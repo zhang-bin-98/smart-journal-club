@@ -202,7 +202,7 @@ try {
   const protection = await page.evaluate(async (id) => {
     const { openProject } = await import('/src/infrastructure/persistence/projectStore.ts');
     const { saveFigure } = await import('/src/infrastructure/persistence/paperStore.ts');
-    const { transaction, get } = await import('/src/shared/persistence/indexedDb.ts');
+    const { transaction, get } = await import('/src/infrastructure/persistence/indexedDb.ts');
     const { fixtureDeck } = await import('/tests/fixtures.ts');
     const data = await openProject(id);
     const current = structuredClone(fixtureDeck);

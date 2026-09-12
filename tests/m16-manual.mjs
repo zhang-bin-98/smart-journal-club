@@ -11,7 +11,7 @@ try {
     const id = await page.evaluate(
       async ({ record, pdf, name }) => {
         const { createProject } = await import('/src/infrastructure/persistence/projectStore.ts');
-        const { transaction } = await import('/src/shared/persistence/indexedDb.ts');
+        const { transaction } = await import('/src/infrastructure/persistence/indexedDb.ts');
         const blob = new Blob([Uint8Array.from(atob(pdf), (char) => char.charCodeAt(0))], { type: 'application/pdf' });
         const data = await createProject({ primary: new File([blob], `${name}.pdf`, { type: 'application/pdf' }) });
         const paper = data.paper;

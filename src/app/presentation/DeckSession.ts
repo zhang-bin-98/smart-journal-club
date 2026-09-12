@@ -6,12 +6,12 @@ import {
   type RevisionRecord,
   type RevisionRequest,
   type RevisionScope,
-} from '../../modules/deck/deck.schema';
+} from '../../modules/presentation/editing/schema';
 import type { Paper as LegacyPaper } from '../../modules/paper/paper.schema';
 import type { Paper as CurrentPaper } from '../../modules/paper/model';
 type Paper = LegacyPaper | CurrentPaper;
-import { validateDeck } from '../../modules/deck/validateDeck';
-import { applyMutation, ensureScope, findSlide } from '../../modules/deck/mutations';
+import { validateDeck } from '../../modules/presentation/editing/validateDeck';
+import { applyMutation, ensureScope, findSlide } from '../../modules/presentation/editing/mutations';
 
 export type DeckSnapshot = Pick<
   Deck,

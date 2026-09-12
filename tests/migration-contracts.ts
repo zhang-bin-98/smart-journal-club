@@ -1,6 +1,7 @@
 import { fixturePaper } from './fixtures';
 import { legacyDeckPlanV1, legacyDeckV1, legacyProject } from './legacy-fixtures';
-import { deleteProject, loadProject } from '../src/modules/project/projectRepository';
+import { slidesStore } from '../src/app/composition';
+const loadProject = slidesStore.open;
 import type { Project } from '../src/modules/project/project.schema';
 import type { Paper } from '../src/modules/paper/paper.schema';
 
@@ -27,7 +28,20 @@ async function withStores(mode: IDBTransactionMode, work: (tx: IDBTransaction) =
   });
 }
 type Seeded = { project: Project; paper: Paper; decks: Record<string, unknown>[]; plan?: Record<string, unknown> };
+const seeded = new Map<string, Seeded>();
+async function deleteProject(id: string) {
+  const data = seeded.get(id)!;
+  await withStores('readwrite', (tx) => {
+    tx.objectStore('projects').delete(id);
+    tx.objectStore('papers').delete(data.paper.id);
+    tx.objectStore('assets').delete(data.project.pdfAssetId);
+    tx.objectStore('plans').delete(id);
+    for (const deck of data.decks) tx.objectStore('decks').delete(deck.id as string);
+  });
+  seeded.delete(id);
+}
 async function seed({ project, paper, decks, plan }: Seeded) {
+  seeded.set(project.id, { project, paper, decks, plan });
   await withStores('readwrite', (tx) => {
     tx.objectStore('projects').put(project, project.id);
     tx.objectStore('papers').put(paper, paper.id);
@@ -83,14 +97,14 @@ export async function runMigrationContracts() {
     await seed({ project, paper, decks: [deck] });
     try {
       const opened = await loadProject('migration-current-only');
-      assert(opened.deck?.schemaVersion === 2, 'v1 Current 应在打开时迁移为 v2');
+      assert(opened.current?.schemaVersion === 2, 'v1 Current 应在打开时迁移为 v2');
       assert(
-        opened.deck?.sections.map((section) => section.kind).join() === 'opening,results,synthesis',
+        opened.current?.sections.map((section) => section.kind).join() === 'opening,results,synthesis',
         '章节按连续 kind 段生成',
       );
-      assert(opened.deck?.revision === 3 && opened.deck?.slides.length === 4, '迁移不改变 revision 与页面数量');
+      assert(opened.current?.revision === 3 && opened.current?.slides.length === 4, '迁移不改变 revision 与页面数量');
       const persisted = await readRecord<Record<string, unknown>>('decks', deck.id);
-      assert(persisted?.schemaVersion === 2, '迁移结果应持久化');
+      assert(persisted?.schemaVersion === 1, '浏览只作兼容投影，不改写旧稿');
       const snapshot = JSON.stringify(persisted);
       await loadProject('migration-current-only');
       assert(JSON.stringify(await readRecord('decks', deck.id)) === snapshot, '重复打开不得产生写入');
@@ -114,9 +128,9 @@ export async function runMigrationContracts() {
     await seed({ project, paper, decks: [current, previous] });
     try {
       const opened = await loadProject('migration-both');
-      assert(opened.deck?.id === current.id && opened.project.previousDeckId === previous.id, '版本指针语义不变');
-      assert((await readDeck(current.id))?.schemaVersion === 2, 'Current 已迁移');
-      assert((await readDeck(previous.id))?.schemaVersion === 2, 'Previous 已同批迁移');
+      assert(opened.current?.id === current.id && opened.project.previousDeckId === previous.id, '版本指针语义不变');
+      assert((await readDeck(current.id))?.schemaVersion === 1, 'Current 原稿保留');
+      assert((await readDeck(previous.id))?.schemaVersion === 1, 'Previous 原稿保留');
       assert((await readDeck(previous.id))?.revision === 3, '迁移不递增 revision');
     } finally {
       await deleteProject('migration-both');
@@ -140,8 +154,8 @@ export async function runMigrationContracts() {
     try {
       const before = JSON.stringify(v2Deck);
       const opened = await loadProject('migration-mixed');
-      assert(opened.deck?.id === v2Deck.id, 'v2 Current 原样读取');
-      assert((await readDeck(previous.id))?.schemaVersion === 2, '仅迁移仍是 v1 的 Previous');
+      assert(opened.current?.id === v2Deck.id, 'v2 Current 原样读取');
+      assert((await readDeck(previous.id))?.schemaVersion === 1, 'Previous 原稿保留');
       assert(JSON.stringify(await readRecord('decks', v2Deck.id)) === before, 'v2 Current 记录不得被重写');
     } finally {
       await deleteProject('migration-mixed');
@@ -174,7 +188,7 @@ export async function runMigrationContracts() {
         tx.objectStore('decks').put(repaired, repaired.id);
       });
       const opened = await loadProject('migration-failure');
-      assert(opened.deck?.schemaVersion === 2 && opened.project.previousDeckId === repaired.id, '修复后可恢复打开');
+      assert(opened.current?.schemaVersion === 2 && opened.project.previousDeckId === repaired.id, '修复后可恢复打开');
     } finally {
       await deleteProject('migration-failure');
     }
@@ -182,7 +196,7 @@ export async function runMigrationContracts() {
   // 5. 未来版本 Current：拒绝读取且 Current/Previous 均零写入。
   {
     const paper = { ...structuredClone(fixturePaper), id: 'paper-migration-future' };
-    const future = { ...structuredClone(legacyDeckV1('legacy-deck-future')), paperId: paper.id, schemaVersion: 3 };
+    const future = { ...structuredClone(legacyDeckV1('legacy-deck-future')), paperId: paper.id, schemaVersion: 99 };
     const previous = { ...structuredClone(legacyDeckV1('legacy-deck-future-prev')), paperId: paper.id };
     const project = legacyProject({
       id: 'migration-future',
@@ -196,113 +210,31 @@ export async function runMigrationContracts() {
     try {
       const error = await captureError(() => loadProject('migration-future'));
       assert(error.includes('不兼容'), '未来版本应提示不兼容');
-      assert((await readDeck(future.id))?.schemaVersion === 3, '未来版本数据不得被改写');
+      assert((await readDeck(future.id))?.schemaVersion === 99, '未来版本数据不得被改写');
       assert((await readDeck(previous.id))?.schemaVersion === 1, '同批其他对象零写入');
     } finally {
       await deleteProject('migration-future');
     }
   }
-  // 6. deck-plan-ready 且旧计划无法安全迁移：原子回退 paper-ready，保留 PDF/Paper。
-  {
-    const paper = { ...structuredClone(fixturePaper), id: 'paper-migration-replan' };
+  // 旧临时计划不会被当作新讲稿消费或删除；可读性与缺陷都原样保留。
+  for (const broken of [false, true]) {
+    const paper = { ...structuredClone(fixturePaper), id: 'paper-preserved-plan' };
     const plan = structuredClone(legacyDeckPlanV1());
     plan.paperId = paper.id;
-    (plan.slides[1].figures as { figureId: string }[])[0].figureId = 'fig-missing';
+    if (broken) plan.slides[1].figures[0].figureId = 'missing';
     const project = legacyProject({
-      id: 'migration-replan',
+      id: 'preserved-plan',
       paperId: paper.id,
-      pdfAssetId: 'asset-migration-replan',
-      checkpoint: 'deck-plan-ready',
-    });
-    await seed({ project, paper, decks: [], plan });
-    const paperBefore = JSON.stringify(paper);
-    try {
-      const opened = await loadProject('migration-replan');
-      assert(opened.project.checkpoint === 'paper-ready', '无法迁移的临时计划应原子回退 paper-ready');
-      assert(opened.plan === undefined, '回退后不返回计划');
-      assert((await readRecord('plans', 'migration-replan')) === undefined, '临时计划应删除');
-      assert(JSON.stringify(await readRecord('papers', paper.id)) === paperBefore, '回退不得改写 Paper');
-      const asset = await readRecord<{ blob: Blob }>('assets', 'asset-migration-replan');
-      assert((asset?.blob.size ?? 0) > 0, '原 PDF 保留');
-    } finally {
-      await deleteProject('migration-replan');
-    }
-  }
-  // 7. deck-plan-ready 且旧计划可迁移：迁为 v2 draft 持久化，重复打开稳定。
-  {
-    const paper = { ...structuredClone(fixturePaper), id: 'paper-migration-plan' };
-    const plan = structuredClone(legacyDeckPlanV1());
-    plan.paperId = paper.id;
-    const project = legacyProject({
-      id: 'migration-plan',
-      paperId: paper.id,
-      pdfAssetId: 'asset-migration-plan',
+      pdfAssetId: 'preserved-asset',
       checkpoint: 'deck-plan-ready',
     });
     await seed({ project, paper, decks: [], plan });
     try {
-      const opened = await loadProject('migration-plan');
-      assert(opened.project.checkpoint === 'deck-plan-ready', '可迁移计划不回退 checkpoint');
-      assert(opened.plan?.status === 'draft' && opened.plan?.id === 'plan-migration-plan', '旧计划迁移为 v2 draft');
-      const persisted = await readRecord<{ recordVersion: number; plan: { schemaVersion: number } }>(
-        'plans',
-        'migration-plan',
-      );
-      assert(persisted?.recordVersion === 1 && persisted.plan.schemaVersion === 2, '迁移计划应保存为 v2 PlanRecord');
-      const snapshot = JSON.stringify(persisted);
-      await loadProject('migration-plan');
-      assert(JSON.stringify(await readRecord('plans', 'migration-plan')) === snapshot, '重复打开不得改写计划');
-    } finally {
-      await deleteProject('migration-plan');
-    }
-  }
-  // 已有两版文稿时，废弃损坏的旧临时计划不能回退文稿阶段。
-  {
-    const paper = { ...structuredClone(fixturePaper), id: 'paper-migration-stable-replan' };
-    const current = { ...structuredClone(legacyDeckV1('stable-replan-current')), paperId: paper.id };
-    const previous = { ...structuredClone(legacyDeckV1('stable-replan-previous')), paperId: paper.id };
-    const plan = { ...structuredClone(legacyDeckPlanV1()), paperId: paper.id };
-    plan.slides[1].figures[0].figureId = 'missing';
-    const project = legacyProject({
-      id: 'migration-stable-replan',
-      paperId: paper.id,
-      pdfAssetId: 'asset-stable-replan',
-      checkpoint: 'deck-ready',
-      currentDeckId: current.id,
-      previousDeckId: previous.id,
-    });
-    await seed({ project, paper, decks: [current, previous], plan });
-    try {
-      const originalPut = IDBObjectStore.prototype.put;
-      IDBObjectStore.prototype.put = function (...args) {
-        if (this.name === 'decks' && args[1] === previous.id)
-          throw new DOMException('fixed migration failure', 'QuotaExceededError');
-        return originalPut.apply(this, args);
-      };
-      try {
-        assert((await captureError(() => loadProject(project.id))).includes('空间不足'), '迁移保存失败应明确提示');
-      } finally {
-        IDBObjectStore.prototype.put = originalPut;
-      }
-      assert(JSON.stringify(await readRecord('projects', project.id)) === JSON.stringify(project), '失败不得改变项目');
-      assert(JSON.stringify(await readRecord('plans', project.id)) === JSON.stringify(plan), '失败不得提前删除旧计划');
-      assert((await readDeck(current.id))?.schemaVersion === 1, '失败不得部分迁移 Current');
       const opened = await loadProject(project.id);
-      assert(
-        opened.project.checkpoint === 'deck-ready' &&
-          opened.project.currentDeckId === project.currentDeckId &&
-          opened.project.previousDeckId === project.previousDeckId &&
-          opened.project.paperId === project.paperId,
-        '成功后仍保留 deck-ready、偏好及两个指针',
-      );
-      assert(opened.deck?.id === current.id && opened.deck.revision === current.revision, 'Current 身份与版本保持');
-      assert((await readDeck(previous.id))?.revision === previous.revision, 'Previous 版本保持');
-      assert(!opened.plan && !opened.planRecord && !(await readRecord('plans', project.id)), '仅删除旧临时计划');
-      assert(JSON.stringify(await readRecord('papers', paper.id)) === JSON.stringify(paper), 'Paper 不变');
-      const asset = await readRecord<{ blob: Blob }>('assets', project.pdfAssetId);
-      assert((await asset?.blob.text()) === '%PDF-legacy', 'PDF 内容不变');
+      assert(opened.project.lastOpenedStep === 'outline-speech' && !opened.record, '旧计划不是可执行的新计划');
+      assert(JSON.stringify(await readRecord('plans', project.id)) === JSON.stringify(plan), '旧计划原样保留');
       const snapshot = JSON.stringify(opened);
-      assert(JSON.stringify(await loadProject(project.id)) === snapshot, '重复打开恢复结果保持一致');
+      assert(JSON.stringify(await loadProject(project.id)) === snapshot, '重复浏览稳定');
     } finally {
       await deleteProject(project.id);
     }
@@ -321,10 +253,7 @@ export async function runMigrationContracts() {
     });
     await seed({ project, paper, decks: [current] });
     try {
-      assert(
-        (await captureError(() => loadProject(project.id))).includes('上一版幻灯片数据缺失'),
-        '不能忽略失效 Previous 指针',
-      );
+      assert((await captureError(() => loadProject(project.id))).includes('稿件缺失'), '不能忽略失效 Previous 指针');
       assert(
         JSON.stringify(await readRecord('projects', project.id)) === JSON.stringify(project),
         '缺失失败不修改项目',
@@ -334,5 +263,5 @@ export async function runMigrationContracts() {
       await deleteProject(project.id);
     }
   }
-  return 'PASS: lazy migration current/previous/mixed/atomic failure recovery/future version zero write/plan replan fallback/plan migration/idempotent reopen/stable deck replan rollback/missing previous zero write';
+  return 'PASS: formal workspace legacy Current/Previous projection, invalid/future zero write, preserved old plans, idempotent browse, missing previous zero write';
 }

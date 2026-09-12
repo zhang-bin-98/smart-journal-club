@@ -1,6 +1,7 @@
-import { readableSlideCount } from '../../modules/deck/migrateDeck';
+import { migrateDeckV1, readableSlideCount } from '../../modules/presentation/editing/migrateDeck';
 import { getAnalysisProgress } from '../../modules/paper/analysisUnits';
-import { migratePaperV1, migrateProjectV1 } from '../../modules/paper/migration';
+import { migratePaperV1 } from '../../modules/paper/migration';
+import { migrateProjectV1 } from '../../modules/project/migration';
 import { type Paper, validatePaper } from '../../modules/paper/model';
 import {
   type PdfAsset,
@@ -12,7 +13,7 @@ import {
   type WorkspaceStep,
 } from '../../modules/project/model';
 import { ProjectSchema as LegacyProjectSchema } from '../../modules/project/project.schema';
-import { get, request, stores, transaction } from '../../shared/persistence/indexedDb';
+import { get, request, stores, transaction } from './indexedDb';
 
 export type OpenProject = { project: Project; paper: Paper; assets: Record<string, PdfAsset> };
 export type CreateProjectInput = {
@@ -57,7 +58,8 @@ export function openProject(projectId: string): Promise<OpenProject> {
       if (!deckId) continue;
       const deck = await get<{ id: string; paperId: string }>(tx, 'decks', deckId);
       if (!deck || deck.id !== deckId) throw new ProjectError('missing-deck', '已保存稿件缺失，现有项目保留。');
-      paperIds.add(deck.paperId);
+      const readable = migrateDeckV1(deck);
+      paperIds.add(readable.paperId);
     }
     const planPaperId = plan?.plan?.paperId ?? plan?.paperId;
     if (planPaperId) paperIds.add(planPaperId);

@@ -1,6 +1,6 @@
 import { settingsService } from '../src/app/composition';
 import { DEFAULT_SETTINGS } from '../src/app/settings/modelSettings';
-import { get, transaction } from '../src/shared/persistence/indexedDb';
+import { get, transaction } from '../src/infrastructure/persistence/indexedDb';
 
 const assert = (value: unknown, message: string) => {
   if (!value) throw new Error(message);

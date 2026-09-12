@@ -1,28 +1,29 @@
-import { organizeSpeech } from '../../src/app/workflows/organizeSpeech';
 import { describe, expect, it, vi } from 'vitest';
-import { speechBatches } from '../../src/app/presentation/speechBatches';
-import { speechContext } from '../../src/app/presentation/speechContext';
-import { speechFixture } from '../speech-fixture';
 import {
-  applyContentCommands,
-  paragraphText,
-  paragraphSources,
-  uncoveredClaims,
-} from '../../src/modules/presentation/content';
+  applySpeechProposal,
+  createSpeechAssistant,
+  validateSpeechScope,
+} from '../../src/app/assistant/speechAssistant';
+import type { createModelRequests } from '../../src/app/llm/requests';
 import { createOutlineSession } from '../../src/app/presentation/OutlineSession';
 import { assertGenerationBase } from '../../src/app/presentation/planRecord';
-import {
-  validateSpeechScope,
-  createSpeechAssistant,
-  applySpeechProposal,
-} from '../../src/app/assistant/speechAssistant';
-import { prepareOutline } from '../../src/app/workflows/prepareOutline';
+import type { SpeechSave, SpeechStore } from '../../src/app/presentation/ports';
+import { speechBatches } from '../../src/app/presentation/speechBatches';
+import { speechContext } from '../../src/app/presentation/speechContext';
 import { DEFAULT_SETTINGS } from '../../src/app/settings/modelSettings';
-import type { SpeechStore, SpeechSave } from '../../src/app/presentation/ports';
-import type { createModelRequests } from '../../src/app/llm/requests';
+import { organizeSpeech } from '../../src/app/workflows/organizeSpeech';
+import { normalizeGeneratedSpeech, prepareOutline } from '../../src/app/workflows/prepareOutline';
+import { prompts } from '../../src/infrastructure/llm/prompts';
+import {
+  applyContentCommands,
+  paragraphSources,
+  paragraphText,
+  uncoveredClaims,
+} from '../../src/modules/presentation/content';
+import { speechFixture } from '../speech-fixture';
 
 function harness() {
-  let data = speechFixture();
+  const data = speechFixture();
   let fail = false;
   let beforeSave: (() => Promise<void>) | undefined;
   const store: SpeechStore = {
@@ -59,6 +60,34 @@ function harness() {
   };
 }
 describe('M17 稳定讲述与证据', () => {
+  it('生成时修复双向登记但不改正文、引用、已有顺序或歧义归属', () => {
+    const original = speechFixture().target!.content;
+    const content = structuredClone(original);
+    const first = content.speechParagraphs[0];
+    first.segmentIds = ['unknown-source-id', ...first.segmentIds, ...content.speechParagraphs[1].segmentIds];
+    content.speechParagraphs[1].segmentIds = [first.segmentIds[1]];
+    const corrected = normalizeGeneratedSpeech(content) as typeof content;
+    expect(corrected.speech).toEqual(original.speech);
+    expect(corrected.speechParagraphs).toEqual(original.speechParagraphs);
+    expect(content.speechParagraphs).not.toEqual(original.speechParagraphs);
+    content.speech[0].paragraphId = 'missing-paragraph';
+    expect(normalizeGeneratedSpeech(content)).toBe(content);
+    const duplicate = structuredClone(original);
+    duplicate.speech.push(duplicate.speech[0]);
+    expect(normalizeGeneratedSpeech(duplicate)).toBe(duplicate);
+  });
+  it('短输入中的密集发现也拆批，保留全部发现及其证据而不按讲稿预算省略', () => {
+    const { paper } = speechFixture();
+    const original = paper.claims[0];
+    paper.claims = Array.from({ length: 33 }, (_, index) => ({ ...original, id: 'dense-' + index }));
+    const groups = speechBatches(paper);
+    expect(groups.every((group) => group.claims.length <= 16)).toBe(true);
+    expect(groups.flatMap((group) => group.claims)).toEqual(paper.claims);
+    for (const group of groups)
+      for (const claim of group.claims) {
+        expect(claim.evidenceIds.every((id) => group.evidences.some((evidence) => evidence.id === id))).toBe(true);
+      }
+  });
   it('重排章节和段落保留正文身份，多图引用可跨章节复用，删除只形成用户省略', () => {
     const { target, paper } = speechFixture();
     const content = target!.content;
@@ -167,6 +196,7 @@ describe('M17 应用唯一保存入口', () => {
       return '请查看差异。';
     });
     const args = {
+      prompts,
       session: h.session,
       scope: { type: 'paragraph' as const, id: 'paragraph-a' },
       mode: 'modify' as const,
@@ -220,6 +250,7 @@ describe('M17 生成仅到完整讲稿', () => {
       .mockResolvedValueOnce({ ...raw, speech: [] })
       .mockResolvedValueOnce(raw);
     await prepareOutline({
+      prompts,
       projectId: h.data().project.id,
       store: h.store,
       requests: { requestJson } as unknown as ReturnType<typeof createModelRequests>,
@@ -238,6 +269,7 @@ describe('M17 生成仅到完整讲稿', () => {
     const original = structuredClone(h.data());
     const requestJson = vi.fn().mockResolvedValue({ ...h.data().target!.content, speech: [] });
     const args = {
+      prompts,
       projectId: h.data().project.id,
       store: h.store,
       requests: { requestJson } as unknown as ReturnType<typeof createModelRequests>,
@@ -276,14 +308,14 @@ describe('M17 大论文自动分批', () => {
     paper.evidences = paper.evidences.map((evidence) => ({ ...evidence, sourceIds: [textSource.id] }));
     paper.claims = Array.from({ length: 96 }, (_, i) => ({
       ...originalClaim,
-      id: 'long-claim-' + i,
+      id: `long-claim-${i}`,
       text: originalClaim.text + '保留实验条件与证据。'.repeat(130),
     }));
     const originalBlock = paper.blocks[0];
     paper.blocks.push(
       ...Array.from({ length: 15 }, (_, i) => ({
         ...originalBlock,
-        id: 'unreferenced-' + i,
+        id: `unreferenced-${i}`,
         text: '全文尚未关联的实验描述。'.repeat(100),
       })),
     );
@@ -334,6 +366,7 @@ describe('M17 大论文自动分批', () => {
       },
     );
     const input = {
+      prompts,
       projectId: paper.projectId,
       store: h.store,
       requests: { requestJson } as unknown as ReturnType<typeof createModelRequests>,
@@ -382,6 +415,7 @@ describe('M17 全稿大纲整理', () => {
       .mockResolvedValueOnce({ ...valid, sections: valid.sections.slice(0, 1) })
       .mockResolvedValueOnce(valid);
     const input = {
+      prompts,
       content,
       paper: data.paper,
       settings: DEFAULT_SETTINGS,
@@ -390,6 +424,7 @@ describe('M17 全稿大纲整理', () => {
       assertActive() {},
     };
     const result = await organizeSpeech(input);
+    expect(requestJson.mock.calls.every(([request]) => request.data.language === content.language)).toBe(true);
     expect(requestJson).toHaveBeenCalledTimes(2);
     expect(result.speechParagraphs.map((p) => p.id)).toEqual([...content.speechParagraphs].reverse().map((p) => p.id));
     expect(result.speech).toEqual(content.speech);

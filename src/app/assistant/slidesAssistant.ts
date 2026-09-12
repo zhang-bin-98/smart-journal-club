@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ApplyRevisionArgsSchema, type Deck, type ApplyRevisionArgs } from '../../modules/deck/deck.schema';
+import { ApplyRevisionArgsSchema, type Deck, type ApplyRevisionArgs } from '../../modules/presentation/editing/schema';
 import { DeckSession } from '../presentation/DeckSession';
 import type { Paper } from '../../modules/paper/model';
 import type { ReadAgent } from '../paper/paperAssistant';
@@ -28,7 +28,7 @@ export function createSlidesAssistant(run: ReadAgent) {
     try {
       const capture = input.session.capture();
       const deck = structuredClone(input.session.current);
-      const ids = input.slideIds ?? deck.slides.map((s) => s.id);
+      const ids = [...(input.slideIds ?? deck.slides.map((s) => s.id))];
       if (ids.some((id) => !deck.slides.some((s) => s.id === id)) || (!ids.length && input.slideIds))
         throw new ContentError('missing-scope', '发送时所选页面不存在。');
       const allowed = new Set(ids);
@@ -64,6 +64,7 @@ export function createSlidesAssistant(run: ReadAgent) {
                   execute(raw) {
                     input.signal.throwIfAborted();
                     input.session.assertCapture(capture);
+                    if (proposal) throw new ContentError('duplicate-proposal', '一次请求只能形成一份修改候选。');
                     const args = ApplyRevisionArgsSchema.parse(raw);
                     if (input.slideIds) {
                       if (args.scope.type === 'deck')

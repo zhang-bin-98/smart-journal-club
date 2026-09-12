@@ -1,4 +1,4 @@
-import type { Deck } from '../../modules/deck/deck.schema';
+import type { Deck } from '../../modules/presentation/editing/schema';
 import type { Paper } from '../../modules/paper/model';
 
 export type FigureConsumer = { label: string; deck: Deck; paper: Paper };

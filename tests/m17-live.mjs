@@ -62,7 +62,7 @@ try {
           usage: completed?.response?.usage,
         });
         await writeFile('output/playwright/m17-real-calls.json', JSON.stringify(calls, null, 2));
-        console.log('M17:received response ' + input.sequence?.part + ' repair=' + !!input.diagnostics);
+        console.log(`M17:received response ${input.sequence?.part} repair=${!!input.diagnostics}`);
       } catch {
         /* A cancelled response has no complete result to inspect. */
       }
@@ -76,7 +76,7 @@ try {
   const id = await page.evaluate(
     async ({ prior, pdf, apiKey, manual }) => {
       const { createProject } = await import('/src/infrastructure/persistence/projectStore.ts');
-      const { transaction } = await import('/src/shared/persistence/indexedDb.ts');
+      const { transaction } = await import('/src/infrastructure/persistence/indexedDb.ts');
       const { settingsService } = await import('/src/app/composition.ts');
       const settings = {
         protocol: 'responses',
@@ -105,7 +105,7 @@ try {
         const target = paper.sources.find((s) => s.id === region.sourceId);
         if (target) target.bbox = manual.sources.find((s) => s.id === 'region-source').bbox;
         for (const panel of region.panels) {
-          const corrected = manual.sources.find((s) => s.id === panel.label + '-source');
+          const corrected = manual.sources.find((s) => s.id === `${panel.label}-source`);
           const source = paper.sources.find((s) => s.id === panel.sourceId);
           if (source && corrected) source.bbox = corrected.bbox;
         }
@@ -126,13 +126,13 @@ try {
     },
     { prior, pdf, apiKey, manual },
   );
-  await page.goto(base + '#/project/' + id);
+  await page.goto(`${base}#/project/${id}`);
   await page.reload();
   await page.getByRole('button', { name: '生成讲稿', exact: true }).waitFor();
   const batchSizes = await page.evaluate(async (id) => {
     const { speechBatches } = await import('/src/app/presentation/speechBatches.ts');
     const { speechContext } = await import('/src/app/presentation/speechContext.ts');
-    const { speechStore } = await import('/src/infrastructure/persistence/speechStore.ts');
+    const { speechStore } = await import('/src/app/composition.ts');
     const { paper } = await speechStore.open(id);
     return speechBatches(paper).map((batch) => ({
       claims: batch.claims.length,
@@ -150,7 +150,7 @@ try {
       if (input.stage === 'speech' && recorded) {
         const result = input.schema.parse(recorded.outputs[0].result);
         window.m17ReusedParts.push(part);
-        console.log('M17:reused recorded live response ' + part);
+        console.log(`M17:reused recorded live response ${part}`);
         return result;
       }
       return original(input);
@@ -172,7 +172,7 @@ try {
     () => {
       const stage = document.querySelector('nav[aria-label="项目步骤"]')?.innerText;
       if (stage !== window.m17LastStage) {
-        console.log('M17:' + stage);
+        console.log(`M17:${stage}`);
         window.m17LastStage = stage;
       }
       return document.querySelector('[aria-label="讲稿正文"]') || document.querySelector('[role="alert"]');
@@ -182,7 +182,7 @@ try {
   );
   await Promise.all(pendingResponses);
   const result = await page.evaluate(
-    async (id) => await (await import('/src/infrastructure/persistence/speechStore.ts')).speechStore.open(id),
+    async (id) => await (await import('/src/app/composition.ts')).speechStore.open(id),
     id,
   );
   const alert = await page.getByRole('alert').allTextContents();

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { slidesService, askSlides } from '../../app/composition';
 import type { SlidesWorkspace } from '../../app/presentation/slidesPorts';
 import type { DeckSession } from '../../app/presentation/DeckSession';
-import type { DeckMutation, Deck } from '../../modules/deck/deck.schema';
+import type { DeckMutation, Deck } from '../../modules/presentation/editing/schema';
 import type { FigureResources } from '../../app/paper/figureResources';
 import type { ModelSettings } from '../../app/settings/modelSettings';
 import type { SlidesProposal } from '../../app/assistant/slidesAssistant';
@@ -35,7 +35,7 @@ export function useSlidesController(input: {
   const ai = useRef<AbortController | undefined>(undefined);
   const lifetime = useRef(0);
   const resourceRef = useRef<FigureResources | undefined>(undefined);
-  const dirtyKey = 'slides:' + input.id;
+  const dirtyKey = `slides:${input.id}`;
   useEffect(() => {
     if (deck)
       setData((previous) =>

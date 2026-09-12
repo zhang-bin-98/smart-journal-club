@@ -36,7 +36,7 @@ try {
       const reusable = cached.find((call) => call.inputHash === hash(input) && call.result && !input.diagnostics);
       if (!reusable) return route.continue();
       calls.push({ ...reusable, reused: true });
-      console.log('M18:reused real response ' + input.section?.title);
+      console.log(`M18:reused real response ${input.section?.title}`);
       await route.fulfill({
         status: 200,
         contentType: 'text/event-stream',
@@ -84,7 +84,7 @@ try {
               usage: complete?.response?.usage,
             });
           await writeFile('output/playwright/m18-real-calls.json', JSON.stringify(calls, null, 2));
-          console.log('M18:received ' + input.section?.title + ' repair=' + !!input.diagnostics);
+          console.log(`M18:received ${input.section?.title} repair=${!!input.diagnostics}`);
         } catch {
           console.log('M18:response ended without complete output');
         }
@@ -95,8 +95,8 @@ try {
   const id = await page.evaluate(
     async ({ prior, pdf, apiKey }) => {
       const { createProject } = await import('/src/infrastructure/persistence/projectStore.ts');
-      const { transaction } = await import('/src/shared/persistence/indexedDb.ts');
-      const { speechStore } = await import('/src/infrastructure/persistence/speechStore.ts');
+      const { transaction } = await import('/src/infrastructure/persistence/indexedDb.ts');
+      const { speechStore } = await import('/src/app/composition.ts');
       const { settingsService } = await import('/src/app/composition.ts');
       await settingsService.save({
         protocol: 'responses',
@@ -152,14 +152,14 @@ try {
     },
     { prior, pdf, apiKey },
   );
-  await page.goto(base + '#/project/' + id);
+  await page.goto(`${base}#/project/${id}`);
   await page.reload();
   const start = Date.now();
   await page.getByRole('button', { name: '下一步：生成幻灯片', exact: true }).click();
   let lastStatus = '';
   for (let tick = 0; tick < 750; tick++) {
     const status = await page.evaluate(async (id) => {
-      const state = await (await import('/src/infrastructure/persistence/slidesStore.ts')).slidesStore.open(id);
+      const state = await (await import('/src/app/composition.ts')).slidesStore.open(id);
       return {
         ready: !!state.current,
         error: [...document.querySelectorAll('[role="alert"]')]
@@ -177,7 +177,7 @@ try {
     await new Promise((resolve) => setTimeout(resolve, 2000));
   }
   const state = await page.evaluate(
-    async (id) => await (await import('/src/infrastructure/persistence/slidesStore.ts')).slidesStore.open(id),
+    async (id) => await (await import('/src/app/composition.ts')).slidesStore.open(id),
     id,
   );
   const alert = await page.locator('[role="alert"]').allTextContents();
@@ -195,11 +195,11 @@ try {
   );
   await Promise.all(pending);
   await page.screenshot({ path: 'output/playwright/m18-real-workspace.png' });
-  assert.ok(state.current, 'Real generation incomplete: ' + alert.join('；'));
+  assert.ok(state.current, `Real generation incomplete: ${alert.join('；')}`);
   const download = page.waitForEvent('download', { timeout: 300000 });
   await page.getByRole('button', { name: '导出 PPTX', exact: true }).click();
   await (await download).saveAs('output/playwright/m18-real.pptx');
-  console.log('M18:real generation and export complete; slides=' + state.current.slides.length);
+  console.log(`M18:real generation and export complete; slides=${state.current.slides.length}`);
 } catch (error) {
   if (page) await page.screenshot({ path: 'output/playwright/m18-real-failure.png' }).catch(() => {});
   throw error;

@@ -1,11 +1,11 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
-import type { Deck, Slide, Element } from '../../modules/deck/deck.schema';
+import type { Deck, Slide, Element } from '../../modules/presentation/editing/schema';
 import type { Paper } from '../../modules/paper/model';
 import type { FigureResources } from '../../app/paper/figureResources';
 import { computeLayout } from '../../modules/presentation/layout/computeLayout';
 import { imageAspect } from '../../modules/presentation/layout/figureGeometry';
 import { figureSource, sourceText, sourceIdsExcludingPages } from '../../modules/paper/sources';
-import { Editable, position, type Editing } from '../editor/SlidePreview';
+import { Editable, position, type Editing } from './SlidePreview';
 function FigureCanvas({
   paper,
   element,
@@ -93,7 +93,7 @@ export const SlideCanvas = memo(function SlideCanvas({
       <div
         style={{
           ...position(layout.title),
-          fontSize: layout.titleText.fontSize / 9.6 + 'cqw',
+          fontSize: `${layout.titleText.fontSize / 9.6}cqw`,
           lineHeight: layout.titleText.lineHeight,
         }}
         className="overflow-hidden font-bold"
@@ -103,7 +103,7 @@ export const SlideCanvas = memo(function SlideCanvas({
       {layout.message && (
         <div
           className="overflow-hidden text-muted"
-          style={{ ...position(layout.message), fontSize: layout.messageText.fontSize / 9.6 + 'cqw' }}
+          style={{ ...position(layout.message), fontSize: `${layout.messageText.fontSize / 9.6}cqw` }}
         >
           <Editable value={slide.message ?? ''} editKey="message" label="幻灯片说明" editing={editing} />
         </div>
@@ -116,10 +116,8 @@ export const SlideCanvas = memo(function SlideCanvas({
             event.stopPropagation();
             onSelect?.(element.id);
           }}
-          className={
-            'overflow-hidden ' + (selectedElement === element.id ? 'outline-2 outline-offset-2 outline-accent' : '')
-          }
-          style={{ ...position(rect), fontSize: text.fontSize / 9.6 + 'cqw', lineHeight: text.lineHeight }}
+          className={`overflow-hidden ${selectedElement === element.id ? 'outline-2 outline-offset-2 outline-accent' : ''}`}
+          style={{ ...position(rect), fontSize: `${text.fontSize / 9.6}cqw`, lineHeight: text.lineHeight }}
         >
           {element.type === 'figure' ? (
             <button tabIndex={thumbnail ? -1 : 0} className="block size-full" aria-label="选择 Figure">

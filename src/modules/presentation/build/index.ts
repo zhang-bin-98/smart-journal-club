@@ -1,5 +1,5 @@
-import { DeckSchema, type Deck } from '../../deck/deck.schema';
-import { validateDeck } from '../../deck/validateDeck';
+import { DeckSchema, type Deck } from '../editing/schema';
+import { validateDeck } from '../editing/validateDeck';
 import { type SpeechPlan, SpeechPlanSchema } from '../planning';
 import type { Paper } from '../../paper/model';
 import { ContentError, contentOf, validateContent, validateSpeechAssignments } from '../content';
@@ -33,7 +33,7 @@ export function buildPresentation(input: SpeechPlan, paper: Paper, id: string, n
       elements: [
         ...figures.map((figure) => ({ ...figure, type: 'figure' as const })),
         ...(!figures.length && slide.message
-          ? [{ id: slide.id + '-body', type: 'text' as const, text: slide.message }]
+          ? [{ id: `${slide.id}-body`, type: 'text' as const, text: slide.message }]
           : []),
       ],
       message: figures.length ? slide.message : '',

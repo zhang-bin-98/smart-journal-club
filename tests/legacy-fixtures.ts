@@ -1,7 +1,7 @@
 // v1 fixture 按 M9.1 之前的真实持久化形状构造（deck.schema/outline.schema/tests/fixtures @ fab3c06），
 // 不是“当前 v2 删几个字段”；字段集合与当时 stored() 读取契约一致。
-import type { LegacyDeckV1 } from '../src/modules/deck/migrateDeck';
-import type { LegacyDeckPlanV1 } from '../src/modules/outline/migrateDeckPlan';
+import type { LegacyDeckV1 } from '../src/modules/presentation/editing/migrateDeck';
+import type { LegacyDeckPlanV1 } from '../src/modules/presentation/legacy/migrateDeckPlan';
 import type { Project } from '../src/modules/project/project.schema';
 import { fixturePaper, fixtureSource } from './fixtures';
 

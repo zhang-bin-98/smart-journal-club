@@ -1,28 +1,53 @@
 import { z } from 'zod';
 import {
-  ContentSchema,
-  SpeechSegmentSchema,
-  OmissionSchema,
   type Content,
-  contentOf,
-  validateContent,
-  uncoveredClaims,
   ContentError,
+  ContentSchema,
+  contentOf,
+  OmissionSchema,
+  SpeechSegmentSchema,
+  uncoveredClaims,
+  validateContent,
 } from '../../modules/presentation/content';
 import { SpeechPlanSchema } from '../../modules/presentation/planning';
-import type { SpeechStore, SpeechWorkspace } from '../presentation/ports';
-import type { ModelSettings } from '../settings/modelSettings';
 import type { Preferences } from '../../modules/project/model';
-import type { createModelRequests } from '../llm/requests';
-import { ModelOutputError } from '../llm/modelError';
-import { prompts, researchPrompt } from '../../shared/llm/prompts';
 import { beginActivity } from '../activity';
-import { speechBatches, combineSpeech } from '../presentation/speechBatches';
-import { organizeSpeech } from './organizeSpeech';
+import { ModelOutputError } from '../llm/modelError';
+import { type PromptCatalog, researchPrompt } from '../llm/promptCatalog';
+import type { createModelRequests } from '../llm/requests';
+import type { SpeechStore, SpeechWorkspace } from '../presentation/ports';
+import { combineSpeech, speechBatches } from '../presentation/speechBatches';
 import { speechContext } from '../presentation/speechContext';
+import type { ModelSettings } from '../settings/modelSettings';
+import { organizeSpeech } from './organizeSpeech';
+
+/** 生成结果以片段的明确归属补齐有序登记，不改正文、引用或段落归属；歧义身份仍交校验拒绝。 */
+export function normalizeGeneratedSpeech(input: unknown): unknown {
+  const parsed = ContentSchema.safeParse(input);
+  if (!parsed.success) return input;
+  const content = parsed.data;
+  const paragraphs = new Set(content.speechParagraphs.map((paragraph) => paragraph.id));
+  const segments = new Map(content.speech.map((segment) => [segment.id, segment]));
+  if (
+    paragraphs.size !== content.speechParagraphs.length ||
+    segments.size !== content.speech.length ||
+    content.speech.some((segment) => !paragraphs.has(segment.paragraphId))
+  )
+    return input;
+  for (const paragraph of content.speechParagraphs) {
+    const declared = paragraph.segmentIds.filter((id) => segments.get(id)?.paragraphId === paragraph.id);
+    paragraph.segmentIds = [
+      ...new Set([
+        ...declared,
+        ...content.speech.filter((segment) => segment.paragraphId === paragraph.id).map((segment) => segment.id),
+      ]),
+    ];
+  }
+  return content;
+}
 
 export function assignSpeechIds(input: unknown, data: SpeechWorkspace) {
-  const content = validateContent(input, data.paper);
+  const content = validateContent(normalizeGeneratedSpeech(input), data.paper);
   const missing = uncoveredClaims(content, data.paper).filter(
     (claim) => !content.omissions.some((o) => o.claimId === claim.id),
   );
@@ -66,6 +91,7 @@ export async function prepareOutline(input: {
   projectId: string;
   store: SpeechStore;
   requests: ReturnType<typeof createModelRequests>;
+  prompts: PromptCatalog;
   settings: ModelSettings;
   preferences?: Preferences;
   signal: AbortSignal;
@@ -89,13 +115,13 @@ export async function prepareOutline(input: {
       throw new ContentError('review-required', '请先确认图源切分并完成必要证据关联。');
     if (!paper.claims.length) throw new ContentError('no-findings', '论文尚无可生成讲述的发现，请先完成论文分析。');
     const preferences = structuredClone(input.preferences ?? data.project.preferences);
-    const strategy = researchPrompt(preferences.strategyId).strategy;
+    const strategy = researchPrompt(input.prompts, preferences.strategyId).strategy;
     preferences.strategyId = strategy.id;
     input.signal.throwIfAborted();
     input.assertActive();
     input.onStage?.('正在准备原句、图注与图证据');
 
-    const systemPrompt = [prompts.common, strategy.body, prompts.stages.speech].join('\n\n');
+    const systemPrompt = [input.prompts.common, strategy.body, input.prompts.stages.speech].join('\n\n');
     const batches = speechBatches(paper);
     const parts: Content[] = [];
     const background = batches
@@ -198,6 +224,7 @@ export async function prepareOutline(input: {
     let combined = combineSpeech(parts);
     if (batches.length > 1)
       combined = await organizeSpeech({
+        prompts: input.prompts,
         content: combined,
         paper,
         background,

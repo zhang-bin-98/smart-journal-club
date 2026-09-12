@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { fixtureDeck } from '../fixtures';
-import { applyMutation, createSlide } from '../../src/modules/deck/mutations';
-import type { DeckMutation } from '../../src/modules/deck/deck.schema';
+import { applyMutation, createSlide } from '../../src/modules/presentation/editing/mutations';
+import type { DeckMutation } from '../../src/modules/presentation/editing/schema';
 
 const clone = <T>(value: T): T => structuredClone(value);
 const apply = (deck: typeof fixtureDeck, mutation: DeckMutation) => applyMutation(deck, mutation);

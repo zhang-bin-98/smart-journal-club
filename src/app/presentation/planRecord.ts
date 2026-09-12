@@ -45,3 +45,9 @@ export function assertGenerationBase(
   )
     throw new ContentError('stale-base', '论文、切分、项目偏好或当前稿已变化，请重新生成讲稿。');
 }
+
+/** 持久化适配器只依赖类型；应用装配纯校验，事务内重复校验基准。 */
+export type PlanRecordContracts = {
+  parsePlanRecord: (value: unknown) => PlanRecord;
+  assertGenerationBase: typeof assertGenerationBase;
+};

@@ -1,8 +1,8 @@
-import type { Deck } from '../../modules/deck/deck.schema';
-import { computeLayout } from '../../modules/deck/layout/computeLayout';
-import { validateDeck } from '../../modules/deck/validateDeck';
-import type { NarrativeIssue } from '../../modules/outline/narrativeRules';
-import { validateDeckNarrative } from '../../modules/outline/validateNarrative';
+import type { Deck } from '../../modules/presentation/editing/schema';
+import { computeLayout } from '../../modules/presentation/layout/computeLayout';
+import { validateDeck } from '../../modules/presentation/editing/validateDeck';
+import type { NarrativeIssue } from '../../modules/presentation/legacy/narrativeRules';
+import { validateDeckNarrative } from '../../modules/presentation/legacy/validateNarrative';
 import type { Paper as LegacyPaper } from '../../modules/paper/paper.schema';
 import type { Paper as CurrentPaper } from '../../modules/paper/model';
 import { toLegacyPaper } from '../../modules/paper/migration';
@@ -156,7 +156,7 @@ export function checkPresentation(deck: Deck, paper: Paper, resourceAvailable: b
         code: 'coverage-change',
         severity: 'warning',
         category: 'narrative',
-        message: '有 ' + missing.length + ' 项论文发现尚未在讲稿中表达，可回到大纲核对。',
+        message: `有 ${missing.length} 项论文发现尚未在讲稿中表达，可回到大纲核对。`,
       });
     if (deck.omissions?.length)
       contentWarnings.push({

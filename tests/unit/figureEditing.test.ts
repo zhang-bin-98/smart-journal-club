@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { fixturePaper } from '../fixtures';
 import { legacyProject } from '../legacy-fixtures';
-import { migratePaperV1, migrateProjectV1 } from '../../src/modules/paper/migration';
+import { migratePaperV1 } from '../../src/modules/paper/migration';
+import { migrateProjectV1 } from '../../src/modules/project/migration';
 import { applyFigureCommand, figureContent, resolveFigureDestination } from '../../src/modules/paper/figureEditing';
 import { createFigureSession } from '../../src/app/paper/figureSession';
 import { refineFigurePixels } from '../../src/modules/paper/figurePixels';

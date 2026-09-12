@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { Paper } from '../../modules/paper/model';
-import type { Element } from '../../modules/deck/deck.schema';
+import type { Element } from '../../modules/presentation/editing/schema';
 import type { FigureResources } from '../../app/paper/figureResources';
 import { BoxEditor, CropPreview } from '../paper/BoxEditor';
 import { Button } from '../controls';

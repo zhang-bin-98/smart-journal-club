@@ -1,48 +1,62 @@
+import { planSlides } from '../../src/app/workflows/planSlides';
+import { DEFAULT_SETTINGS } from '../../src/app/settings/modelSettings';
+import { prompts } from '../../src/infrastructure/llm/prompts';
+import type { createModelRequests } from '../../src/app/llm/requests';
+import { fixtureDeck, fixturePaper } from '../fixtures';
 import { describe, it, expect, vi } from 'vitest';
 import { paginateSpeech, assertPlanningContent } from '../../src/modules/presentation/planning/paginateSpeech';
 import { exportPresentation } from '../../src/app/presentation/exportPresentation';
 import type { SlidesWorkspace } from '../../src/app/presentation/slidesPorts';
-import { speechFixture } from '../speech-fixture';
-import { SpeechPlanSchema } from '../../src/modules/presentation/planning';
+import { slidesFixture as fixture } from '../speech-fixture';
 import { buildPresentation, assertBuiltPlan } from '../../src/modules/presentation/build';
 import { groupPreset, groupRects, groupLeaves, rankGroups } from '../../src/modules/presentation/layout';
 import { computeLayout } from '../../src/modules/presentation/layout/computeLayout';
 import { DeckSession } from '../../src/app/presentation/DeckSession';
-import { splitSlide, mergeSlides, assignSpeech } from '../../src/modules/presentation/editing';
+import { splitSlide, mergeSlides, assignSpeech, moveSlideBy } from '../../src/modules/presentation/editing';
 import { checkPresentation } from '../../src/app/presentation/checkPresentation';
-import { validateDeck } from '../../src/modules/deck/validateDeck';
+import { validateDeck } from '../../src/modules/presentation/editing/validateDeck';
 import { createSlidesAssistant } from '../../src/app/assistant/slidesAssistant';
-function fixture() {
-  const state = speechFixture();
-  const content = state.target!.content;
-  const plan = SpeechPlanSchema.parse({
-    ...content,
-    schemaVersion: 3,
-    id: 'plan',
-    paperId: state.paper.id,
-    paperRevision: state.paper.revision,
-    revision: 1,
-    status: 'ready',
-    createdAt: 1,
-    updatedAt: 1,
-    slides: content.speech.map((s, index) => ({
-      id: 'slide-' + index,
-      sectionId: content.speechParagraphs.find((p) => p.id === s.paragraphId)!.sectionId,
-      kind: 'result',
-      title: '研究发现',
-      purpose: '解释',
-      message: '',
-      layoutId: 'figure-full',
-      speechIds: [s.id],
-      claimIds: s.claimIds,
-      sourceIds: s.sourceIds,
-      figures: [{ id: 'image-' + index, figureId: 'fig-3' }],
-      figureGroup: groupPreset(['image-' + index], 'row'),
-    })),
-  });
-  return { state, plan, deck: buildPresentation(plan, state.paper, 'deck', 1) };
-}
 describe('M18 构建、图组与讲述提交', () => {
+  it('页面规划每批及修复沿用已保存讲稿语言，不被章节或配置语言覆盖', async () => {
+    const { state, plan } = fixture();
+    plan.language = 'en';
+    const requestJson = vi
+      .fn()
+      .mockResolvedValueOnce({ slides: [] })
+      .mockImplementation(async ({ data }) => ({
+        slides: [
+          {
+            title: 'Observed result',
+            purpose: 'Explain the result',
+            message: 'The evidence supports this observation.',
+            kind: 'result',
+            speechIndexes: data.speech.map((_: unknown, index: number) => index),
+            sourceIndexes: [],
+          },
+        ],
+      }));
+    const result = await planSlides({
+      record: {
+        recordVersion: 2,
+        projectId: state.project.id,
+        stage: 'outline-ready',
+        mode: 'initial',
+        base: state.base,
+        generationPreferences: { instruction: '', language: 'zh' },
+        plan: { ...plan, status: 'draft', slides: [] },
+      },
+      paper: state.paper,
+      settings: DEFAULT_SETTINGS,
+      prompts,
+      requests: { requestJson } as unknown as ReturnType<typeof createModelRequests>,
+      signal: new AbortController().signal,
+      assertActive() {},
+    });
+    expect(requestJson).toHaveBeenCalledTimes(3);
+    expect(requestJson.mock.calls.every(([request]) => request.data.language === 'en')).toBe(true);
+    expect(result.plan.language).toBe('en');
+    expect(result.plan.speech).toEqual(plan.speech);
+  });
   it('自动分页保留每个字符和段落身份，拒绝讲稿改写', () => {
     const { plan } = fixture();
     plan.speech[0].text = '完整句子含标点，保留科学限定。\n'.repeat(30);
@@ -202,7 +216,7 @@ describe('M18 构建、图组与讲述提交', () => {
   it('AI 只读无提案工具，局部页面不能借讲稿修改越权', async () => {
     const { deck, state } = fixture();
     const session = new DeckSession(deck, state.paper);
-    const run = vi.fn(async (input: any) => {
+    const run = vi.fn(async (input: Parameters<Parameters<typeof createSlidesAssistant>[0]>[0]) => {
       expect(input.tools).toEqual([]);
       return '回答';
     });
@@ -244,5 +258,26 @@ describe('M18 构建、图组与讲述提交', () => {
         onText() {},
       }),
     ).rejects.toThrow('授权');
+  });
+});
+
+describe('旧稿与讲述稿的页面移动', () => {
+  it('旧稿跨章节上下移动可保存和撤销，新稿只改页序而不改讲述归属', async () => {
+    const old = new DeckSession(fixtureDeck, fixturePaper);
+    await old.commit({ type: 'deck' }, moveSlideBy(old.current, 'slide-1', 1), '下移');
+    expect(old.current.slides.map((s) => s.id)).toEqual(['slide-2', 'slide-1', 'slide-3']);
+    expect(old.current.slides[1].sectionId).toBe(fixtureDeck.slides[1].sectionId);
+    await old.commit({ type: 'deck' }, moveSlideBy(old.current, 'slide-1', -1), '上移');
+    expect(old.current.slides[0].id).toBe('slide-1');
+    await old.undo();
+    await old.undo();
+    expect(old.current.slides).toEqual(fixtureDeck.slides);
+    const { state, deck } = fixture();
+    const current = new DeckSession(deck, state.paper);
+    const first = deck.slides[0];
+    await current.commit({ type: 'deck' }, moveSlideBy(deck, first.id, 1), '下移');
+    expect(current.current.slides[1].sectionId).toBe(first.sectionId);
+    expect(current.current.speechParagraphs).toEqual(deck.speechParagraphs);
+    expect(current.current.speech).toEqual(deck.speech);
   });
 });

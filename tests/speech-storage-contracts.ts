@@ -1,9 +1,9 @@
 import { fixtureDeck } from './fixtures';
-import { speechStore } from '../src/infrastructure/persistence/speechStore';
+import { speechStore } from '../src/app/composition';
 import { saveRequirements, createProject, openProject } from '../src/infrastructure/persistence/projectStore';
 import { createOutlineSession } from '../src/app/presentation/OutlineSession';
-import { transaction, get } from '../src/shared/persistence/indexedDb';
-import { loadProject } from '../src/modules/project/projectRepository';
+import { transaction, get } from '../src/infrastructure/persistence/indexedDb';
+import { slidesStore } from '../src/app/composition';
 import { notesText } from '../src/modules/presentation/content';
 import { DeckSession } from '../src/app/presentation/DeckSession';
 function canonical(value: unknown): string {
@@ -90,7 +90,7 @@ export async function runSpeechStorageContracts(id: string) {
   const planBefore = await transaction(['plans'], 'readonly', async (tx) => JSON.stringify(await get(tx, 'plans', id)));
   const content = (await speechStore.open(id)).target!.content;
   const deck = structuredClone(fixtureDeck);
-  deck.id = 'm17-current-' + id;
+  deck.id = `m17-current-${id}`;
   deck.paperId = initial.paper.id;
   deck.sections = deck.sections.map((section) => ({ ...section, track: 'main' }));
   deck.speechParagraphs = content.speechParagraphs.map((p) => ({ ...p, sectionId: deck.sections[0].id }));
@@ -132,9 +132,9 @@ export async function runSpeechStorageContracts(id: string) {
   await session.redo();
   check(session.snapshot().data!.target!.assignments![deck.slides[0].id].length === 0, '讲述重做未清除分配');
   await session.undo();
-  const legacy = await loadProject(id);
-  check(legacy.deck?.id === deck.id, '旧编辑器不能读取扩展讲稿');
-  const editing = new DeckSession(legacy.deck!, legacy.paper);
+  const legacy = await slidesStore.open(id);
+  check(legacy.current?.id === deck.id, '幻灯片工作台不能读取扩展讲稿');
+  const editing = new DeckSession(legacy.current!, legacy.paper);
   await editing.commit(
     { type: 'deck' },
     [{ type: 'delete-slide', slideId: editing.current.slides[0].id }],

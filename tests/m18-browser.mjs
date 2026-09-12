@@ -75,14 +75,14 @@ try {
     }
     await route.fulfill({ status: 200, contentType: 'text/event-stream', body: responsesEvent(delta) });
   });
-  await page.goto(base + '#/project/' + id);
+  await page.goto(`${base}#/project/${id}`);
   await page.reload();
   await page.getByRole('button', { name: '下一步：生成幻灯片', exact: true }).click();
   await page.getByRole('button', { name: '导出 PPTX', exact: true }).waitFor();
   await page.getByText('完整幻灯片已保存', { exact: true }).first().waitFor({ timeout: 30000 });
   assert.equal(calls, 2);
   const saved = await page.evaluate(
-    async (id) => (await (await import('/src/infrastructure/persistence/slidesStore.ts')).slidesStore.open(id)).current,
+    async (id) => (await (await import('/src/app/composition.ts')).slidesStore.open(id)).current,
     id,
   );
   assert.equal(saved.slides.length, 2);
@@ -114,6 +114,7 @@ try {
   await page.waitForFunction(() => document.querySelector('[aria-label="图间距"]')?.value === '12');
   assert.equal(await gap.inputValue(), '12');
   await page.getByRole('button', { name: '重做', exact: true }).click();
+  await page.waitForFunction(() => document.querySelector('[aria-label="图间距"]')?.value === '18');
   const separator = page.getByRole('separator', { name: '图组分隔线根', exact: true });
   await separator.focus();
   await separator.press('ArrowRight');
@@ -127,7 +128,7 @@ try {
   await page.getByRole('button', { name: '从光标 / 本段前换页', exact: true }).click();
   await page.getByRole('button', { name: '打开第 3 页', exact: true }).waitFor();
   const afterSplit = await page.evaluate(
-    async (id) => (await (await import('/src/infrastructure/persistence/slidesStore.ts')).slidesStore.open(id)).current,
+    async (id) => (await (await import('/src/app/composition.ts')).slidesStore.open(id)).current,
     id,
   );
   assert.equal(afterSplit.speechParagraphs[0].id, saved.speechParagraphs[0].id);
@@ -151,7 +152,7 @@ try {
   await page.getByRole('dialog', { name: '原文与图源', exact: true }).waitFor();
   await page.getByRole('button', { name: '关闭来源', exact: true }).click();
   const beforeCrop = await page.evaluate(
-    async (id) => await (await import('/src/infrastructure/persistence/slidesStore.ts')).slidesStore.open(id),
+    async (id) => await (await import('/src/app/composition.ts')).slidesStore.open(id),
     id,
   );
   await page.getByRole('button', { name: '本页裁图', exact: true }).click();
@@ -163,7 +164,7 @@ try {
   await dialog.getByRole('button', { name: '保存本页裁图', exact: true }).click();
   await dialog.waitFor({ state: 'hidden' });
   const afterCrop = await page.evaluate(
-    async (id) => await (await import('/src/infrastructure/persistence/slidesStore.ts')).slidesStore.open(id),
+    async (id) => await (await import('/src/app/composition.ts')).slidesStore.open(id),
     id,
   );
   assert.equal(afterCrop.current.revision, beforeCrop.current.revision + 1);
@@ -185,7 +186,7 @@ try {
   page.off('download', countBlocked);
   await page.getByRole('button', { name: '撤销', exact: true }).click();
   const exportSnapshot = await page.evaluate(
-    async (id) => await (await import('/src/infrastructure/persistence/slidesStore.ts')).slidesStore.open(id),
+    async (id) => await (await import('/src/app/composition.ts')).slidesStore.open(id),
     id,
   );
   await writeFile(
@@ -204,13 +205,13 @@ try {
     JSON.stringify({ id, calls, errors, slides: afterSplit.slides.length }, null, 2),
   );
   const beforeBrowse = await page.evaluate(
-    async (id) => await (await import('/src/infrastructure/persistence/slidesStore.ts')).slidesStore.open(id),
+    async (id) => await (await import('/src/app/composition.ts')).slidesStore.open(id),
     id,
   );
   await page.getByRole('button', { name: '3 大纲与演讲稿', exact: true }).click();
   await page.getByRole('button', { name: '查看已有幻灯片', exact: true }).waitFor();
   const backwards = await page.evaluate(
-    async (id) => await (await import('/src/infrastructure/persistence/slidesStore.ts')).slidesStore.open(id),
+    async (id) => await (await import('/src/app/composition.ts')).slidesStore.open(id),
     id,
   );
   assert.equal(backwards.project.lastOpenedStep, 'outline-speech');
@@ -235,7 +236,7 @@ try {
   await page.getByRole('button', { name: '关闭来源', exact: true }).click();
   await versionDialog.getByRole('button', { name: '返回当前稿', exact: true }).click();
   const prefs = await page.evaluate(async (id) => {
-    const { slidesStore } = await import('/src/infrastructure/persistence/slidesStore.ts');
+    const { slidesStore } = await import('/src/app/composition.ts');
     const { saveRequirements } = await import('/src/infrastructure/persistence/projectStore.ts');
     const s = await slidesStore.open(id);
     await saveRequirements(id, { ...s.project.preferences, instruction: 'stale UI' });
@@ -254,7 +255,7 @@ try {
   await versionDialog.getByRole('button', { name: '应用完整新稿', exact: true }).click();
   await versionDialog.waitFor({ state: 'hidden' });
   const applied = await page.evaluate(
-    async (id) => await (await import('/src/infrastructure/persistence/slidesStore.ts')).slidesStore.open(id),
+    async (id) => await (await import('/src/app/composition.ts')).slidesStore.open(id),
     id,
   );
   assert.equal(applied.current.id, storage.candidateForUi);
@@ -266,7 +267,7 @@ try {
     .click();
   await page.getByRole('dialog', { name: '上一版', exact: true }).waitFor({ state: 'hidden' });
   const restored = await page.evaluate(
-    async (id) => await (await import('/src/infrastructure/persistence/slidesStore.ts')).slidesStore.open(id),
+    async (id) => await (await import('/src/app/composition.ts')).slidesStore.open(id),
     id,
   );
   assert.equal(restored.current.id, storage.currentForUi);

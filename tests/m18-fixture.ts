@@ -1,8 +1,8 @@
 import { createM16Fixture } from './m16-fixture';
 import { speechFixture } from './speech-fixture';
-import { get, transaction } from '../src/shared/persistence/indexedDb';
+import { get, transaction } from '../src/infrastructure/persistence/indexedDb';
 import { openProject, openStep } from '../src/infrastructure/persistence/projectStore';
-import { speechStore } from '../src/infrastructure/persistence/speechStore';
+import { speechStore } from '../src/app/composition';
 import { SpeechPlanSchema } from '../src/modules/presentation/planning';
 import type { Paper } from '../src/modules/paper/model';
 export async function createM18Fixture(blob: Blob) {
@@ -29,12 +29,12 @@ export async function createM18Fixture(blob: Blob) {
     for (const [index, label] of ['B', 'C'].entries()) {
       const source = {
         ...base,
-        id: 'm18-source-' + label,
+        id: `m18-source-${label}`,
         documentId: index === 1 ? paper.documents[1].id : base.documentId,
         bbox: { x: 0.1, y: 0.1, width: index === 0 ? 0.7 : 0.25, height: index === 0 ? 0.25 : 0.75 },
       };
       paper.sources.push(source);
-      if (index === 0) region.panels.push({ id: 'm18-panel-' + label, label, sourceId: source.id });
+      if (index === 0) region.panels.push({ id: `m18-panel-${label}`, label, sourceId: source.id });
       else figure.regions.push({ id: 'm18-supplement-region', sourceId: source.id, panels: [] });
     }
     tx.objectStore('papers').put(paper, paper.id);
@@ -56,7 +56,7 @@ export async function createM18Fixture(blob: Blob) {
       plan: SpeechPlanSchema.parse({
         ...content,
         schemaVersion: 3,
-        id: 'm18-plan-' + id,
+        id: `m18-plan-${id}`,
         paperId: data.paper.id,
         paperRevision: data.paper.revision,
         revision: 0,

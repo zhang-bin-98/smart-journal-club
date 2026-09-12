@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { narrativePaper, narrativePlan } from '../narrative-fixture';
-import { assembleDeck } from '../../src/modules/generation/buildDeck';
-import { validateBuiltDeckAgainstPlan } from '../../src/modules/generation/validateBuiltDeckAgainstPlan';
+import { assembleDeck } from '../../src/modules/presentation/legacy/buildDeck';
+import { validateBuiltDeckAgainstPlan } from '../../src/modules/presentation/legacy/validateBuiltDeckAgainstPlan';
 
 describe('build contract', () => {
   it('合法构建结果通过且逐字段失配可定位', () => {

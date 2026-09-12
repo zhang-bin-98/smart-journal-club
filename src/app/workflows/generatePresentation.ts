@@ -1,3 +1,4 @@
+import type { PromptCatalog } from '../llm/promptCatalog';
 import { buildPresentation } from '../../modules/presentation/build';
 import { ContentError } from '../../modules/presentation/content';
 import type { SlidesStore, SlidesGuard } from '../presentation/slidesPorts';
@@ -12,6 +13,7 @@ export async function generatePresentation(
     projectId: string;
     store: SlidesStore;
     requests: ReturnType<typeof createModelRequests>;
+    prompts: PromptCatalog;
     settings: ModelSettings;
     onStage?: (stage: string) => void;
   },

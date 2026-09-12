@@ -1,8 +1,10 @@
+import { prompts } from '../../src/infrastructure/llm/prompts';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createAnalysisService } from '../../src/app/paper/analysisService';
 import type { AnalysisProject, AnalysisStore, PaperResource } from '../../src/app/paper/ports';
 import { DEFAULT_SETTINGS } from '../../src/app/settings/modelSettings';
-import { migratePaperV1, migrateProjectV1 } from '../../src/modules/paper/migration';
+import { migratePaperV1 } from '../../src/modules/paper/migration';
+import { migrateProjectV1 } from '../../src/modules/project/migration';
 import { fixturePaper } from '../fixtures';
 import { legacyProject } from '../legacy-fixtures';
 
@@ -46,7 +48,12 @@ function setup() {
     preview: async () => 'fixture-preview',
     dispose: disposed,
   });
-  const service = createAnalysisService(store, createResource, {} as Parameters<typeof createAnalysisService>[2]);
+  const service = createAnalysisService(
+    store,
+    createResource,
+    {} as Parameters<typeof createAnalysisService>[2],
+    prompts,
+  );
   const fill = async (prefix: string, count = 10) => {
     for (let index = 0; index < count; index++) await service.session(`${prefix}-${index}`).load();
   };

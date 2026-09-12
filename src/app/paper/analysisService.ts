@@ -1,3 +1,4 @@
+import type { PromptCatalog } from '../llm/promptCatalog';
 import { getAnalysisProgress, PaperAnalysisError, selectionImpact } from '../../modules/paper/analysisUnits';
 import { beginActivity } from '../activity';
 import type { createModelRequests } from '../llm/requests';
@@ -20,6 +21,7 @@ export function createAnalysisService(
   store: AnalysisStore,
   createResource: ResourceFactory,
   requests: ReturnType<typeof createModelRequests>,
+  prompts: PromptCatalog,
 ) {
   const sessions = new Map<string, ReturnType<typeof createSession>>();
   const observers = new Set<() => void>();
@@ -104,6 +106,7 @@ export function createAnalysisService(
       runPromise = (async () => {
         try {
           const data = await preparePaper({
+            prompts,
             projectId,
             settings: configuration,
             store,

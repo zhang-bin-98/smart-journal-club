@@ -1,4 +1,4 @@
-import { DEFAULT_SETTINGS } from '../src/app/settings/modelSettings';
+import { slidesStore } from '../src/app/composition';
 import { commitUnit, ensureWorkingPaper, setPageSelection } from '../src/infrastructure/persistence/paperStore';
 import {
   createProject,
@@ -7,15 +7,9 @@ import {
   openProject,
   openStep,
 } from '../src/infrastructure/persistence/projectStore';
-import { loadHistory, saveConversation } from '../src/modules/assistant/conversationRepository';
-import { captureVersion, restorePrevious } from '../src/modules/deck/deckRepository';
-import { discardCandidate } from '../src/modules/generation/candidateRepository';
-import { preparePaper as prepareLegacyPaper } from '../src/modules/generation/runGeneration';
 import { getUnitInputKey } from '../src/modules/paper/analysisUnits';
 import type { Paper } from '../src/modules/paper/model';
-import { loadProject, updateProject } from '../src/modules/project/projectRepository';
-import type { PdfResource } from '../src/shared/pdf/pdfResource';
-import { get, transaction } from '../src/shared/persistence/indexedDb';
+import { get, transaction } from '../src/infrastructure/persistence/indexedDb';
 import { fixtureDeck, fixturePaper } from './fixtures';
 import { legacyProject } from './legacy-fixtures';
 import { narrativePlan } from './narrative-fixture';
@@ -221,78 +215,69 @@ export async function runM15PersistenceContracts() {
       signal: new AbortController().signal,
     });
     assert(repaired.paper.evidences[0].sourceIds[0] === replacement.id, '迁移后本页证据无法续跑补全');
-    const legacyOpened = await loadProject(oldId);
-    assert(legacyOpened.paper.id === current.paperId, '旧稿打开使用了工作底稿');
-    assert(legacyOpened.legacyGenerationAllowed === false, '升级后的旧稿仍启用了单文件生成入口');
-    let accessedLegacyResource = false;
-    let legacyErrorCode = '';
-    const forbiddenResource = new Proxy({} as PdfResource, {
-      get() {
-        accessedLegacyResource = true;
-        throw new Error('legacy resource accessed');
-      },
-    });
-    try {
-      await prepareLegacyPaper(
-        { ...legacyOpened, project: { ...legacyOpened.project, checkpoint: 'project-created' } },
-        forbiddenResource,
-        DEFAULT_SETTINGS,
-        new AbortController().signal,
-      );
-    } catch (cause) {
-      legacyErrorCode = (cause as { code?: string }).code ?? '';
-    }
-    assert(
-      legacyErrorCode === 'legacy-generation-disabled' && !accessedLegacyResource,
-      'v2 项目必须在读取旧资源或模型调用前拒绝旧流程',
-    );
-    assert((await read<{ schemaVersion: number }>('projects', oldId))?.schemaVersion === 2, '旧流程降写了升级项目');
+    const currentView = await slidesStore.open(oldId);
+    assert(currentView.paper.id === current.paperId, '当前稿打开使用了工作底稿');
+    assert(currentView.current?.speech === undefined, '旧稿不能伪造讲稿');
     const savedPlan = { ...narrativePlan(), paperId: oldPaper.id, id: crypto.randomUUID() };
-    await transaction(['plans'], 'readwrite', async (tx) => {
-      tx.objectStore('plans').put(
-        {
-          recordVersion: 1,
-          projectId: oldId,
-          mode: 'regeneration',
-          plan: savedPlan,
-          preferences: legacy.preferences,
-          base: {
-            current: { deckId: current.id, revision: current.revision },
-            previous: { deckId: previous.id, revision: previous.revision },
-          },
-        },
-        oldId,
-      );
-    });
-    const restored = await restorePrevious(captureVersion(legacyOpened.project, legacyOpened.deck!));
-    assert(restored.deck.id === previous.id, '旧稿恢复失败');
-    assert((await read<{ schemaVersion: number }>('projects', oldId))?.schemaVersion === 2, '旧稿恢复降写项目版本');
-    assert((await openProject(oldId)).project.paperId === working.paper.id, '旧稿恢复覆盖了工作底稿');
-    const restoredView = await loadProject(oldId);
-    assert(
-      restoredView.paper.id === previousPaper.id && restoredView.paper.metadata.title === 'previous evidence binding',
-      '恢复上一版没有读取其自己的证据',
-    );
-    assert(
-      restoredView.candidateStale && restoredView.planPaper?.id === oldPaper.id,
-      '旧计划不能阻断已恢复稿件或混用其论文依据',
-    );
-    await discardCandidate(oldId, savedPlan.id, savedPlan.revision);
-    assert(!(await loadProject(oldId)).plan, '升级项目的旧计划无法显式放弃');
-    await updateProject(oldId, { lastOpenedSlideId: restored.deck.slides[1].id });
-    await saveConversation(oldId, [
-      {
-        id: crypto.randomUUID(),
-        projectId: oldId,
-        deckId: restored.deck.id,
-        baseRevision: restored.deck.revision,
-        role: 'user',
-        text: 'fixture history',
-        createdAt: Date.now(),
+    const oldRecord = {
+      recordVersion: 1,
+      projectId: oldId,
+      mode: 'regeneration',
+      plan: savedPlan,
+      preferences: legacy.preferences,
+      base: {
+        current: { deckId: current.id, revision: current.revision },
+        previous: { deckId: previous.id, revision: previous.revision },
       },
-    ]);
-    assert((await loadHistory(oldId)).length === 1, '升级项目的旧稿对话历史不可用');
-    assert((await read<{ schemaVersion: number }>('projects', oldId))?.schemaVersion === 2, '旧稿位置保存降写项目');
+    };
+    const message = {
+      id: crypto.randomUUID(),
+      projectId: oldId,
+      deckId: current.id,
+      baseRevision: current.revision,
+      role: 'user',
+      text: 'fixture history',
+      createdAt: Date.now(),
+    };
+    await transaction(['plans', 'history'], 'readwrite', async (tx) => {
+      tx.objectStore('plans').put(oldRecord, oldId);
+      tx.objectStore('history').put(message, message.id);
+    });
+    const restored = await slidesStore.restore({
+      projectId: oldId,
+      currentId: current.id,
+      previousId: previous.id,
+      currentRevision: current.revision,
+      previousRevision: previous.revision,
+      assertActive() {},
+    });
+    assert(restored.current?.id === previous.id, '旧稿恢复失败');
+    assert((await read<{ schemaVersion: number }>('projects', oldId))?.schemaVersion === 2, '旧稿恢复降写项目版本');
+    assert((await openProject(oldId)).project.paperId === working.paper.id, '恢复覆盖工作底稿');
+    assert(
+      restored.paper.id === previousPaper.id && restored.paper.metadata.title === 'previous evidence binding',
+      '上一版没有读取自己的证据',
+    );
+    assert(
+      !restored.record && restored.planKey === JSON.stringify(oldRecord),
+      '不能将历史页面计划伪装为新讲稿或清空原记录',
+    );
+    await rejects(
+      () =>
+        slidesStore.restore({
+          projectId: oldId,
+          currentId: current.id,
+          previousId: previous.id,
+          currentRevision: current.revision,
+          previousRevision: previous.revision,
+          assertActive() {},
+        }),
+      '旧恢复请求不能再次应用',
+    );
+    await slidesStore.rememberSlide(oldId, previous.id, previous.slides[1].id);
+    const history = await transaction(['history'], 'readonly', (tx) => get(tx, 'history', message.id));
+    assert(JSON.stringify(history) === JSON.stringify(message), '恢复或浏览丢失历史对话');
+    assert((await read<{ schemaVersion: number }>('projects', oldId))?.schemaVersion === 2, '位置保存降写项目');
 
     const sharedProject = legacyProject({
       id: crypto.randomUUID(),

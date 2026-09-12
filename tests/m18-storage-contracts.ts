@@ -1,12 +1,13 @@
-import { slidesStore } from '../src/infrastructure/persistence/slidesStore';
-import { speechStore } from '../src/infrastructure/persistence/speechStore';
+import { prompts } from '../src/infrastructure/llm/prompts';
+import { slidesStore } from '../src/app/composition';
+import { speechStore } from '../src/app/composition';
 import { generatePresentation } from '../src/app/workflows/generatePresentation';
 import { buildPresentation } from '../src/modules/presentation/build';
 import { SpeechPlanSchema } from '../src/modules/presentation/planning';
 import { contentOf } from '../src/modules/presentation/content';
 import { ensureWorkingPaper } from '../src/infrastructure/persistence/paperStore';
 import { saveRequirements } from '../src/infrastructure/persistence/projectStore';
-import { get, transaction } from '../src/shared/persistence/indexedDb';
+import { get, transaction } from '../src/infrastructure/persistence/indexedDb';
 import type { createModelRequests } from '../src/app/llm/requests';
 const assert = (value: unknown, message: string) => {
   if (!value) throw new Error(message);
@@ -86,6 +87,7 @@ export async function verifySlidesStorage(projectId: string) {
   }
   await outline();
   let state = await generatePresentation({
+    prompts,
     projectId,
     store: slidesStore,
     requests,
@@ -104,6 +106,7 @@ export async function verifySlidesStorage(projectId: string) {
   // A second generation fails after planning, before any candidate write.
   await rejects(() =>
     generatePresentation({
+      prompts,
       projectId,
       requests,
       settings,
@@ -138,7 +141,15 @@ export async function verifySlidesStorage(projectId: string) {
     }),
   );
   assert((await slidesStore.open(projectId)).candidate!.id === first, 'Rollback did not retain candidate');
-  state = await generatePresentation({ projectId, store: slidesStore, requests, settings, signal, assertActive() {} });
+  state = await generatePresentation({
+    prompts,
+    projectId,
+    store: slidesStore,
+    requests,
+    settings,
+    signal,
+    assertActive() {},
+  });
   const second = state.candidate!.id;
   assert(second !== first, 'New successful candidate did not replace slot');
   assert(
@@ -159,7 +170,15 @@ export async function verifySlidesStorage(projectId: string) {
     'Successful apply did not commit actual generation preferences',
   );
   await outline();
-  state = await generatePresentation({ projectId, store: slidesStore, requests, settings, signal, assertActive() {} });
+  state = await generatePresentation({
+    prompts,
+    projectId,
+    store: slidesStore,
+    requests,
+    settings,
+    signal,
+    assertActive() {},
+  });
   const staleId = state.candidate!.id;
   await saveRequirements(projectId, { ...state.project.preferences, instruction: 'changed while candidate waiting' });
   state = await slidesStore.open(projectId);
@@ -185,7 +204,15 @@ export async function verifySlidesStorage(projectId: string) {
   );
   assert(!!(await slidesStore.open(projectId)).current, 'Discard erased current');
   await outline();
-  state = await generatePresentation({ projectId, store: slidesStore, requests, settings, signal, assertActive() {} });
+  state = await generatePresentation({
+    prompts,
+    projectId,
+    store: slidesStore,
+    requests,
+    settings,
+    signal,
+    assertActive() {},
+  });
   return {
     candidateForUi: state.candidate!.id,
     currentForUi: state.current!.id,

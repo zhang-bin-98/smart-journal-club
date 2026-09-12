@@ -1,6 +1,7 @@
 import { fixturePaper } from './fixtures';
 import { legacyProject } from './legacy-fixtures';
-import { migratePaperV1, migrateProjectV1 } from '../src/modules/paper/migration';
+import { migratePaperV1 } from '../src/modules/paper/migration';
+import { migrateProjectV1 } from '../src/modules/project/migration';
 import type { Content } from '../src/modules/presentation/content';
 import type { SpeechWorkspace } from '../src/app/presentation/ports';
 export function speechFixture(): SpeechWorkspace {
@@ -52,4 +53,38 @@ export function speechFixture(): SpeechWorkspace {
     planKey: '',
     target: { kind: 'plan', id: 'plan', revision: 0, content },
   };
+}
+
+import { SpeechPlanSchema } from '../src/modules/presentation/planning';
+import { buildPresentation } from '../src/modules/presentation/build';
+import { groupPreset } from '../src/modules/presentation/layout';
+export function slidesFixture() {
+  const state = speechFixture();
+  const content = state.target!.content;
+  const plan = SpeechPlanSchema.parse({
+    ...content,
+    schemaVersion: 3,
+    id: 'plan',
+    paperId: state.paper.id,
+    paperRevision: state.paper.revision,
+    revision: 1,
+    status: 'ready',
+    createdAt: 1,
+    updatedAt: 1,
+    slides: content.speech.map((s, index) => ({
+      id: `slide-${index}`,
+      sectionId: content.speechParagraphs.find((p) => p.id === s.paragraphId)!.sectionId,
+      kind: 'result',
+      title: '研究发现',
+      purpose: '解释',
+      message: '',
+      layoutId: 'figure-full',
+      speechIds: [s.id],
+      claimIds: s.claimIds,
+      sourceIds: s.sourceIds,
+      figures: [{ id: `image-${index}`, figureId: 'fig-3' }],
+      figureGroup: groupPreset([`image-${index}`], 'row'),
+    })),
+  });
+  return { state, plan, deck: buildPresentation(plan, state.paper, 'deck', 1) };
 }

@@ -2,15 +2,15 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { RegisterLeaveGuard } from '../../app/activity';
 import type { ModelSettings } from '../../app/settings/modelSettings';
 import type { WorkspaceStep } from '../../modules/project/model';
-import type { Element, DeckMutation, Deck } from '../../modules/deck/deck.schema';
+import type { Element, DeckMutation } from '../../modules/presentation/editing/schema';
 import { slidesService } from '../../app/composition';
-import { createSlide } from '../../modules/deck/mutations';
-import { splitSlide, mergeSlides } from '../../modules/presentation/editing';
+import { createSlide } from '../../modules/presentation/editing/mutations';
+import { splitSlide, mergeSlides, moveSlideBy } from '../../modules/presentation/editing';
 import { checkPresentation } from '../../app/presentation/checkPresentation';
 import { figureSource } from '../../modules/paper/sources';
 import { Button, Brand, inputClass } from '../controls';
 import { WorkspaceDivider } from '../paper/PagePreview';
-import type { Editing } from '../editor/SlidePreview';
+import type { Editing } from './SlidePreview';
 import { SlideCanvas, VisibleSlide, slideTextMutation } from './SlideCanvas';
 import { SlidesInspector } from './SlidesInspector';
 import { SlidesSource } from './SlidesSource';
@@ -88,10 +88,10 @@ export function SlidesPage({
   const selectedSlide =
     deck?.slides.find((s) => s.id === (selected ?? data?.project.lastOpenedSlideId)) ?? deck?.slides[0];
   const selectedId = selectedSlide?.id;
-  const groupDraft = selectedId ? c.drafts['group:' + selectedId] : undefined;
+  const groupDraft = selectedId ? c.drafts[`group:${selectedId}`] : undefined;
   const slide = useMemo(() => {
     const group = groupDraft && FigureGroupSchema.safeParse(JSON.parse(groupDraft.value));
-    return selectedSlide && group && group.success ? { ...selectedSlide, figureGroup: group.data } : selectedSlide;
+    return selectedSlide && group?.success ? { ...selectedSlide, figureGroup: group.data } : selectedSlide;
   }, [selectedSlide, groupDraft]);
   const check = useMemo(() => (deck && data ? checkPresentation(deck, data.paper, true) : undefined), [deck, data]);
   useEffect(() => {
@@ -104,7 +104,7 @@ export function SlidesPage({
   }
   function jump(value: string) {
     select(value);
-    document.getElementById('slide-' + value)?.scrollIntoView({ block: 'center' });
+    document.getElementById(`slide-${value}`)?.scrollIntoView({ block: 'center' });
   }
   const act = (work: () => Promise<unknown>) => void c.act(work);
   const commit = (mutations: DeckMutation[], summary: string) => act(() => c.commit(mutations, summary));
@@ -133,14 +133,14 @@ export function SlidesPage({
   const sourceElement = slide?.elements.find((e) => e.id === elementId);
   const currentSpeech = (slide?.speechIds ?? []).flatMap((id) => deck?.speech?.find((s) => s.id === id) ?? []);
   const editing = (pageId: string): Editing => ({
-    hasDraft: (key) => !!c.drafts[pageId + ':' + key],
+    hasDraft: (key) => !!c.drafts[`${pageId}:${key}`],
     onDraft: (draft) => {
       if (deck && !draft.composing && draft.value === draft.original) return;
-      c.changedDraft(pageId + ':' + draft.key, draft.value, slideTextMutation(deck!, pageId, draft.key, draft.value));
+      c.changedDraft(`${pageId}:${draft.key}`, draft.value, slideTextMutation(deck!, pageId, draft.key, draft.value));
     },
     onBlur: () => act(c.flush),
     onSave: async (key, value) => {
-      c.changedDraft(pageId + ':' + key, value, slideTextMutation(deck!, pageId, key, value));
+      c.changedDraft(`${pageId}:${key}`, value, slideTextMutation(deck!, pageId, key, value));
       await c.flush();
     },
   });
@@ -284,7 +284,7 @@ export function SlidesPage({
                               {
                                 type: 'move-slide',
                                 slideId: drag,
-                                targetSectionId: moved.sectionId,
+                                targetSectionId: deck.schemaVersion === 3 ? moved.sectionId : page.sectionId,
                                 afterSlideId: page.id,
                               },
                             ],
@@ -300,7 +300,7 @@ export function SlidesPage({
                     >
                       <div className="flex items-center gap-2 px-1 py-1 text-xs">
                         <input
-                          aria-label={'选择第 ' + (index + 1) + ' 页'}
+                          aria-label={`选择第 ${index + 1} 页`}
                           type="checkbox"
                           checked={multi.includes(page.id)}
                           onChange={(e) =>
@@ -315,7 +315,7 @@ export function SlidesPage({
                         <VisibleSlide slide={page} paper={data.paper} resources={c.resources} />
                         <button
                           className="absolute inset-0"
-                          aria-label={'打开第 ' + (index + 1) + ' 页'}
+                          aria-label={`打开第 ${index + 1} 页`}
                           onClick={() => jump(page.id)}
                         />
                       </div>
@@ -391,11 +391,11 @@ export function SlidesPage({
                 </p>
               </div>
             ) : (
-              <div className="mx-auto space-y-5" style={{ width: focus ? (fitWidth * zoom) / 100 : zoom + '%' }}>
+              <div className="mx-auto space-y-5" style={{ width: focus ? (fitWidth * zoom) / 100 : `${zoom}%` }}>
                 {(focus ? [selectedSlide!] : deck.slides).map((page) => (
                   <section
                     key={page.id}
-                    id={'slide-' + page.id}
+                    id={`slide-${page.id}`}
                     data-canvas-page={page.id}
                     onClick={() => select(page.id)}
                     onFocus={() => select(page.id)}
@@ -435,38 +435,12 @@ export function SlidesPage({
               <Button
                 disabled={deck.slides.indexOf(selectedSlide!) === 0}
                 onClick={() => {
-                  const at = deck.slides.indexOf(selectedSlide!);
-                  commit(
-                    [
-                      {
-                        type: 'move-slide',
-                        slideId: slide.id,
-                        targetSectionId: slide.sectionId,
-                        afterSlideId: deck.slides[at - 2]?.id ?? null,
-                      },
-                    ],
-                    '上移页面',
-                  );
+                  commit(moveSlideBy(deck, slide.id, -1), '上移页面');
                 }}
               >
                 上移
               </Button>
-              <Button
-                disabled={!next}
-                onClick={() =>
-                  commit(
-                    [
-                      {
-                        type: 'move-slide',
-                        slideId: slide.id,
-                        targetSectionId: slide.sectionId,
-                        afterSlideId: next!.id,
-                      },
-                    ],
-                    '下移页面',
-                  )
-                }
-              >
+              <Button disabled={!next} onClick={() => commit(moveSlideBy(deck, slide.id, 1), '下移页面')}>
                 下移
               </Button>
               <Button
@@ -527,7 +501,7 @@ export function SlidesPage({
                   <Button
                     onClick={() => {
                       if (currentSpeech[0])
-                        sessionStorage.setItem('smartjc-speech-focus:' + id, currentSpeech[0].paragraphId);
+                        sessionStorage.setItem(`smartjc-speech-focus:${id}`, currentSpeech[0].paragraphId);
                       onStep('outline-speech');
                     }}
                   >
@@ -546,14 +520,14 @@ export function SlidesPage({
                   {currentSpeech.map((segment, index) => (
                     <div key={segment.id}>
                       <textarea
-                        aria-label={'本页讲稿 ' + (index + 1)}
-                        className={inputClass + ' min-h-20 resize-none'}
-                        value={c.value('speech:' + segment.id, segment.text)}
+                        aria-label={`本页讲稿 ${index + 1}`}
+                        className={`${inputClass} min-h-20 resize-none`}
+                        value={c.value(`speech:${segment.id}`, segment.text)}
                         onSelect={(e) => {
                           caret.current = { id: segment.id, offset: e.currentTarget.selectionStart };
                         }}
                         onChange={(e) =>
-                          c.changedDraft('speech:' + segment.id, e.target.value, {
+                          c.changedDraft(`speech:${segment.id}`, e.target.value, {
                             type: 'edit-speech',
                             segmentId: segment.id,
                             text: e.target.value,
@@ -599,11 +573,11 @@ export function SlidesPage({
                 ['layout', '图组'],
                 ['speech', '讲述分配'],
                 ['ai', 'AI'],
-                ['check', '检查' + (check?.errors.length ? ' ' + check.errors.length : '')],
+                ['check', `检查${check?.errors.length ? ` ${check.errors.length}` : ''}`],
               ].map(([key, name]) => (
                 <button
                   key={key}
-                  className={'rounded px-2 py-2 text-xs ' + (key === tab ? 'bg-accent/10 text-accent' : '')}
+                  className={`rounded px-2 py-2 text-xs ${key === tab ? 'bg-accent/10 text-accent' : ''}`}
                   onClick={() => setTab(key)}
                 >
                   {name}
@@ -690,7 +664,7 @@ export function SlidesPage({
                     onSource={openSource}
                     changeGroup={(group) => {
                       if (slide)
-                        c.changedDraft('group:' + slide.id, JSON.stringify(group), {
+                        c.changedDraft(`group:${slide.id}`, JSON.stringify(group), {
                           type: 'update-slide',
                           slideId: slide.id,
                           changes: { figureGroup: group },
@@ -699,7 +673,7 @@ export function SlidesPage({
                     saveGroup={() => act(c.flush)}
                     onSpeech={() => {
                       if (currentSpeech[0])
-                        sessionStorage.setItem('smartjc-speech-focus:' + id, currentSpeech[0].paragraphId);
+                        sessionStorage.setItem(`smartjc-speech-focus:${id}`, currentSpeech[0].paragraphId);
                       onStep('outline-speech');
                     }}
                   />
@@ -749,7 +723,7 @@ export function SlidesPage({
             <textarea
               aria-label="幻灯片 AI 输入"
               rows={2}
-              className={inputClass + ' max-h-28 flex-1 resize-none'}
+              className={`${inputClass} max-h-28 flex-1 resize-none`}
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
             />

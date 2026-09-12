@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { narrativePaper, narrativePlan, paperWithoutDesign, paperWithSecondClaim } from '../narrative-fixture';
-import { validatePlanNarrative } from '../../src/modules/outline/validateNarrative';
-import type { NarrativeIssue } from '../../src/modules/outline/narrativeRules';
-import type { DeckPlan } from '../../src/modules/outline/outline.schema';
+import { validatePlanNarrative } from '../../src/modules/presentation/legacy/validateNarrative';
+import type { NarrativeIssue } from '../../src/modules/presentation/legacy/narrativeRules';
+import type { DeckPlan } from '../../src/modules/presentation/legacy/outline.schema';
 import type { Paper } from '../../src/modules/paper/paper.schema';
 
 const validate = (plan: DeckPlan, paper: Paper = narrativePaper()) => validatePlanNarrative(plan, paper);

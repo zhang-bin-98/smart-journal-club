@@ -1,3 +1,4 @@
+import { prompts } from '../../src/infrastructure/llm/prompts';
 import { describe, expect, it, vi } from 'vitest';
 import { AnalysisUnitError, preparePaper, type AnalysisEvent } from '../../src/app/workflows/preparePaper';
 import type { AnalysisProject, AnalysisStore, UnitCommit, PaperResource } from '../../src/app/paper/ports';
@@ -192,6 +193,7 @@ function fixture(pageCount = 1) {
   };
   const run = (signal = new AbortController().signal, onProgress: (event: AnalysisEvent) => void = () => {}) =>
     preparePaper({
+      prompts,
       projectId: 'project',
       settings: DEFAULT_SETTINGS,
       store,

@@ -1,8 +1,8 @@
 import pptxgen from 'pptxgenjs';
 import { notesText } from '../../modules/presentation/content';
 import { computeLayout } from '../../modules/presentation/layout/computeLayout';
-import { validateDeck } from '../../modules/deck/validateDeck';
-import type { Deck, Element } from '../../modules/deck/deck.schema';
+import { validateDeck } from '../../modules/presentation/editing/validateDeck';
+import type { Deck, Element } from '../../modules/presentation/editing/schema';
 import type { Paper as LegacyPaper } from '../../modules/paper/paper.schema';
 import type { Paper as CurrentPaper } from '../../modules/paper/model';
 import { imageAspect } from '../../modules/presentation/layout/figureGeometry';

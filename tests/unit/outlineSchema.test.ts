@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { fixturePaper } from '../fixtures';
-import { DeckPlanSchema } from '../../src/modules/outline/outline.schema';
+import { DeckPlanSchema } from '../../src/modules/presentation/legacy/outline.schema';
 
 const base = {
   schemaVersion: 2,

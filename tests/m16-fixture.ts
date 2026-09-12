@@ -3,7 +3,7 @@ import { legacyProject } from './legacy-fixtures';
 import { migratePaperV1 } from '../src/modules/paper/migration';
 import { getUnitInputKey, unitId } from '../src/modules/paper/analysisUnits';
 import { createProject } from '../src/infrastructure/persistence/projectStore';
-import { transaction } from '../src/shared/persistence/indexedDb';
+import { transaction } from '../src/infrastructure/persistence/indexedDb';
 export async function createM16Fixture(blob: Blob) {
   const data = await createProject({
     primary: new File([blob], 'main.pdf', { type: 'application/pdf' }),

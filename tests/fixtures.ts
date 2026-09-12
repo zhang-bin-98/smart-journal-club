@@ -1,5 +1,5 @@
 import type { BBox } from '../src/shared/schema';
-import type { Deck } from '../src/modules/deck/deck.schema';
+import type { Deck } from '../src/modules/presentation/editing/schema';
 import type { Paper } from '../src/modules/paper/paper.schema';
 export const fixtureSource = {
   id: 'source-fig-3',

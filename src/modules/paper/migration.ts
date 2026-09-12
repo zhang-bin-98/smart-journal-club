@@ -1,10 +1,8 @@
-import { type Project, ProjectSchema } from '../project/model';
-import { type Project as LegacyProject, ProjectSchema as LegacyProjectSchema } from '../project/project.schema';
 import { type Paper, validatePaper } from './model';
 import { type Paper as LegacyPaper, PaperSchema as LegacyPaperSchema } from './paper.schema';
 
 /** 由已有身份稳定派生，迁移失败重试与旧稿共享文件保持相同映射。 */
-export function migratePaperV1(value: unknown, project: LegacyProject, fileName: string): Paper {
+export function migratePaperV1(value: unknown, project: { id: string; pdfAssetId: string }, fileName: string): Paper {
   if (value && typeof value === 'object' && 'schemaVersion' in value && value.schemaVersion === 2)
     return validatePaper(value);
   const old = LegacyPaperSchema.parse(value);
@@ -52,17 +50,6 @@ export function migratePaperV1(value: unknown, project: LegacyProject, fileName:
   });
 }
 
-export function migrateProjectV1(value: unknown, hasPlan = false): Project {
-  if (value && typeof value === 'object' && 'schemaVersion' in value && value.schemaVersion === 2)
-    return ProjectSchema.parse(value);
-  const { pdfAssetId: _asset, ...old } = LegacyProjectSchema.parse(value);
-  return ProjectSchema.parse({
-    ...old,
-    schemaVersion: 2,
-    lastOpenedStep: old.currentDeckId ? 'slides' : hasPlan ? 'outline-speech' : 'paper-analysis',
-  });
-}
-
 /** 旧幻灯片功能的只读投影；调用方禁止将投影写回底稿。 */
 export function toLegacyPaper(paper: Paper): LegacyPaper {
   return LegacyPaperSchema.parse({
@@ -87,15 +74,5 @@ export function toLegacyPaper(paper: Paper): LegacyPaper {
     evidences: paper.evidences,
     studyProfile: paper.studyProfile,
     story: paper.story,
-  });
-}
-
-export function toLegacyProject(project: Project, paper: Paper): LegacyProject {
-  const { lastOpenedStep: _step, candidate: _candidate, ...rest } = project;
-  return LegacyProjectSchema.parse({
-    ...rest,
-    schemaVersion: 1,
-    checkpoint: project.checkpoint === 'outline-ready' ? 'deck-plan-ready' : project.checkpoint,
-    pdfAssetId: paper.documents.find((item) => item.role === 'primary')?.pdfAssetId,
   });
 }

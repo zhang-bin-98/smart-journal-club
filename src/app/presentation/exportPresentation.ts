@@ -1,5 +1,5 @@
 import type { SlidesStore } from './slidesPorts';
-import type { Deck } from '../../modules/deck/deck.schema';
+import type { Deck } from '../../modules/presentation/editing/schema';
 import type { Paper } from '../../modules/paper/model';
 import type { PdfAsset } from '../../modules/project/model';
 import { checkPresentation } from './checkPresentation';

@@ -1,4 +1,4 @@
-import type { AssistantMessage } from '@earendil-works/pi-ai';
+type AssistantMessage = Awaited<ReturnType<ModelAdapter['request']>>;
 import type { ModelAdapter, ModelRequest } from '../llm/ports';
 import { normalizeSettings, SettingsError, type ModelSettings } from './modelSettings';
 import { ModelError } from '../llm/modelError';

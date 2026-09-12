@@ -1,5 +1,5 @@
 import { Agent } from '@earendil-works/pi-agent-core';
-import { createAssistantStream } from '../../app/llm/assistantStream';
+import { createAssistantStream } from './assistantStream';
 import type { ModelAdapter } from '../../app/llm/ports';
 
 import type { ReadAgent } from '../../app/paper/paperAssistant';

@@ -6,10 +6,9 @@ import { beginActivity, isAppIdle, setDirty, subscribeActivity, type LeaveGuard 
 import { errorMessage } from '../ui/controls';
 import { PwaNotice } from '../ui/PwaNotice';
 import { SettingsPage } from '../ui/settings/SettingsPage';
-const ProjectPage = lazy(() =>
+const ProjectWorkspace = lazy(() =>
   import('../ui/project/ProjectWorkspace').then((module) => ({ default: module.ProjectWorkspace })),
 );
-const FixturePage = import.meta.env.DEV ? lazy(() => import('../ui/FixturePage')) : undefined;
 export function App() {
   const [hash, setHash] = useState(location.hash);
   const [settings, setSettings] = useState<ModelSettings>(DEFAULT_SETTINGS);
@@ -145,10 +144,8 @@ export function App() {
         }
       >
         <div hidden={showSettings} inert={showSettings}>
-          {hash === '#/fixture' && FixturePage ? (
-            <FixturePage />
-          ) : projectId ? (
-            <ProjectPage
+          {projectId ? (
+            <ProjectWorkspace
               key={projectId}
               id={decodeURIComponent(projectId)}
               onOpenProject={(id) => {

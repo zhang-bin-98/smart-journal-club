@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { fixtureDeck, fixturePaper } from '../fixtures';
-import { DeckSession } from '../../src/modules/deck/DeckSession';
-import { createSlide } from '../../src/modules/deck/mutations';
-import type { ApplyRevisionArgs } from '../../src/modules/deck/deck.schema';
+import { DeckSession } from '../../src/app/presentation/DeckSession';
+import { createSlide } from '../../src/modules/presentation/editing/mutations';
+import type { ApplyRevisionArgs } from '../../src/modules/presentation/editing/schema';
 
 const clone = <T>(value: T): T => structuredClone(value);
 const session = () => new DeckSession(clone(fixtureDeck), fixturePaper);

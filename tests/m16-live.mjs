@@ -39,7 +39,7 @@ try {
         const { FigurePageSchema } = await import('/src/modules/paper/figureOutput.ts');
         const { LocalPanelsSchema } = await import('/src/app/paper/recognizeFigure.ts');
         const { toPageBox } = await import('/src/modules/paper/figureGeometry.ts');
-        const { prompts } = await import('/src/shared/llm/prompts.ts');
+        const { prompts } = await import('/src/infrastructure/llm/prompts.ts');
         const blob = new Blob([Uint8Array.from(atob(pdf), (char) => char.charCodeAt(0))], { type: 'application/pdf' });
         const resource = createAnalysisResource(blob);
         const pdfResource = new PdfResource(blob);

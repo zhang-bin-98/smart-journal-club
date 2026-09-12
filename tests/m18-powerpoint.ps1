@@ -1,7 +1,8 @@
 param(
   [string]$DeckPath = 'output/playwright/m18-real.pptx',
   [string]$SnapshotPath = 'output/playwright/m18-real-presentation.json',
-  [string]$OutputPrefix = 'output/playwright/m18-powerpoint'
+  [string]$OutputPrefix = 'output/playwright/m18-powerpoint',
+  [int[]]$AdditionalSlides = @()
 )
 $ErrorActionPreference = 'Stop'
 $payload = Get-Content -LiteralPath $SnapshotPath -Raw | ConvertFrom-Json
@@ -21,6 +22,7 @@ $editable = 0
 $notesMatched = 0
 $samples = [System.Collections.Generic.HashSet[int]]::new()
 [void]$samples.Add(1)
+foreach ($index in $AdditionalSlides) { [void]$samples.Add($index) }
 $seenFigures = [System.Collections.Generic.HashSet[string]]::new()
 try {
   $presentation = $app.Presentations.Open($fullDeckPath, 0, 0, 0)
@@ -81,7 +83,7 @@ try {
   $report = @{slides=$deck.slides.Count;nativeTextShapes=$editable;independentImages=$images;notesMatched=$notesMatched;textEditSavedAndReopened=$editVerified;imagesProportionate=($issues.Count -eq 0);issues=@($issues.ToArray());textOverflows=@($overflows.ToArray());sampleSlides=@($samples)}
   $report | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath "$outputPath.json" -Encoding utf8
   $report | Select-Object slides,nativeTextShapes,independentImages,notesMatched,textEditSavedAndReopened,imagesProportionate | ConvertTo-Json
-  if ($issues.Count -or !$editVerified) { throw 'PowerPoint audit failed; inspect the local report.' }
+  if ($issues.Count -or $overflows.Count -or !$editVerified) { throw 'PowerPoint audit failed; inspect the local report.' }
 } finally {
   if ($presentation) { $presentation.Close() }
   if ($copy) { $copy.Close() }

@@ -1,7 +1,7 @@
 // 叙事校验基础 fixture：一篇合法的组学研究叙事（开场→背景+问题页→设计→结果×7→局限→综合→结论）。
 // 结果页恰好占总页数一半、背景一页、各章有过渡，基础结构不产生任何 error 或 warning。
-import type { Deck, SectionKind, SlideKind } from '../src/modules/deck/deck.schema';
-import type { DeckPlan } from '../src/modules/outline/outline.schema';
+import type { Deck, SectionKind, SlideKind } from '../src/modules/presentation/editing/schema';
+import type { DeckPlan } from '../src/modules/presentation/legacy/outline.schema';
 import type { Paper } from '../src/modules/paper/paper.schema';
 import { fixturePaper, fixtureSource } from './fixtures';
 

@@ -2,7 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AssistantMessage } from '@earendil-works/pi-ai';
 import { AssistantMessageEventStream } from '@earendil-works/pi-ai/utils/event-stream';
 import { stream } from '@earendil-works/pi-ai/api/openai-responses';
-import { DEFAULT_SETTINGS, requestModel } from '../../src/app/model';
+import { DEFAULT_SETTINGS } from '../../src/app/settings/modelSettings';
+import { modelRequests } from '../../src/app/composition';
+const { requestModel } = modelRequests;
 
 vi.mock('@earendil-works/pi-ai/api/openai-responses', () => ({ stream: vi.fn() }));
 

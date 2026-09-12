@@ -1,3 +1,4 @@
+import { normalizeSettings } from '../../src/app/settings/modelSettings';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createResponsesAdapter, responsePayload } from '../../src/infrastructure/llm/responses';
 import { RequestScheduler } from '../../src/infrastructure/llm/requestScheduler';
@@ -38,7 +39,7 @@ describe('Pi Responses 适配边界', () => {
       );
     });
     vi.stubGlobal('fetch', fetcher);
-    const adapter = createResponsesAdapter(new RequestScheduler());
+    const adapter = createResponsesAdapter(new RequestScheduler(), normalizeSettings);
     const result = await adapter.request({
       ...request(),
       outputTool: 'paper.read',
@@ -76,7 +77,7 @@ describe('Pi Responses 适配边界', () => {
         }),
     );
     vi.stubGlobal('fetch', fetcher);
-    const adapter = createResponsesAdapter(new RequestScheduler());
+    const adapter = createResponsesAdapter(new RequestScheduler(), normalizeSettings);
     const result = await adapter.request(request()).catch((cause) => cause);
     expect(result.message).not.toContain('private-key');
     expect(fetcher).toHaveBeenCalledTimes(1);

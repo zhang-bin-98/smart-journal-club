@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { migratePaperV1, migrateProjectV1, toLegacyPaper } from '../../src/modules/paper/migration';
+import { migratePaperV1, toLegacyPaper } from '../../src/modules/paper/migration';
+import { migrateProjectV1 } from '../../src/modules/project/migration';
 import { validatePaper } from '../../src/modules/paper/model';
 import { fixturePaper } from '../fixtures';
 import { legacyProject } from '../legacy-fixtures';

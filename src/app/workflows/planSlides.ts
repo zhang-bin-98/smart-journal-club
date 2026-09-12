@@ -1,3 +1,4 @@
+import type { PromptCatalog } from '../llm/promptCatalog';
 import { z } from 'zod';
 import { paginateSpeech } from '../../modules/presentation/planning/paginateSpeech';
 import { ModelOutputError } from '../llm/modelError';
@@ -12,7 +13,6 @@ import type { PlanRecord } from '../presentation/planRecord';
 import type { Paper } from '../../modules/paper/model';
 import type { ModelSettings } from '../settings/modelSettings';
 import type { createModelRequests } from '../llm/requests';
-import { prompts } from '../../shared/llm/prompts';
 const Output = z.strictObject({
   slides: z
     .array(
@@ -34,6 +34,7 @@ export async function planSlides(
     paper: Paper;
     settings: ModelSettings;
     requests: ReturnType<typeof createModelRequests>;
+    prompts: PromptCatalog;
     onStage?: (stage: string) => void;
   },
 ): Promise<PlanRecord> {
@@ -56,7 +57,7 @@ export async function planSlides(
         regionId: region.id,
         panelId: panel.id,
         sourceId: panel.sourceId,
-        label: (figure.label ?? '') + ' ' + (panel.label ?? ''),
+        label: `${figure.label ?? ''} ${panel.label ?? ''}`,
       })),
     ]),
   );
@@ -90,7 +91,7 @@ export async function planSlides(
       let planned: PlannedSlide[] | undefined;
       for (let attempt = 0; attempt < 2; attempt++) {
         input.onStage?.(
-          '正在规划幻灯片 · ' + (sectionIndex + 1) + '/' + content.sections.length + (attempt ? ' · 修复一次' : ''),
+          `正在规划幻灯片 · ${sectionIndex + 1}/${content.sections.length}${attempt ? ' · 修复一次' : ''}`,
         );
         input.signal.throwIfAborted();
         input.assertActive();
@@ -101,9 +102,10 @@ export async function planSlides(
             stage: 'slides',
             schema: Output,
             maxTokens: 16000,
-            systemPrompt: prompts.common + '\n\n' + prompts.stages.slides,
+            systemPrompt: `${input.prompts.common}\n\n${input.prompts.stages.slides}`,
             data: {
               preferences: record.generationPreferences,
+              language: content.language,
               section,
               speech: speech.map((s, index) => ({ index, text: s.text, paragraphId: s.paragraphId })),
               figures: available.map((f, index) => ({
@@ -173,7 +175,7 @@ export async function planSlides(
               elements: selected.length
                 ? selected.map((figure) => ({ ...figure, type: 'figure' as const }))
                 : slide.message
-                  ? [{ id: id + '-body', type: 'text' as const, text: slide.message }]
+                  ? [{ id: `${id}-body`, type: 'text' as const, text: slide.message }]
                   : [],
             });
             if (

@@ -75,17 +75,14 @@ try {
     }
     await route.fulfill({ status: 200, contentType: 'text/event-stream', body: responsesEvent(delta) });
   });
-  await page.goto(base + '#/project/' + seeded.id);
+  await page.goto(`${base}#/project/${seeded.id}`);
   await page.reload();
   await page.getByRole('button', { name: '确认切分', exact: true }).click();
   await page.getByRole('button', { name: '生成大纲与讲稿', exact: true }).click();
   await page.getByLabel('讲稿正文', { exact: true }).first().waitFor({ timeout: 60000 });
   assert.equal(generated, 1);
   const read = () =>
-    page.evaluate(
-      async (id) => await (await import('/src/infrastructure/persistence/speechStore.ts')).speechStore.open(id),
-      seeded.id,
-    );
+    page.evaluate(async (id) => await (await import('/src/app/composition.ts')).speechStore.open(id), seeded.id);
   let saved = await read();
   assert.equal(saved.record.stage, 'outline-ready');
   assert.equal(saved.project.currentDeckId, undefined);
@@ -104,7 +101,7 @@ try {
   await first.dispatchEvent('compositionend', { data: '拆分' });
   await page.getByRole('button', { name: '发现覆盖', exact: false }).click();
   await page.waitForFunction(async (id) => {
-    const s = await (await import('/src/infrastructure/persistence/speechStore.ts')).speechStore.open(id);
+    const s = await (await import('/src/app/composition.ts')).speechStore.open(id);
     return s.target.content.speech[0].text === '手工正文第一句。第二句用于拆分。';
   }, seeded.id);
   await page.getByRole('button', { name: '拆分讲述', exact: true }).first().click();
@@ -136,15 +133,15 @@ try {
   await page.getByLabel('章节主线或补充').first().selectOption('supplement');
   await page.waitForFunction(
     async (id) =>
-      (await (await import('/src/infrastructure/persistence/speechStore.ts')).speechStore.open(id)).target.content
-        .sections[0].track === 'supplement',
+      (await (await import('/src/app/composition.ts')).speechStore.open(id)).target.content.sections[0].track ===
+      'supplement',
     seeded.id,
   );
   await page.getByLabel('章节主线或补充').first().selectOption('main');
   await page.waitForFunction(
     async (id) =>
-      (await (await import('/src/infrastructure/persistence/speechStore.ts')).speechStore.open(id)).target.content
-        .sections[0].track === 'main',
+      (await (await import('/src/app/composition.ts')).speechStore.open(id)).target.content.sections[0].track ===
+      'main',
     seeded.id,
   );
   await page.waitForFunction(() => document.querySelector('header [role="status"]').textContent === '已保存');

@@ -16,4 +16,4 @@
 
 下载日期：2026-09-06。校验命令：`pdfinfo test-fixtures/papers/*.pdf`、`Get-FileHash -Algorithm SHA256`。PDF 不属于发布构建输入；若检查需要测试数据，应通过本地选择文件或 fixture 脚本注入，不把 PDF 复制到应用静态资源。
 
-发布后图页等待问题的定向回归使用用户本地的《Longitudinal dynamics of gene expression and metabolomics in an aging population cohort》18 页 PDF。文件名包含 `Longitudinal dynamics` 且放在本目录时，`tests/figure-stalls.mjs` 会随浏览器主链执行；缺失时明确报告该项 SKIP，不影响原有三篇样例主链。这个样例不进入仓库或部署，也不新增论文/模型组合矩阵；其真实调用须单独取得论文发送授权，常规回归仍拦截为固定响应。
+发布后图页等待问题曾使用本地《Longitudinal dynamics of gene expression and metabolomics in an aging population cohort》18 页 PDF 作定向回归。M19 退役旧五阶段入口后，旧 `tests/figure-stalls.mjs` 不再接入默认浏览器主链；当前逐单元失败/迟到响应、暂停与刷新续跑由 `tests/unit/paperWorkflow.test.ts`、`tests/unit/analysisService.test.ts` 和正式 `tests/m15-browser.mjs` 保护。原 PDF 继续本地保留，不进入仓库或部署，也不自动增加真实论文/模型组合。原历史验证结论不改写。

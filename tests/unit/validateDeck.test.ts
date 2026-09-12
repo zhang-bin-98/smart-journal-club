@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { fixturePaper } from '../fixtures';
-import { layoutCapacity } from '../../src/modules/deck/layoutRules';
-import { validateDeck } from '../../src/modules/deck/validateDeck';
-import { validatePlan } from '../../src/modules/outline/validatePlan';
-import type { DeckPlan, PlannedSection, PlannedSlide } from '../../src/modules/outline/outline.schema';
-import type { DeckSection, Slide } from '../../src/modules/deck/deck.schema';
+import { layoutCapacity } from '../../src/modules/presentation/editing/layoutRules';
+import { validateDeck } from '../../src/modules/presentation/editing/validateDeck';
+import { validatePlan } from '../../src/modules/presentation/legacy/validatePlan';
+import type { DeckPlan, PlannedSection, PlannedSlide } from '../../src/modules/presentation/legacy/outline.schema';
+import type { DeckSection, Slide } from '../../src/modules/presentation/editing/schema';
 
 const section = (id: string, overrides: Partial<DeckSection> = {}): DeckSection => ({
   id,

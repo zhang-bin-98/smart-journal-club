@@ -1,4 +1,4 @@
-import type { Deck } from '../../modules/deck/deck.schema';
+import type { Deck } from '../../modules/presentation/editing/schema';
 import type { Paper } from '../../modules/paper/model';
 import type { Project, PdfAsset } from '../../modules/project/model';
 import type { PlanRecord } from './planRecord';

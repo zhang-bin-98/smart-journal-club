@@ -1,4 +1,4 @@
-import type { Deck } from '../../modules/deck/deck.schema';
+import type { Deck } from '../../modules/presentation/editing/schema';
 import type { FigureConsumer } from '../../app/paper/figureImpact';
 import {
   applyPageSelection,
@@ -9,7 +9,7 @@ import {
 } from '../../modules/paper/analysisUnits';
 import { type AnalysisStage, type AnalysisUnitTarget, type Paper, validatePaper } from '../../modules/paper/model';
 import { type Project, ProjectError } from '../../modules/project/model';
-import { get, request, transaction } from '../../shared/persistence/indexedDb';
+import { get, request, transaction } from './indexedDb';
 import { openProject, paperIn, projectDataIn, projectIn } from './projectStore';
 import { applyFigureCommand } from '../../modules/paper/figureEditing';
 import type { FigureSave } from '../../app/paper/figureSession';

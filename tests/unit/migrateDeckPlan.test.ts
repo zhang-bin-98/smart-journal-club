@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { legacyDeckPlanV1, legacyCreatedAt, legacyUpdatedAt } from '../legacy-fixtures';
-import { migratePlanV1 } from '../../src/modules/outline/migrateDeckPlan';
+import { migratePlanV1 } from '../../src/modules/presentation/legacy/migrateDeckPlan';
 import { LegacyMigrationError, UnsupportedSchemaVersionError } from '../../src/shared/errors/migration';
 
 const clone = <T>(value: T): T => structuredClone(value);

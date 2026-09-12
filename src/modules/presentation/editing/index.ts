@@ -176,3 +176,15 @@ export function setFigures(slide: Slide, paper: Paper, sourceIds: string[], grou
   });
   return mutations;
 }
+
+/** 页序移动保留新稿讲述归属；旧稿按邻页章节插入以维持历史连续章节约束。 */
+export function moveSlideBy(deck: Deck, slideId: string, direction: -1 | 1): DeckMutation[] {
+  const index = deck.slides.findIndex((slide) => slide.id === slideId);
+  const slide = deck.slides[index];
+  const neighbor = deck.slides[index + direction];
+  if (!slide || !neighbor) throw new ContentError('move-target', '页面已在边界或不存在。');
+  const targetSectionId = deck.schemaVersion === 3 ? slide.sectionId : neighbor.sectionId;
+  const before = direction === 1 ? neighbor : deck.slides[index - 2];
+  const anchor = deck.schemaVersion === 3 || before?.sectionId === targetSectionId ? before : undefined;
+  return [{ type: 'move-slide', slideId, targetSectionId, afterSlideId: anchor?.id ?? null }];
+}

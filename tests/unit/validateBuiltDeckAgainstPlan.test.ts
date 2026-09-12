@@ -1,8 +1,8 @@
 /* biome-ignore-all lint/suspicious/noExplicitAny: mutation table intentionally edits individual contract fields */
 import { describe, expect, it } from 'vitest';
 import { narrativePaper, narrativePlan } from '../narrative-fixture';
-import { assembleDeck } from '../../src/modules/generation/buildDeck';
-import { validateBuiltDeckAgainstPlan } from '../../src/modules/generation/validateBuiltDeckAgainstPlan';
+import { assembleDeck } from '../../src/modules/presentation/legacy/buildDeck';
+import { validateBuiltDeckAgainstPlan } from '../../src/modules/presentation/legacy/validateBuiltDeckAgainstPlan';
 import { fixedSlides } from '../generation-contracts';
 
 function built() {

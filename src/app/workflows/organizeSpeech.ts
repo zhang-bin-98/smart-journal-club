@@ -1,3 +1,4 @@
+import type { PromptCatalog } from '../llm/promptCatalog';
 import { z } from 'zod';
 import {
   applyContentCommands,
@@ -12,7 +13,6 @@ import type { Paper } from '../../modules/paper/model';
 import type { ModelSettings } from '../settings/modelSettings';
 import type { createModelRequests } from '../llm/requests';
 import { ModelOutputError } from '../llm/modelError';
-import { prompts } from '../../shared/llm/prompts';
 
 const StructureSchema = z.strictObject({
   sections: z.array(SectionSchema.extend({ sourceSectionIds: z.array(z.string()).min(1) })).min(1),
@@ -26,11 +26,12 @@ export async function organizeSpeech(input: {
   background?: unknown[];
   settings: ModelSettings;
   requests: ReturnType<typeof createModelRequests>;
+  prompts: PromptCatalog;
   signal: AbortSignal;
   assertActive: () => void;
   onStage?: (stage: string) => void;
 }): Promise<Content> {
-  const aliases = new Map(input.content.speechParagraphs.map((p, index) => ['p' + (index + 1), p.id]));
+  const aliases = new Map(input.content.speechParagraphs.map((p, index) => [`p${index + 1}`, p.id]));
   const paragraphs = [...aliases].map(([id, originalId]) => {
     const p = input.content.speechParagraphs.find((p) => p.id === originalId)!;
     const text = paragraphText(input.content, originalId);
@@ -54,7 +55,7 @@ export async function organizeSpeech(input: {
       ...(wordingSources.length ? { wordingSources } : {}),
     };
   });
-  const sectionAliases = new Map(input.content.sections.map((section, index) => ['g' + (index + 1), section.id]));
+  const sectionAliases = new Map(input.content.sections.map((section, index) => [`g${index + 1}`, section.id]));
   const groups = [...sectionAliases].map(([id, originalId]) => ({
     id,
     title: input.content.sections.find((section) => section.id === originalId)!.title,
@@ -75,9 +76,10 @@ export async function organizeSpeech(input: {
         stage: attempt ? 'speech-structure-repair' : 'speech-structure',
         schema: StructureSchema,
         maxTokens: 49152,
-        systemPrompt: prompts.common + '\n\n' + prompts.stages['speech-structure'],
+        systemPrompt: `${input.prompts.common}\n\n${input.prompts.stages['speech-structure']}`,
         data: {
           title: input.content.title,
+          language: input.content.language,
           groups,
           wording: paragraphs.filter((paragraph) => paragraph.wordingSources?.length),
           background: input.background,

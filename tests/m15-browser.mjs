@@ -319,59 +319,7 @@ try {
       2,
     ),
   );
-  await page.getByRole('button', { name: '返回项目列表', exact: true }).click();
-  const legacyId = await page.evaluate(async () => {
-    const { fixturePaper } = await import('/tests/fixtures.ts');
-    const { legacyDeckV1, legacyDeckPlanV1, legacyProject } = await import('/tests/legacy-fixtures.ts');
-    const { transaction } = await import('/src/shared/persistence/indexedDb.ts');
-    const id = 'm15-legacy-entry';
-    const { migrateDeckV1 } = await import('/src/modules/deck/migrateDeck.ts');
-    const { migratePlanV1 } = await import('/src/modules/outline/migrateDeckPlan.ts');
-    const deck = migrateDeckV1(legacyDeckV1('m15-legacy-deck'));
-    const project = legacyProject({
-      id,
-      paperId: fixturePaper.id,
-      pdfAssetId: 'legacy-asset',
-      checkpoint: 'deck-ready',
-      currentDeckId: deck.id,
-    });
-    await transaction(['projects', 'papers', 'decks', 'plans'], 'readwrite', async (tx) => {
-      tx.objectStore('projects').put(project, id);
-      tx.objectStore('papers').put(fixturePaper, fixturePaper.id);
-      tx.objectStore('decks').put(deck, deck.id);
-      tx.objectStore('plans').put(
-        {
-          recordVersion: 1,
-          projectId: id,
-          mode: 'regeneration',
-          base: { current: { deckId: deck.id, revision: deck.revision } },
-          preferences: project.preferences,
-          plan: migratePlanV1(legacyDeckPlanV1(), {
-            projectId: id,
-            projectCreatedAt: project.createdAt,
-            projectUpdatedAt: project.updatedAt,
-          }),
-        },
-        id,
-      );
-    });
-    return id;
-  });
-  await page.evaluate((id) => {
-    location.hash = `#/project/${id}`;
-  }, legacyId);
-  await page.getByRole('textbox', { name: '幻灯片标题', exact: true }).waitFor();
-  await page.getByText('候选大纲已保存', { exact: true }).waitFor();
-  assert.equal((await runtime(page)).project.lastOpenedStep, 'slides');
-  await page.getByRole('button', { name: '论文分析与全部原页', exact: true }).click();
-  await page.getByRole('button', { name: '4 幻灯片', exact: true }).click();
-  await page.getByRole('textbox', { name: '幻灯片标题', exact: true }).waitFor();
-  await page.getByText('候选大纲已保存', { exact: true }).waitFor();
-  await page.getByRole('button', { name: '论文分析与全部原页', exact: true }).click();
-  await page.getByRole('button', { name: '3 大纲与讲稿', exact: true }).click();
-  await page.getByRole('heading', { name: '学术大纲', exact: true }).waitFor();
-  assert.equal((await runtime(page)).project.lastOpenedStep, 'outline-speech');
-  console.log('PASS: 读取失败重试恢复要求、失败选择全局守卫/刷新/撤销、旧稿目标与候选入口');
+  if (process.env.SMARTJC_M19_CHAIN === '1') await (await import('./m19-chain.mjs')).finishM19Chain(page, output);
   assert.deepEqual(errors, []);
   console.log('PASS: 手动下一步与浏览回退保存位置，正式分析 UI 无 pageerror');
 } finally {
