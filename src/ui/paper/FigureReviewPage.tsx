@@ -17,6 +17,7 @@ export function FigureReviewPage({
   onSettings,
   onLeave,
   onStep,
+  onGenerate,
   registerLeaveGuard,
 }: {
   id: string;
@@ -25,6 +26,7 @@ export function FigureReviewPage({
   onLeave: () => void;
   onStep: (step: 'paper-analysis' | 'slides' | 'outline-speech') => void;
   registerLeaveGuard?: RegisterLeaveGuard;
+  onGenerate?: () => void;
 }) {
   const controller = useFigureReview({ id, settings, registerLeaveGuard });
   if (!controller.ready)
@@ -113,6 +115,11 @@ export function FigureReviewPage({
             <Check size={16} />
             {confirmed ? '切分已确认' : '确认切分'}
           </Button>
+          {confirmed && !project.currentDeckId && (
+            <Button primary disabled={busy || state.dirty || !settings.apiKey} onClick={onGenerate}>
+              生成大纲与讲稿
+            </Button>
+          )}
         </div>
       </header>
       <nav
@@ -121,14 +128,14 @@ export function FigureReviewPage({
       >
         <button onClick={() => onStep('paper-analysis')}>1 论文分析</button>
         <span className="font-semibold text-accent">2 图源核对</span>
-        <button disabled={!project.currentDeckId} onClick={() => onStep('outline-speech')}>
+        <button disabled={!project.currentDeckId && !confirmed} onClick={() => onStep('outline-speech')}>
           3 大纲与演讲稿
         </button>
         <button disabled={!project.currentDeckId} onClick={() => onStep('slides')}>
           4 幻灯片
         </button>
         <span className="ml-auto text-muted">
-          {confirmed ? '当前切分版本已保存；讲稿生成功能将在后续阶段接入' : '修改边框、标签或归属后需重新确认'}
+          {confirmed ? '当前切分版本已保存，可生成大纲与完整讲稿' : '修改边框、标签或归属后需重新确认'}
         </span>
       </nav>
       {(error || state.error) && (

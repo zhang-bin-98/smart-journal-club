@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { createSlide } from '../../modules/deck/mutations';
-import type { DeckSession } from '../../modules/deck/DeckSession';
+import type { DeckSession } from '../../app/presentation/DeckSession';
 import type { DeckMutation, RevisionScope } from '../../modules/deck/deck.schema';
 import type { Deck, Element } from '../../modules/deck/deck.schema';
 import type { Paper } from '../../modules/paper/paper.schema';

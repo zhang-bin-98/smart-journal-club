@@ -4,7 +4,7 @@ import type { ChatMessage } from '../../modules/assistant/assistant.schema';
 import type { Paper } from '../../modules/paper/paper.schema';
 import type { Project } from '../../modules/project/project.schema';
 import type { PersistAssistantRevision } from '../../modules/assistant/revision/applyRevision';
-import type { DeckSession } from '../../modules/deck/DeckSession';
+import type { DeckSession } from '../../app/presentation/DeckSession';
 import { runAiRevision } from '../../modules/assistant/runtime/runAssistant';
 import { applyProposal, type PendingRevision } from '../../modules/assistant/revision/applyProposal';
 import { resolveAiTarget, type AiTarget, type AssistantScope } from '../../modules/assistant/target/resolveTarget';

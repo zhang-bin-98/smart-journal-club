@@ -54,8 +54,9 @@ describe('M15 项目与论文的实际模块边界', () => {
       .map(String)
       .filter((name) => /\.(ts|tsx)$/.test(name))) {
       const name = file.replaceAll('\\', '/');
-      const application = /^(app\/paper|app\/projects|app\/workflows)\//.test(name);
-      const ui = /^ui\/(paper|projects)\//.test(name);
+      if (name.startsWith('modules/presentation/')) pure.add(name);
+      const application = /^(app\/paper|app\/projects|app\/workflows|app\/presentation|app\/assistant)\//.test(name);
+      const ui = /^ui\/(paper|projects|presentation)\//.test(name);
       if (!pure.has(name) && !application && !ui) continue;
       const source = readFileSync(resolve(root, file), 'utf8');
       const imports = [...source.matchAll(/(?:from\s*|import\s*\()\s*['"]([^'"]+)['"]/g)].map((match) => match[1]);

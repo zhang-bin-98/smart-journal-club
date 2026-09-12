@@ -7,10 +7,10 @@ import { trimHistory } from '../../shared/persistence/historyStore';
 import { get, request as idbRequest, transaction } from '../../shared/persistence/indexedDb';
 import { DeckSchema } from '../deck/deck.schema';
 import type { Project } from '../project/project.schema';
-import type { PlanSaveOptions } from './OutlineSession';
+import type { PlanSaveOptions } from '../../app/presentation/legacyOutlineSession';
 import { type DeckPlan, type PlanRequest, PlanRequestSchema } from './outline.schema';
 import { OutlineError } from './outlineError';
-import { type PlanRecord, PlanRecordSchema } from './planRecord.schema';
+import { type PlanRecord, PlanRecordSchema } from '../../app/presentation/legacyPlanRecord';
 import { validatePlanNarrative } from './validateNarrative';
 import { validatePlan } from './validatePlan';
 

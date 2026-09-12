@@ -1,4 +1,5 @@
 import pptxgen from 'pptxgenjs';
+import { notesText } from '../presentation/content';
 import { computeLayout } from './layout/computeLayout';
 import { validateDeck } from './validateDeck';
 import type { Deck, Element } from './deck.schema';
@@ -34,6 +35,7 @@ export async function exportDeck(
   for (const slide of deck.slides) {
     signal?.throwIfAborted();
     const out = pptx.addSlide();
+    if (slide.speechIds?.length) out.addNotes(notesText(deck.speech ?? [], slide.speechIds));
     const layout = computeLayout(slide);
     const box = (rect: { x: number; y: number; width: number; height: number }) => ({
       x: rect.x * 13.333,

@@ -25,9 +25,9 @@ function firstIndexOfSection(slides: Slide[], sectionId: string) {
   const index = slides.findIndex((slide) => slide.sectionId === sectionId);
   return index < 0 ? undefined : index;
 }
-/** 空章节不得留在 Deck runtime：删去或移走章内最后一页时同步移除该章。 */
+/** 旧稿移除空章节；已有讲述的章节仍由内容持有，删页不删除正文。 */
 function removeSection(deck: Deck, sectionId: string) {
-  if (deck.slides.some((slide) => slide.sectionId === sectionId)) return;
+  if (deck.slides.some((slide) => slide.sectionId === sectionId) || deck.speechParagraphs !== undefined) return;
   deck.sections.splice(
     deck.sections.findIndex((section) => section.id === sectionId),
     1,

@@ -1,5 +1,5 @@
 import type { ApplyRevisionArgs, Deck, RevisionRecord, RevisionRequest } from '../../deck/deck.schema';
-import type { DeckSession, PersistRevision, RevisionOptions } from '../../deck/DeckSession';
+import type { DeckSession, PersistRevision, RevisionOptions } from '../../../app/presentation/DeckSession';
 import type { ChatMessage } from '../assistant.schema';
 
 /** 应用层原子提交：Deck 修订、修订记录与可见对话由同一 persist 调用在一次事务内写入。 */

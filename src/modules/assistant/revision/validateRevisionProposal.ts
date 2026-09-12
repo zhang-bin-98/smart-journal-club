@@ -1,6 +1,6 @@
 import { ApplyRevisionArgsSchema, type Deck } from '../../deck/deck.schema';
 import type { Paper } from '../../paper/paper.schema';
-import { DeckSession } from '../../deck/DeckSession';
+import { DeckSession } from '../../../app/presentation/DeckSession';
 import type { AiTarget } from '../target/resolveTarget';
 import { AssistantError } from '../assistantError';
 import { validateDeckNarrative } from '../../outline/validateNarrative';

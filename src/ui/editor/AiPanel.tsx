@@ -1,7 +1,7 @@
 import { Bot, Check, CircleStop, Undo2, X } from 'lucide-react';
 import type { Paper } from '../../modules/paper/paper.schema';
 import { proposalDiff } from '../../modules/assistant/revision/proposalDiff';
-import type { DeckSession } from '../../modules/deck/DeckSession';
+import type { DeckSession } from '../../app/presentation/DeckSession';
 import { Button } from '../controls';
 import type { AssistantController } from './useAssistantController';
 

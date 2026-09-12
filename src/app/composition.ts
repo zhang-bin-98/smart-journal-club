@@ -61,3 +61,23 @@ export const recognizeReviewFigure = (input: Omit<Parameters<typeof recognizeFig
 
 export const supplementReviewRegion = (input: Omit<Parameters<typeof supplementAddedRegion>[0], 'requests'>) =>
   supplementAddedRegion({ ...input, requests: modelRequests });
+
+import { speechStore } from '../infrastructure/persistence/speechStore';
+import { speechEvidence } from '../infrastructure/pdf/speechEvidence';
+import { createSpeechEvidenceRefresh } from './presentation/refreshSpeechEvidence';
+import { createOutlineSession } from './presentation/OutlineSession';
+import { prepareOutline } from './workflows/prepareOutline';
+import { createSpeechAssistant } from './assistant/speechAssistant';
+export const createSpeechSession = (id: string) => createOutlineSession(id, speechStore);
+export const createSpeechResources = async (id: string) => createFigureResources(await projectStore.openProject(id));
+export const generateSpeech = (
+  input: Omit<Parameters<typeof prepareOutline>[0], 'store' | 'requests' | 'image' | 'refreshEvidence'>,
+) =>
+  prepareOutline({
+    ...input,
+    store: speechStore,
+    requests: modelRequests,
+    image: speechEvidence,
+    refreshEvidence: createSpeechEvidenceRefresh(analysisService),
+  });
+export const askSpeech = createSpeechAssistant(createReadOnlyAgent(adapter));

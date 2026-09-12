@@ -2,7 +2,7 @@ import { Agent } from '@earendil-works/pi-agent-core';
 import type { Deck } from '../../deck/deck.schema';
 import type { Paper } from '../../paper/paper.schema';
 import type { Project } from '../../project/project.schema';
-import type { DeckSession } from '../../deck/DeckSession';
+import type { DeckSession } from '../../../app/presentation/DeckSession';
 import type { ChatMessage } from '../assistant.schema';
 import { describeModel, type ModelSettings } from '../../../app/model';
 import { prompts, researchPrompt } from '../../../shared/llm/prompts';

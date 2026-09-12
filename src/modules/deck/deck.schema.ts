@@ -1,5 +1,12 @@
 import { z } from 'zod';
 import { BBoxSchema } from '../../shared/schema';
+import {
+  SpeechParagraphSchema,
+  SpeechSegmentSchema,
+  OmissionSchema,
+  SectionKinds,
+  SectionSchema,
+} from '../presentation/content';
 
 export const LayoutIds = ['title', 'text-only', 'figure-full', 'figure-text', 'two-figures', 'panel-grid'] as const;
 export type LayoutId = (typeof LayoutIds)[number];
@@ -15,26 +22,11 @@ export const SlideKinds = [
   'custom',
 ] as const;
 export type SlideKind = (typeof SlideKinds)[number];
-export const SectionKinds = [
-  'opening',
-  'background',
-  'question',
-  'study-design',
-  'results',
-  'synthesis',
-  'limitations',
-  'takeaways',
-  'discussion',
-  'custom',
-] as const;
+export { SectionKinds } from '../presentation/content';
 export type SectionKind = (typeof SectionKinds)[number];
 
-export const DeckSectionSchema = z.strictObject({
-  id: z.string().min(1),
-  kind: z.enum(SectionKinds),
-  title: z.string(),
-  purpose: z.string(),
-  transitionToNext: z.string().optional(),
+export const DeckSectionSchema = SectionSchema.omit({ track: true }).extend({
+  track: z.enum(['main', 'supplement']).optional(),
 });
 export type DeckSection = z.infer<typeof DeckSectionSchema>;
 
@@ -73,23 +65,44 @@ export const SlideSchema = z.strictObject({
   message: z.string().optional(),
   layoutId: z.enum(LayoutIds),
   elements: z.array(SlideElementSchema),
+  speechIds: z.array(z.string()).optional(),
   claimIds: z.array(z.string()),
   sourceIds: z.array(z.string()),
 });
 export type Slide = z.infer<typeof SlideSchema>;
 export const DeckSchemaVersion = 2;
-export const DeckSchema = z.strictObject({
-  schemaVersion: z.literal(DeckSchemaVersion),
-  id: z.string().min(1),
-  paperId: z.string().min(1),
-  revision: z.number().int().nonnegative(),
-  title: z.string(),
-  language: z.string().min(1),
-  sections: z.array(DeckSectionSchema),
-  slides: z.array(SlideSchema),
-  createdAt: z.number().int().nonnegative(),
-  updatedAt: z.number().int().nonnegative(),
-});
+export const DeckSchema = z
+  .strictObject({
+    schemaVersion: z.union([z.literal(DeckSchemaVersion), z.literal(3)]),
+    id: z.string().min(1),
+    paperId: z.string().min(1),
+    revision: z.number().int().nonnegative(),
+    title: z.string(),
+    language: z.string().min(1),
+    sections: z.array(DeckSectionSchema),
+    paperRevision: z.number().int().nonnegative().optional(),
+    speechParagraphs: z.array(SpeechParagraphSchema).optional(),
+    speech: z.array(SpeechSegmentSchema).optional(),
+    omissions: z.array(OmissionSchema).optional(),
+    slides: z.array(SlideSchema),
+    createdAt: z.number().int().nonnegative(),
+    updatedAt: z.number().int().nonnegative(),
+  })
+  .superRefine((deck, context) => {
+    if (deck.schemaVersion !== 3) return;
+    for (const field of ['paperRevision', 'speechParagraphs', 'speech', 'omissions'] as const) {
+      if (deck[field] === undefined)
+        context.addIssue({ code: 'custom', path: [field], message: '新版讲述稿必须保留完整内容字段。' });
+    }
+    deck.sections.forEach((section, index) => {
+      if (!section.track)
+        context.addIssue({ code: 'custom', path: ['sections', index, 'track'], message: '章节需要主线或补充归属。' });
+    });
+    deck.slides.forEach((slide, index) => {
+      if (!slide.speechIds)
+        context.addIssue({ code: 'custom', path: ['slides', index, 'speechIds'], message: '页面需要显式讲稿分配。' });
+    });
+  });
 export type Deck = z.infer<typeof DeckSchema>;
 
 export const RevisionScopeSchema = z.discriminatedUnion('type', [

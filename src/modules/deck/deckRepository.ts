@@ -57,7 +57,10 @@ async function versionIn(tx: IDBTransaction, captured: VersionCapture) {
     throw new Error('项目版本已在其他页面变化，请重新打开最新项目。');
   const paper = validatePaper(await readLegacyPaper(tx, captured.paperId, project.id), true);
   if (paper.id !== captured.paperId) throw new Error('论文关联不一致');
-  const current = stored(DeckSchema, await get(tx, 'decks', captured.currentDeckId), '当前幻灯片', DeckSchemaVersion);
+  const current = stored(DeckSchema, await get(tx, 'decks', captured.currentDeckId), '当前幻灯片', [
+    DeckSchemaVersion,
+    3,
+  ]);
   if (
     current.id !== captured.currentDeckId ||
     current.revision !== captured.baseRevision ||
@@ -70,12 +73,10 @@ async function versionIn(tx: IDBTransaction, captured: VersionCapture) {
 }
 async function previousIn(tx: IDBTransaction, project: Project, paper: Paper) {
   if (!project.previousDeckId) throw new Error('当前项目没有可恢复的上一版。');
-  const previous = stored(
-    DeckSchema,
-    await get(tx, 'decks', project.previousDeckId),
-    '上一版幻灯片',
+  const previous = stored(DeckSchema, await get(tx, 'decks', project.previousDeckId), '上一版幻灯片', [
     DeckSchemaVersion,
-  );
+    3,
+  ]);
   if (previous.id !== project.previousDeckId || previous.id === project.currentDeckId)
     throw new Error('上一版关联无效，请保留项目并检查本地存储。');
   const errors = validateDeck(
@@ -175,7 +176,7 @@ export function saveRevision(
     async (tx) => {
       const project = await projectIn(tx, projectId);
       const current = project.currentDeckId
-        ? stored(DeckSchema, await get(tx, 'decks', project.currentDeckId), '当前幻灯片', DeckSchemaVersion)
+        ? stored(DeckSchema, await get(tx, 'decks', project.currentDeckId), '当前幻灯片', [DeckSchemaVersion, 3])
         : undefined;
       if (
         !current ||

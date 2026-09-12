@@ -1,4 +1,5 @@
 import { DeckSchema } from './deck.schema';
+import { validateContent, validateSpeechAssignments } from '../presentation/content';
 import type { Paper } from '../paper/paper.schema';
 import { layoutCapacity } from './layoutRules';
 import { figureSource, validatePaper } from '../paper/sources';
@@ -51,6 +52,26 @@ export function validateDeck(input: unknown, paper?: Paper) {
     if (paper && slide.claimIds.some((id) => !paper.claims.some((claim) => claim.id === id)))
       errors.push(`页结论不存在：${slide.id}`);
   });
+  if (deck.speechParagraphs !== undefined || deck.speech !== undefined) {
+    try {
+      const content = validateContent(
+        {
+          title: deck.title,
+          language: deck.language,
+          sections: deck.sections.map((s) => ({ ...s, track: s.track ?? 'main' })),
+          speechParagraphs: deck.speechParagraphs ?? [],
+          speech: deck.speech ?? [],
+          omissions: deck.omissions ?? [],
+        },
+        paper ?? { claims: [], sources: [] },
+      );
+      validateSpeechAssignments(content, deck.slides);
+    } catch (cause) {
+      errors.push(cause instanceof Error ? cause.message : '讲稿结构不一致');
+    }
+    // 已迁移讲述的章节次序独立于页面展示，新增空讲述章节不删除原页。
+    return errors;
+  }
   // 同章页面必须连续，且 sections 顺序与页面块顺序一致；runtime Deck 不保留空章节。
   const blocks: string[] = [];
   let blockSectionId: string | undefined;

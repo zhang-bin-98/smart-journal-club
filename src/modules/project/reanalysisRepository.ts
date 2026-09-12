@@ -2,7 +2,7 @@ import { get, stored, transaction } from '../../shared/persistence/indexedDb';
 import { prompts } from '../../shared/llm/prompts';
 import { PaperSchema, type Paper } from '../paper/paper.schema';
 import { validatePaper } from '../paper/sources';
-import { PlanRecordSchema } from '../outline/planRecord.schema';
+import { PlanRecordSchema } from '../../app/presentation/legacyPlanRecord';
 import { projectIn, type ProjectData } from './projectRepository';
 import { ProjectSchema, type PdfAsset } from './project.schema';
 import { DeckSchema } from '../deck/deck.schema';

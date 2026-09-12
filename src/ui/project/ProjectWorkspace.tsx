@@ -9,6 +9,7 @@ const AnalysisPage = lazy(() => import('../paper/AnalysisPage').then((module) =>
 const FigureReviewPage = lazy(() =>
   import('../paper/FigureReviewPage').then((module) => ({ default: module.FigureReviewPage })),
 );
+const SpeechPage = lazy(() => import('../presentation/SpeechPage').then((module) => ({ default: module.SpeechPage })));
 const LegacyPage = lazy(() => import('./ProjectPage').then((module) => ({ default: module.ProjectPage })));
 
 export function ProjectWorkspace({
@@ -29,6 +30,7 @@ export function ProjectWorkspace({
   const session = analysisService.session(id);
   const [step, setStep] = useState<WorkspaceStep>();
   const [error, setError] = useState('');
+  const [startSpeech, setStartSpeech] = useState(false);
   const [readAttempt, setReadAttempt] = useState(0);
   const guard = useRef<LeaveGuard | undefined>(undefined);
   const register = useCallback<RegisterLeaveGuard>(
@@ -74,7 +76,7 @@ export function ProjectWorkspace({
         {error && <Button onClick={() => setReadAttempt((value) => value + 1)}>重试读取</Button>}
       </main>
     );
-  const legacy = step === 'slides' || step === 'outline-speech';
+  const legacy = step === 'slides';
   return (
     <>
       {error && (
@@ -105,8 +107,23 @@ export function ProjectWorkspace({
               registerLeaveGuard={register}
             />
           </>
+        ) : step === 'outline-speech' ? (
+          <SpeechPage
+            id={id}
+            settings={settings}
+            onSettings={onSettings}
+            onLeave={onLeave}
+            onStep={(next) => void changeStep(next)}
+            autoStart={startSpeech}
+            onStarted={() => setStartSpeech(false)}
+            registerLeaveGuard={register}
+          />
         ) : step === 'figure-review' ? (
           <FigureReviewPage
+            onGenerate={() => {
+              setStartSpeech(true);
+              void changeStep('outline-speech');
+            }}
             id={id}
             settings={settings}
             onSettings={onSettings}

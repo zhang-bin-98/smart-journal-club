@@ -15,7 +15,7 @@ import { migratePlanV1 } from '../outline/migrateDeckPlan';
 import { type DeckPlan, DeckPlanSchema } from '../outline/outline.schema';
 import { OutlineError } from '../outline/outlineError';
 import { assertPlanBase } from '../outline/outlineRepository';
-import { type PlanRecord, PlanRecordSchema } from '../outline/planRecord.schema';
+import { type PlanRecord, PlanRecordSchema } from '../../app/presentation/legacyPlanRecord';
 import { validatePlan } from '../outline/validatePlan';
 import { toLegacyProject } from '../paper/migration';
 import { validatePaper as validateCurrentPaper } from '../paper/model';
@@ -143,7 +143,8 @@ export function loadProject(id: string): Promise<ProjectData> {
       const raw = await get(tx, 'plans', id);
       if (raw === undefined && project.checkpoint === 'deck-plan-ready')
         throw new Error('汇报计划数据缺失，请保留项目并检查本地存储。');
-      if (raw !== undefined) {
+      const speechRecord = raw && typeof raw === 'object' && 'recordVersion' in raw && raw.recordVersion === 2;
+      if (raw !== undefined && !speechRecord) {
         const wrapped = raw && typeof raw === 'object' && 'recordVersion' in raw;
         const record = wrapped ? PlanRecordSchema.parse(raw) : undefined;
         if (record && record.projectId !== project.id)
@@ -217,7 +218,7 @@ export function updateProject(
     const project = await projectIn(tx, id);
     if ('lastOpenedSlideId' in changes && changes.lastOpenedSlideId) {
       const deck = project.currentDeckId
-        ? stored(DeckSchema, await get(tx, 'decks', project.currentDeckId), '当前幻灯片', DeckSchemaVersion)
+        ? stored(DeckSchema, await get(tx, 'decks', project.currentDeckId), '当前幻灯片', [DeckSchemaVersion, 3])
         : undefined;
       if (!deck?.slides.some((slide) => slide.id === changes.lastOpenedSlideId))
         throw new Error('当前页已变化，请重新打开项目');

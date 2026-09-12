@@ -18,7 +18,7 @@ import {
   Undo2,
   X,
 } from 'lucide-react';
-import type { DeckSession } from '../../modules/deck/DeckSession';
+import type { DeckSession } from '../../app/presentation/DeckSession';
 import type { Deck, Element, LayoutId } from '../../modules/deck/deck.schema';
 import type { Paper } from '../../modules/paper/paper.schema';
 import { Brand, Button, errorMessage, IconButton } from '../controls';

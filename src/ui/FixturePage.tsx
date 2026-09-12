@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { DeckSession } from '../modules/deck/DeckSession';
+import { DeckSession } from '../app/presentation/DeckSession';
 import { fixtureDeck, fixturePaper } from '../../tests/fixtures';
 import { Editor } from './editor/Editor';
 

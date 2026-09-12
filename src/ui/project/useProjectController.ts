@@ -3,7 +3,7 @@ import { beginActivity, type LeaveGuard, type RegisterLeaveGuard, setDirty } fro
 import type { ModelSettings } from '../../app/model';
 import { checkPresentation, type PresentationExportOptions } from '../../app/presentation/checkPresentation';
 import type { PersistAssistantRevision } from '../../modules/assistant/revision/applyRevision';
-import { DeckSession } from '../../modules/deck/DeckSession';
+import { DeckSession } from '../../app/presentation/DeckSession';
 import type { Deck, Element } from '../../modules/deck/deck.schema';
 import { captureVersion, restorePrevious, saveRevision } from '../../modules/deck/deckRepository';
 import { discardCandidate } from '../../modules/generation/candidateRepository';
@@ -13,7 +13,7 @@ import {
   preparePaper,
   reanalyzePaper,
 } from '../../modules/generation/runGeneration';
-import { OutlineSession } from '../../modules/outline/OutlineSession';
+import { OutlineSession } from '../../app/presentation/legacyOutlineSession';
 import type { PlanMutation } from '../../modules/outline/outline.schema';
 import { savePlanRevision } from '../../modules/outline/outlineRepository';
 import { validatePlanNarrative } from '../../modules/outline/validateNarrative';

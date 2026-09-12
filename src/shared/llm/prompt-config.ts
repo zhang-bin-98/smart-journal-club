@@ -27,7 +27,9 @@ export function parsePromptFiles(files: Record<string, string>) {
   }
   if (
     !common ||
-    !['figures', 'understand', 'plan', 'generate', 'ai'].every((stage) => stages[stage]) ||
+    !['figures', 'understand', 'plan', 'speech', 'speech-structure', 'generate', 'ai'].every(
+      (stage) => stages[stage],
+    ) ||
     !strategies.some((item) => item.id === 'general')
   )
     throw new Error('缺少必要提示词或 general 策略');

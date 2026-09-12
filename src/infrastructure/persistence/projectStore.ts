@@ -212,7 +212,12 @@ export async function openStep(projectId: string, step: WorkspaceStep) {
     const paper = await paperIn(tx, project);
     if (step === 'figure-review' && !getAnalysisProgress(paper).ready)
       throw new ProjectError('analysis-incomplete', '请先完成论文分析。');
-    if (step === 'outline-speech' && !(await get(tx, 'plans', project.id)) && !project.currentDeckId)
+    if (
+      step === 'outline-speech' &&
+      !(await get(tx, 'plans', project.id)) &&
+      !project.currentDeckId &&
+      paper.figureReview.confirmedRevision !== paper.figureReview.revision
+    )
       throw new ProjectError('outline-missing', '尚未保存讲稿。');
     if (step === 'slides' && (!project.currentDeckId || !(await get(tx, 'decks', project.currentDeckId))))
       throw new ProjectError('deck-missing', '尚未保存幻灯片。');

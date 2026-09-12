@@ -4,7 +4,7 @@ import { type Deck, DeckSchema } from '../deck/deck.schema';
 import { validateDeck } from '../deck/validateDeck';
 import { OutlineError } from '../outline/outlineError';
 import { assertPlanBase } from '../outline/outlineRepository';
-import { type GenerationBase, type PlanRecord, PlanRecordSchema } from '../outline/planRecord.schema';
+import { type GenerationBase, type PlanRecord, PlanRecordSchema } from '../../app/presentation/legacyPlanRecord';
 import { validatePlanNarrative } from '../outline/validateNarrative';
 import { validatePlan } from '../outline/validatePlan';
 import { PaperSchema } from '../paper/paper.schema';
