@@ -13,7 +13,7 @@ import {
   unitId,
   unitComplete,
 } from '../../src/modules/paper/analysisUnits';
-import { ModelOutputError } from '../../src/app/llm/modelError';
+import { ModelError, ModelOutputError } from '../../src/app/llm/modelError';
 import { StoryTopics } from '../../src/modules/paper/paper.schema';
 
 const fullText = (documentId: string, page: number) =>
@@ -28,6 +28,7 @@ const deferred = () => {
 };
 type ModelCall = {
   stage: string;
+  maxTokens?: number;
   data: {
     document?: { id: string; fileName: string };
     pageNumber?: number;
@@ -253,10 +254,10 @@ describe('M15 complete paper workflow', () => {
     expect((error as AnalysisUnitError).recovery).toContain('已保存单元保留');
     expect(JSON.stringify(error)).not.toContain('must-not-reach-ui');
     expect(
-      setup.modelCalls.filter(
-        (call) => call.stage === 'figures' && call.data.document?.id === 'main' && call.data.pageNumber === 2,
-      ),
-    ).toHaveLength(2);
+      setup.modelCalls
+        .filter((call) => call.stage === 'figures' && call.data.document?.id === 'main' && call.data.pageNumber === 2)
+        .map((call) => call.maxTokens),
+    ).toEqual([16384, 16384]);
     expect(getAnalysisProgress(setup.snapshot().paper).ready).toBe(false);
   });
 
@@ -394,6 +395,95 @@ describe('M15 complete paper workflow', () => {
       setup.modelCalls.filter((call) => call.stage === 'understand-page' && call.data.document?.id === 'main'),
     ).toHaveLength(mainCalls);
     expect(getAnalysisProgress(setup.snapshot().paper).ready).toBe(true);
+  });
+
+  it('retries truncated model output with a larger budget and completes the paper', async () => {
+    const setup = fixture();
+    let truncated = true;
+    setup.onModel(async (call) => {
+      if (call.stage === 'figures' && call.data.document?.id === 'main' && truncated) {
+        truncated = false;
+        throw new ModelError('figures', 'truncated', '模型输出未完成');
+      }
+    });
+
+    await setup.run();
+
+    expect(
+      setup.modelCalls
+        .filter((call) => call.stage === 'figures' && call.data.document?.id === 'main')
+        .map((call) => call.maxTokens),
+    ).toEqual([16384, 24576]);
+    expect(getAnalysisProgress(setup.snapshot().paper).ready).toBe(true);
+    expect(setup.modelCalls.find((call) => call.stage === 'understand-summary')?.maxTokens).toBe(24576);
+  });
+
+  it('stops after a second truncation and manually resumes without repeating saved units', async () => {
+    const setup = fixture();
+    setup.onModel(async (call) => {
+      if (call.stage === 'figures' && call.data.document?.id === 'main')
+        throw new ModelError('figures', 'truncated', '模型输出未完成');
+    });
+
+    await expect(setup.run()).rejects.toMatchObject({
+      stage: 'figures',
+      code: 'truncated',
+      documentId: 'main',
+      pageNumber: 1,
+    });
+    expect(
+      setup.modelCalls
+        .filter((call) => call.stage === 'figures' && call.data.document?.id === 'main')
+        .map((call) => call.maxTokens),
+    ).toEqual([16384, 24576]);
+    const saved = setup.snapshot().paper;
+    expect(unitComplete(saved, 'text', target('main'))).toBe(true);
+    expect(unitComplete(saved, 'figure-location', target('main'))).toBe(false);
+    expect(unitComplete(saved, 'figure-location', target('supplement'))).toBe(true);
+    expect(getAnalysisProgress(saved).ready).toBe(false);
+    const textCalls = [...setup.textCalls];
+    const supplementCalls = setup.modelCalls.filter(
+      (call) => call.stage === 'figures' && call.data.document?.id === 'supplement',
+    ).length;
+
+    setup.onModel(undefined);
+    await setup.run();
+
+    expect(setup.textCalls).toEqual(textCalls);
+    expect(
+      setup.modelCalls.filter((call) => call.stage === 'figures' && call.data.document?.id === 'supplement'),
+    ).toHaveLength(supplementCalls);
+    expect(getAnalysisProgress(setup.snapshot().paper).ready).toBe(true);
+  });
+
+  it('does not retry truncated output after cancellation', async () => {
+    const setup = fixture();
+    const cancel = new AbortController();
+    setup.onModel(async (call) => {
+      if (call.stage === 'figures' && call.data.document?.id === 'main') {
+        cancel.abort('paused');
+        throw new ModelError('figures', 'truncated', '模型输出未完成');
+      }
+    });
+
+    await expect(setup.run(cancel.signal)).rejects.toBe('paused');
+    expect(
+      setup.modelCalls.filter((call) => call.stage === 'figures' && call.data.document?.id === 'main'),
+    ).toHaveLength(1);
+    expect(unitComplete(setup.snapshot().paper, 'figure-location', target('main'))).toBe(false);
+  });
+
+  it('does not retry non-truncation model errors', async () => {
+    const setup = fixture();
+    setup.onModel(async (call) => {
+      if (call.stage === 'figures' && call.data.document?.id === 'main')
+        throw new ModelError('figures', 'model-request', '模型请求失败');
+    });
+
+    await expect(setup.run()).rejects.toMatchObject({ stage: 'figures', code: 'model-request' });
+    expect(
+      setup.modelCalls.filter((call) => call.stage === 'figures' && call.data.document?.id === 'main'),
+    ).toHaveLength(1);
   });
 
   it('records empty exclusions immediately and waits for refreshed evidence after removing saved figures', async () => {

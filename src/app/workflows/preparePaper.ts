@@ -155,6 +155,7 @@ export async function preparePaper({
     image?: string,
   ) {
     let diagnostic = '';
+    let maxTokens = stage === 'understand-summary' ? 24576 : 16384;
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const result = await requests.requestJson({
@@ -163,7 +164,7 @@ export async function preparePaper({
           stage,
           signal,
           image,
-          maxTokens: stage === 'understand-summary' ? 24576 : undefined,
+          maxTokens,
           systemPrompt:
             prompt +
             (diagnostic
@@ -175,6 +176,11 @@ export async function preparePaper({
         return result;
       } catch (cause) {
         signal.throwIfAborted();
+        // 页级截断与格式修复共用一次重试；汇总截断继续交给既有分批逻辑。
+        if (cause instanceof ModelError && cause.code === 'truncated' && attempt === 0 && maxTokens === 16384) {
+          maxTokens = 24576;
+          continue;
+        }
         if (
           !(cause instanceof PaperAnalysisError) &&
           !(cause instanceof z.ZodError) &&
