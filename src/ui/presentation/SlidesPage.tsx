@@ -110,12 +110,15 @@ export function SlidesPage({
   const act = (work: () => Promise<unknown>) => void c.act(work);
   const commit = (mutations: DeckMutation[], summary: string) => act(() => c.commit(mutations, summary));
   function openSource(sourceId: string, element?: Extract<Element, { type: 'figure' }>, crop = false) {
-    if (selectedId) setSource({ id: sourceId, element, crop, slideId: selectedId });
+    if (selectedId) act(async () => setSource({ id: sourceId, element, crop, slideId: selectedId }));
   }
-  function closeSource() {
-    if (cropEdit.current !== undefined) c.session?.releaseDraft(cropEdit.current);
-    cropEdit.current = undefined;
-    setSource(undefined);
+  async function closeSource() {
+    const version = cropEdit.current;
+    if (version !== undefined) await c.discardDraft(version);
+    if (cropEdit.current === version) {
+      cropEdit.current = undefined;
+      setSource(undefined);
+    }
   }
   if (!data)
     return (
@@ -758,12 +761,14 @@ export function SlidesPage({
           element={source.element}
           crop={source.crop}
           resources={c.resources}
-          onClose={closeSource}
+          onClose={() => void closeSource().catch(c.setError)}
           onStart={() => {
             c.cancelAi();
-            cropEdit.current = c.session?.registerDraft();
+            cropEdit.current = c.registerDraft(`crop:${source.slideId}:${source.element?.id}`);
           }}
           onApply={async (bbox) => {
+            const version = cropEdit.current ?? c.registerDraft(`crop:${source.slideId}:${source.element?.id}`);
+            cropEdit.current = version;
             await c.commit(
               [
                 {
@@ -773,8 +778,9 @@ export function SlidesPage({
                 },
               ],
               '保存本页裁图',
+              version,
             );
-            closeSource();
+            if (cropEdit.current === version) await closeSource();
           }}
         />
       )}

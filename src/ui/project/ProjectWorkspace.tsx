@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import type { LeaveGuard, RegisterLeaveGuard } from '../../app/activity';
-import { analysisService } from '../../app/composition';
+import { analysisService, presentationSessions } from '../../app/composition';
 import type { ModelSettings } from '../../app/settings/modelSettings';
 import type { WorkspaceStep } from '../../modules/project/model';
 import { Button, errorMessage } from '../controls';
@@ -27,6 +27,7 @@ export function ProjectWorkspace({
   registerLeaveGuard?: RegisterLeaveGuard;
 }) {
   const session = analysisService.session(id);
+  useEffect(() => presentationSessions.attach(id), [id]);
   const [step, setStep] = useState<WorkspaceStep>();
   const [error, setError] = useState('');
   const [startSpeech, setStartSpeech] = useState(false);

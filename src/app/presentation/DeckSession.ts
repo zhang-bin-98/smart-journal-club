@@ -12,6 +12,8 @@ import type { Paper as CurrentPaper } from '../../modules/paper/model';
 type Paper = LegacyPaper | CurrentPaper;
 import { validateDeck } from '../../modules/presentation/editing/validateDeck';
 import { applyMutation, ensureScope, findSlide } from '../../modules/presentation/editing/mutations';
+import { ContentError } from '../../modules/presentation/content';
+import { beginActivity, setDirty } from '../activity';
 
 export type DeckSnapshot = Pick<
   Deck,
@@ -24,7 +26,11 @@ export type PersistRevision = (
   record: RevisionRecord,
   options?: RevisionOptions,
 ) => Promise<void>;
-export type RevisionCommitOptions = RevisionOptions & { request?: RevisionRequest; persist?: PersistRevision };
+export type RevisionCommitOptions = RevisionOptions & {
+  request?: RevisionRequest;
+  persist?: PersistRevision;
+  editVersion?: number;
+};
 const clone = <T>(value: T): T => structuredClone(value);
 const snapshot = (deck: Deck): DeckSnapshot =>
   clone({
@@ -42,24 +48,50 @@ export class DeckSession {
   private redoStack: DeckSnapshot[] = [];
   private saving = false;
   private epoch = 0;
+  private closed = false;
+  private pendingSave?: Promise<void>;
+  private readonly dirtyKey = `deck-edit:${crypto.randomUUID()}`;
   private draftVersion: number | undefined;
-  registerDraft() {
+  private draftId?: string;
+  private draftTarget?: string;
+  registerDraft(target = 'content') {
+    if (this.closed) throw new ContentError('closed', '项目已关闭。');
+    if (this.dirty && this.draftTarget !== target) throw new ContentError('dirty-target', '请先保存或放弃当前输入。');
     this.epoch++;
+    this.draftId ??= crypto.randomUUID();
+    this.draftTarget = target;
     this.draftVersion = this.epoch;
+    setDirty(this.dirtyKey, true);
     return this.epoch;
   }
   releaseDraft(version: number) {
-    if (this.draftVersion === version) this.draftVersion = undefined;
+    if (this.saving) throw new ContentError('saving', '请等待当前保存完成。');
+    if (this.draftVersion === version) this.clearDraft();
+  }
+  private clearDraft() {
+    this.draftVersion = undefined;
+    this.draftId = undefined;
+    this.draftTarget = undefined;
+    setDirty(this.dirtyKey, false);
+  }
+  async discardDraft(version: number) {
+    await this.pendingSave;
+    this.releaseDraft(version);
+  }
+  assertClean() {
+    if (this.closed) throw new ContentError('closed', '项目已关闭。');
+    if (this.dirty || this.saving) throw new ContentError('dirty-target', '请先保存当前输入。');
   }
   get dirty() {
     return this.draftVersion !== undefined;
   }
   capture() {
-    if (this.dirty || this.saving) throw new Error('请先保存当前输入。');
+    this.assertClean();
     return { id: this.current.id, revision: this.current.revision, epoch: this.epoch };
   }
   assertCapture(capture: { id: string; revision: number; epoch: number }) {
     if (
+      this.closed ||
       this.dirty ||
       this.saving ||
       capture.id !== this.current.id ||
@@ -96,7 +128,10 @@ export class DeckSession {
     requestId: string = crypto.randomUUID(),
     options?: RevisionCommitOptions,
   ) {
+    if (this.closed) throw new ContentError('closed', '项目已关闭。');
     if (this.saving) throw new Error('正在保存，请稍后重试');
+    if (this.draftVersion !== options?.editVersion)
+      throw new ContentError('dirty-target', '请先保存当前输入，或提交匹配的草稿版本。');
     if (this.committedRequests.has(requestId)) throw new Error('本次修改已经提交');
     this.assertValid(next);
     next.revision = this.current.revision + 1;
@@ -122,9 +157,23 @@ export class DeckSession {
       summary,
       createdAt: next.updatedAt,
     };
+    const capturedEpoch = this.epoch;
+    const capturedDraft = this.draftId;
+    const guarded = {
+      ...options,
+      isTaskActive: () =>
+        !this.closed &&
+        (capturedDraft ? this.draftId === capturedDraft : this.epoch === capturedEpoch) &&
+        (!options?.isTaskActive || options.isTaskActive()),
+    };
+    const done = beginActivity();
     this.saving = true;
     try {
-      await (options?.persist ?? this.persist)?.(clone(this.current), clone(next), record, options);
+      this.pendingSave = Promise.resolve().then(() => {
+        if (!guarded.isTaskActive()) throw new ContentError('inactive-edit', '修改请求已失效。');
+        return (options?.persist ?? this.persist)?.(clone(this.current), clone(next), record, guarded);
+      });
+      await this.pendingSave;
       const savedSlides = new Map(this.current.slides.map((slide) => [slide.id, slide]));
       next.slides = next.slides.map((slide) => {
         const previous = savedSlides.get(slide.id);
@@ -132,11 +181,14 @@ export class DeckSession {
       });
       this.current = next;
       this.epoch++;
+      if (options?.editVersion !== undefined && this.draftVersion === options.editVersion) this.clearDraft();
       this.committedRequests.add(requestId);
       if (this.committedRequests.size > 100)
         this.committedRequests.delete(this.committedRequests.values().next().value!);
     } finally {
       this.saving = false;
+      this.pendingSave = undefined;
+      done();
     }
   }
   async commit(
@@ -225,11 +277,22 @@ export class DeckSession {
     return true;
   }
   reset(initial: Deck) {
+    this.assertClean();
     this.current = clone(initial);
     this.epoch++;
-    this.draftVersion = undefined;
+    this.clearDraft();
     this.undoStack = [];
     this.redoStack = [];
     this.assertValid(this.current);
+  }
+  clearHistory() {
+    this.undoStack = [];
+    this.redoStack = [];
+  }
+  close() {
+    this.closed = true;
+    this.epoch++;
+    this.clearDraft();
+    this.clearHistory();
   }
 }

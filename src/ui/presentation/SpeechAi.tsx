@@ -1,14 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
-import { askSpeech } from '../../app/composition';
-import {
-  applySpeechProposal,
-  speechDiff,
-  type SpeechProposal,
-  type SpeechScope,
-} from '../../app/assistant/speechAssistant';
+import { useState } from 'react';
+import { speechDiff, type SpeechScope } from '../../app/assistant/speechAssistant';
 import type { SpeechController } from './useSpeechController';
 import type { ModelSettings } from '../../app/settings/modelSettings';
-import { Button, inputClass, errorMessage } from '../controls';
+import { Button, inputClass } from '../controls';
 export function SpeechAi({
   controller: c,
   selectedId,
@@ -21,28 +15,10 @@ export function SpeechAi({
   const [scope, setScope] = useState('paragraph');
   const [mode, setMode] = useState<'ask' | 'modify'>('ask');
   const [question, setQuestion] = useState('');
-  const [answer, setAnswer] = useState('');
-  const [proposal, setProposal] = useState<SpeechProposal>();
-  const [label, setLabel] = useState('');
-  const [busy, setBusy] = useState(false);
-  const request = useRef<AbortController | undefined>(undefined);
+  const { answer, proposal, label, aiBusy: busy } = c;
   const target = c.state.data?.target;
   const content = target?.content;
   const paragraph = content?.speechParagraphs.find((p) => p.id === selectedId);
-  useEffect(
-    () => () => {
-      request.current?.abort();
-    },
-    [],
-  );
-  // biome-ignore lint/correctness/useExhaustiveDependencies: 内容目标或版本变化必须丢弃提案。
-  useEffect(() => {
-    if (c.state.dirty) {
-      request.current?.abort();
-      setBusy(false);
-    }
-    setProposal(undefined);
-  }, [c.state.dirty, target?.id, target?.revision]);
   async function send() {
     await c.act(async () => {
       if (!content || !question.trim()) return;
@@ -58,36 +34,7 @@ export function SpeechAi({
           : selected.type === 'section'
             ? content.sections.find((s) => s.id === selected.id)?.title
             : paragraph?.purpose || '当前讲述';
-      setLabel(name ?? '');
-      const abort = new AbortController();
-      request.current = abort;
-      setBusy(true);
-      setProposal(undefined);
-      setAnswer('');
-      try {
-        const result = await askSpeech({
-          session: c.session,
-          scope: selected,
-          mode,
-          question,
-          settings,
-          signal: abort.signal,
-          onText: (text) => {
-            if (!abort.signal.aborted) setAnswer(text);
-          },
-        });
-        if (!abort.signal.aborted) {
-          setAnswer(result.answer);
-          setProposal(result.proposal);
-        }
-      } catch (cause) {
-        if (!abort.signal.aborted) c.setError(errorMessage(cause));
-      } finally {
-        if (request.current === abort) {
-          request.current = undefined;
-          setBusy(false);
-        }
-      }
+      await c.send({ scope: selected, mode, question, settings, label: name ?? '' });
     });
   }
   return (
@@ -129,18 +76,10 @@ export function SpeechAi({
               </div>
             ))}
             <div className="flex gap-2">
-              <Button
-                primary
-                onClick={() =>
-                  void c.act(async () => {
-                    await applySpeechProposal(c.session, proposal);
-                    setProposal(undefined);
-                  })
-                }
-              >
+              <Button primary onClick={() => void c.act(c.applyProposal)}>
                 应用修改
               </Button>
-              <Button onClick={() => setProposal(undefined)}>放弃提案</Button>
+              <Button onClick={() => c.setProposal(undefined)}>放弃提案</Button>
             </div>
           </div>
         )}
@@ -165,9 +104,8 @@ export function SpeechAi({
           {busy && (
             <Button
               onClick={() => {
-                request.current?.abort();
-                setBusy(false);
-                setProposal(undefined);
+                c.cancelAi();
+                c.setProposal(undefined);
               }}
             >
               取消请求

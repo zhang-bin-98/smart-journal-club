@@ -46,7 +46,10 @@ export const analysisService = createAnalysisService(analysisStore, createAnalys
 export const projectsService = createProjectService({
   store: projectStore,
   validateFile: checkPdfFile,
-  removeSession: analysisService.remove,
+  removeSession: async (id) => {
+    presentationSessions.remove(id);
+    await analysisService.remove(id);
+  },
 });
 export const askPaper = createPaperAssistant(createReadOnlyAgent(adapter));
 export const createReviewSession = (id: string) =>
@@ -73,11 +76,19 @@ import { createSpeechEvidenceRefresh } from './presentation/refreshSpeechEvidenc
 import { createOutlineSession } from './presentation/OutlineSession';
 import { prepareOutline } from './workflows/prepareOutline';
 import { createSpeechAssistant } from './assistant/speechAssistant';
-export const createSpeechSession = (id: string, preferPlan: boolean | (() => boolean) = false) =>
-  createOutlineSession(id, {
-    ...speechStore,
-    open: (projectId) => speechStore.open(projectId, typeof preferPlan === 'function' ? preferPlan() : preferPlan),
-  });
+export const createSpeechSession = (
+  id: string,
+  preferPlan: boolean | (() => boolean) = false,
+  beforeEdit?: () => void,
+) =>
+  createOutlineSession(
+    id,
+    {
+      ...speechStore,
+      open: (projectId) => speechStore.open(projectId, typeof preferPlan === 'function' ? preferPlan() : preferPlan),
+    },
+    beforeEdit,
+  );
 export const createSpeechResources = async (id: string) => createFigureResources(await projectStore.openProject(id));
 export const generateSpeech = (
   input: Omit<Parameters<typeof prepareOutline>[0], 'store' | 'requests' | 'image' | 'refreshEvidence' | 'prompts'>,
@@ -107,6 +118,21 @@ export const slidesService = createSlidesService({
   download: downloadDeck,
 });
 export const askSlides = createSlidesAssistant(createReadOnlyAgent(adapter));
+
+import { createPresentationSessions } from './presentation/projectSessions';
+import { createSpeechController } from './presentation/speechController';
+import { createSlidesController } from './presentation/slidesController';
+export const presentationSessions = createPresentationSessions({
+  speech: (id, guards) =>
+    createSpeechController(id, {
+      ...guards,
+      session: (projectId, preferPlan) => createSpeechSession(projectId, preferPlan, guards.beforeEdit),
+      resources: createSpeechResources,
+      generate: generateSpeech,
+      ask: askSpeech,
+    }),
+  slides: (id, guards) => createSlidesController(id, { ...guards, service: slidesService, ask: askSlides }),
+});
 
 import { clearAppStorage, holdStorageSession } from '../infrastructure/persistence/storageReset';
 import { createStorageReset } from './settings/resetStorage';

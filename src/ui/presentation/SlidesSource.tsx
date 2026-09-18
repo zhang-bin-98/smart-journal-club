@@ -27,6 +27,11 @@ export function SlidesSource({
   const source = paper.sources.find((s) => s.id === sourceId);
   const [bbox, setBbox] = useState(element?.cropOverride ?? source?.bbox ?? { x: 0, y: 0, width: 1, height: 1 });
   const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const change = (value: BBox) => {
+    onStart();
+    setBbox(value);
+  };
   if (!source) return null;
   const doc = paper.documents.find((d) => d.id === source.documentId);
   return (
@@ -36,7 +41,7 @@ export function SlidesSource({
       aria-label={crop ? '本页裁图' : '原文与图源'}
       className="fixed inset-0 z-40 grid place-items-center bg-black/40 p-8"
       onKeyDown={(e) => {
-        if (e.key === 'Escape') onClose();
+        if (e.key === 'Escape' && !saving) onClose();
       }}
     >
       <section className="flex max-h-full w-[1050px] flex-col overflow-hidden rounded-lg bg-white shadow-xl">
@@ -44,7 +49,9 @@ export function SlidesSource({
           <span>
             {doc?.fileName} · 第 {source.pageNumber} 页{crop ? ' · 仅本页裁图' : ''}
           </span>
-          <Button onClick={onClose}>关闭来源</Button>
+          <Button disabled={saving} onClick={onClose}>
+            关闭来源
+          </Button>
         </header>
         <div className="grid min-h-0 grid-cols-[1fr_280px] gap-4 overflow-auto p-4">
           <div>
@@ -58,8 +65,8 @@ export function SlidesSource({
                 selected="crop"
                 disabled={!crop}
                 onStart={onStart}
-                onDraft={setBbox}
-                onCommit={setBbox}
+                onDraft={change}
+                onCommit={change}
               />
             )}
           </div>
@@ -83,8 +90,18 @@ export function SlidesSource({
             {crop && (
               <>
                 <p className="text-xs text-muted">拖动边框调整。保留坐标、图例和统计标注。</p>
-                <Button primary onClick={() => void onApply(bbox).catch((cause) => setError(cause.message))}>
-                  保存本页裁图
+                <Button
+                  primary
+                  disabled={saving}
+                  onClick={() => {
+                    setSaving(true);
+                    setError('');
+                    void onApply(bbox)
+                      .catch((cause) => setError(cause.message))
+                      .finally(() => setSaving(false));
+                  }}
+                >
+                  {saving ? '正在保存裁图…' : '保存本页裁图'}
                 </Button>
                 <Button
                   onClick={() => {

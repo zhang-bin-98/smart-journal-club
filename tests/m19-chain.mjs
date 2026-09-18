@@ -7,6 +7,8 @@ export async function finishM19Chain(page, output) {
   );
   let speechCalls = 0;
   let slideCalls = 0;
+  const speechGate = Promise.withResolvers();
+  const slidesGate = Promise.withResolvers();
   await page.route('https://m15-fixed.example/responses', async (route) => {
     const request = decodeResponseRequest(route.request().postDataJSON());
     const message = request.messages.find((m) => m.role === 'user').content;
@@ -14,6 +16,7 @@ export async function finishM19Chain(page, output) {
     let result;
     if (input.section && input.speech) {
       slideCalls++;
+      await slidesGate.promise;
       result = {
         slides: [
           {
@@ -40,6 +43,7 @@ export async function finishM19Chain(page, output) {
       };
     } else if (input.paper) {
       speechCalls++;
+      await speechGate.promise;
       result = structuredClone(content);
       result.speech[0].claimIds = input.paper.claims.map((c) => c.id);
       result.speech[0].sourceIds = input.paper.sources.map((s) => s.id);
@@ -57,12 +61,35 @@ export async function finishM19Chain(page, output) {
   await page.getByRole('button', { name: '确认切分', exact: true }).click();
   assert.equal(speechCalls, 0, '确认图源后仍由用户主动进入讲稿');
   await page.getByRole('button', { name: '生成大纲与讲稿', exact: true }).click();
+  await page.waitForFunction(
+    async (id) => (await import('/src/app/composition.ts')).presentationSessions.speech(id).snapshot().running,
+    id,
+  );
+  await page.getByRole('button', { name: '2 图源核对', exact: true }).click();
+  speechGate.resolve();
+  await page.waitForFunction(async (id) => {
+    const { presentationSessions } = await import('/src/app/composition.ts');
+    const controller = presentationSessions.speech(id);
+    return !controller.snapshot().running && !!controller.session.snapshot().data?.target;
+  }, id);
+  await page.getByRole('button', { name: '3 大纲与演讲稿', exact: true }).click();
   const text = page.getByLabel('讲稿正文', { exact: true }).first();
   await text.waitFor({ timeout: 60000 });
   assert.equal(slideCalls, 0, '讲稿完成不自动进入幻灯片');
   await text.fill('主链人工修订。限定当前实验条件，保留证据强度。');
   await text.press('Tab');
   await page.getByRole('button', { name: '下一步：生成幻灯片', exact: true }).click();
+  await page.waitForFunction(
+    async (id) => (await import('/src/app/composition.ts')).presentationSessions.slides(id).snapshot().running,
+    id,
+  );
+  await page.getByRole('button', { name: '3 大纲与演讲稿', exact: true }).click();
+  slidesGate.resolve();
+  await page.waitForFunction(async (id) => {
+    const state = (await import('/src/app/composition.ts')).presentationSessions.slides(id).snapshot();
+    return !state.running && !!state.deck;
+  }, id);
+  await page.getByRole('button', { name: '4 幻灯片', exact: true }).click();
   await page.getByRole('button', { name: '导出 PPTX', exact: true }).waitFor({ timeout: 60000 });
   let saved;
   const deadline = Date.now() + 60000;

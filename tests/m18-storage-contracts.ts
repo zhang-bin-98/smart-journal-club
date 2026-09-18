@@ -180,6 +180,42 @@ export async function verifySlidesStorage(projectId: string) {
     assertActive() {},
   });
   const staleId = state.candidate!.id;
+  const beforeRestore = state;
+  let restoreChecks = 0;
+  const restore = () =>
+    slidesStore.restore({
+      projectId,
+      currentId: state.current!.id,
+      previousId: state.previous!.id,
+      currentRevision: state.current!.revision,
+      previousRevision: state.previous!.revision,
+      assertActive() {},
+    });
+  await rejects(() =>
+    slidesStore.restore({
+      projectId,
+      currentId: state.current!.id,
+      previousId: state.previous!.id,
+      currentRevision: state.current!.revision,
+      previousRevision: state.previous!.revision,
+      assertActive() {
+        if (++restoreChecks === 2) throw new Error('cancel restore before write');
+      },
+    }),
+  );
+  assert(
+    (await slidesStore.open(projectId)).current!.revision === state.current!.revision,
+    'Failed restore advanced revision',
+  );
+  state = await restore();
+  assert(state.current!.revision === beforeRestore.previous!.revision + 1, 'Restore reused an old revision');
+  state = await restore();
+  assert(state.current!.id === beforeRestore.current!.id, 'Second restore did not return to original deck');
+  assert(state.current!.revision === beforeRestore.current!.revision + 1, 'Second restore reused original revision');
+  assert(!!state.candidateStale, 'Restoring twice revived the old candidate');
+  await rejects(() =>
+    slidesStore.candidate({ projectId, expectedCandidate: state.candidateKey, action: 'apply', assertActive() {} }),
+  );
   await saveRequirements(projectId, { ...state.project.preferences, instruction: 'changed while candidate waiting' });
   state = await slidesStore.open(projectId);
   assert(!!state.candidateStale, 'Changed project preference did not stale candidate');

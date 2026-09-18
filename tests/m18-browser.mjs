@@ -77,6 +77,22 @@ try {
   });
   await page.goto(`${base}#/project/${id}`);
   await page.reload();
+  await page.evaluate(async () => {
+    const { slidesStore } = await import('/src/app/composition.ts');
+    const revision = slidesStore.revision;
+    slidesStore.revision = (id) => {
+      const persist = revision(id);
+      return async (...args) => {
+        if (window.__holdCropSave) {
+          window.__holdCropSave = false;
+          await new Promise((resolve) => {
+            window.__releaseCropSave = resolve;
+          });
+        }
+        return persist(...args);
+      };
+    };
+  });
   await page.getByRole('button', { name: '下一步：生成幻灯片', exact: true }).click();
   await page.getByRole('button', { name: '导出 PPTX', exact: true }).waitFor();
   await page.getByText('完整幻灯片已保存', { exact: true }).first().waitFor({ timeout: 30000 });
@@ -91,6 +107,9 @@ try {
   const title = page.getByRole('textbox', { name: '幻灯片标题', exact: true });
   await title.fill('手工修改的标题');
   await title.press('Tab');
+  await page.getByRole('button', { name: '3 大纲与演讲稿', exact: true }).click();
+  await page.getByRole('button', { name: '查看已有幻灯片', exact: true }).click();
+  await page.getByRole('button', { name: '专注当前页', exact: true }).click();
   await page.getByRole('button', { name: '撤销', exact: true }).click();
   await page.waitForFunction(
     () => document.querySelector('[aria-label="幻灯片标题"]')?.textContent !== '手工修改的标题',
@@ -142,6 +161,10 @@ try {
   await page.getByRole('textbox', { name: '幻灯片 AI 输入', exact: true }).fill('精简本页标题');
   await page.getByRole('button', { name: '发送', exact: true }).click();
   await page.getByRole('button', { name: '应用 AI 修改', exact: true }).waitFor({ timeout: 15000 });
+  await page.getByRole('button', { name: '3 大纲与演讲稿', exact: true }).click();
+  await page.getByRole('button', { name: '查看已有幻灯片', exact: true }).click();
+  await page.getByRole('button', { name: '专注当前页', exact: true }).click();
+  await page.getByRole('button', { name: '展开 AI 输入', exact: true }).click();
   await page.getByRole('button', { name: '应用 AI 修改', exact: true }).click();
   await page.getByRole('textbox', { name: '幻灯片标题', exact: true }).filter({ hasText: 'AI 修改后的标题' }).waitFor();
   await page.getByRole('button', { name: '撤销', exact: true }).click();
@@ -161,13 +184,32 @@ try {
     () => document.querySelector('[role="dialog"] [role="application"]')?.getAttribute('aria-busy') === 'false',
   );
   await dialog.getByRole('button', { name: '调整w边界', exact: true }).press('ArrowLeft');
+  assert.equal(await page.evaluate(async () => (await import('/src/app/activity.ts')).isAppIdle()), false);
+  await page.evaluate(() => {
+    window.__holdCropSave = true;
+  });
+  await dialog.getByRole('button', { name: '保存本页裁图', exact: true }).click();
+  await page.waitForFunction(() => !!window.__releaseCropSave);
+  await dialog.getByRole('button', { name: '调整w边界', exact: true }).press('ArrowLeft');
+  await page.evaluate(() => window.__releaseCropSave());
+  await dialog.getByRole('button', { name: '保存本页裁图', exact: true }).waitFor();
+  assert.equal(await dialog.isVisible(), true, '旧保存完成不能关闭含有新调整的裁图弹窗');
+  assert.equal(await page.evaluate(async () => (await import('/src/app/activity.ts')).isAppIdle()), false);
+  const firstCrop = await page.evaluate(
+    async (id) => (await (await import('/src/app/composition.ts')).slidesStore.open(id)).current,
+    id,
+  );
+  assert.equal(firstCrop.revision, beforeCrop.current.revision + 1);
   await dialog.getByRole('button', { name: '保存本页裁图', exact: true }).click();
   await dialog.waitFor({ state: 'hidden' });
   const afterCrop = await page.evaluate(
     async (id) => await (await import('/src/app/composition.ts')).slidesStore.open(id),
     id,
   );
-  assert.equal(afterCrop.current.revision, beforeCrop.current.revision + 1);
+  assert.equal(afterCrop.current.revision, beforeCrop.current.revision + 2);
+  const cropBox = (deck) => deck.slides.flatMap((s) => s.elements).find((e) => e.cropOverride).cropOverride;
+  assert.ok(cropBox(afterCrop.current).x < cropBox(firstCrop).x, '第二次保存应包含保存期间的新边框');
+  assert.equal(await page.evaluate(async () => (await import('/src/app/activity.ts')).isAppIdle()), true);
   assert.deepEqual(afterCrop.paper, beforeCrop.paper);
   assert.ok(afterCrop.current.slides.flatMap((s) => s.elements).some((e) => e.cropOverride));
   await page.getByRole('button', { name: '撤销', exact: true }).click();

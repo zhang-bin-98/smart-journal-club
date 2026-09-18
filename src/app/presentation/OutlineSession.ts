@@ -15,10 +15,11 @@ export type SpeechSnapshot = {
   error?: string;
 };
 /** 保存与撤销成功后才推进会话；保存期间的新输入继续保留编辑登记。 */
-export function createOutlineSession(projectId: string, store: SpeechStore) {
+export function createOutlineSession(projectId: string, store: SpeechStore, beforeEdit: () => void = () => {}) {
   let state: SpeechSnapshot = { dirty: false, saving: false, canUndo: false, canRedo: false };
   let closed = false;
   let epoch = 0;
+  let readEpoch = 0;
   let edit: { id: string; target: string; version: number } | undefined;
   let pending: Promise<void> | undefined;
   const past: SpeechTarget[] = [];
@@ -44,6 +45,7 @@ export function createOutlineSession(projectId: string, store: SpeechStore) {
     const captured = target();
     if (pending) throw new ContentError('saving', '上一项修改正在保存。');
     if (edit && edit.id !== editId) throw new ContentError('dirty-target', '请先保存正在编辑的文字。');
+    beforeEdit();
     const capturedEdit = edit && { ...edit };
     const savedEpoch = epoch;
     const done = beginActivity();
@@ -99,11 +101,16 @@ export function createOutlineSession(projectId: string, store: SpeechStore) {
     },
     async load() {
       closed = false;
-      const version = ++epoch;
+      const version = ++readEpoch;
+      const contentEpoch = epoch;
       const data = await store.open(projectId);
-      if (!closed && epoch === version && !edit && !pending) {
+      if (!closed && readEpoch === version && epoch === contentEpoch && !edit && !pending) {
         const old = state.data?.target;
-        if (old && (old.id !== data.target?.id || old.revision !== data.target?.revision)) {
+        if (
+          old &&
+          (old.kind !== data.target?.kind || old.id !== data.target?.id || old.revision !== data.target?.revision)
+        ) {
+          epoch++;
           past.length = 0;
           future.length = 0;
         }
@@ -159,7 +166,11 @@ export function createOutlineSession(projectId: string, store: SpeechStore) {
     async leave() {
       await pending;
       if (edit) throw new ContentError('dirty-target', '讲稿尚未保存，请重试保存或取消输入。');
-      epoch++;
+    },
+    clearHistory() {
+      past.length = 0;
+      future.length = 0;
+      update({});
     },
     close() {
       closed = true;

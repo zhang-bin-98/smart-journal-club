@@ -12,6 +12,7 @@ import { buildPresentation, assertBuiltPlan } from '../../src/modules/presentati
 import { groupPreset, groupRects, groupLeaves, rankGroups } from '../../src/modules/presentation/layout';
 import { computeLayout } from '../../src/modules/presentation/layout/computeLayout';
 import { DeckSession } from '../../src/app/presentation/DeckSession';
+import { isAppIdle } from '../../src/app/activity';
 import { splitSlide, mergeSlides, assignSpeech, moveSlideBy } from '../../src/modules/presentation/editing';
 import { checkPresentation } from '../../src/app/presentation/checkPresentation';
 import { validateDeck } from '../../src/modules/presentation/editing/validateDeck';
@@ -188,6 +189,93 @@ describe('M18 构建、图组与讲述提交', () => {
     session.releaseDraft(version);
     expect(() => session.assertCapture(capture)).toThrow();
     expect(session.dirty).toBe(true);
+    session.close();
+  });
+  it('草稿登记阻止普通提交和撤销重做，失败不移动历史或解除刷新保护', async () => {
+    const { deck, state } = fixture();
+    const persist = vi.fn(async () => {});
+    const session = new DeckSession(deck, state.paper, persist);
+    const mutation = { type: 'update-slide' as const, slideId: 'slide-0', changes: { title: '修改' } };
+    await session.commit({ type: 'deck' }, [mutation], '修改');
+    const draft = session.registerDraft('crop');
+    expect(isAppIdle()).toBe(false);
+    await expect(session.commit({ type: 'deck' }, [mutation], '无身份提交')).rejects.toMatchObject({
+      code: 'dirty-target',
+    });
+    await expect(session.undo()).rejects.toMatchObject({ code: 'dirty-target' });
+    expect(persist).toHaveBeenCalledTimes(1);
+    expect(session.current.revision).toBe(1);
+    expect(session.canUndo).toBe(true);
+    expect(() => session.registerDraft('different-target')).toThrow('当前输入');
+    await session.discardDraft(draft);
+    await session.undo();
+    const second = session.registerDraft();
+    await expect(session.redo()).rejects.toMatchObject({ code: 'dirty-target' });
+    expect(session.canRedo).toBe(true);
+    session.releaseDraft(second);
+    expect(isAppIdle()).toBe(true);
+    session.close();
+  });
+  it('保存捕获的草稿时保留新版本，新版本保存失败可重试', async () => {
+    const { deck, state } = fixture();
+    let finish!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    const persist = vi.fn(async (_previous, _next, _record, options) => {
+      await gate;
+      expect(options.isTaskActive()).toBe(true);
+    });
+    const session = new DeckSession(deck, state.paper, persist);
+    const mutation = (title: string) => [{ type: 'update-slide' as const, slideId: 'slide-0', changes: { title } }];
+    const first = session.registerDraft('crop');
+    const saving = session.commit({ type: 'deck' }, mutation('第一版'), '保存', undefined, { editVersion: first });
+    await vi.waitFor(() => expect(persist).toHaveBeenCalledOnce());
+    const second = session.registerDraft('crop');
+    finish();
+    await saving;
+    expect(session.current.slides[0].title).toBe('第一版');
+    expect(session.dirty).toBe(true);
+    expect(isAppIdle()).toBe(false);
+    await expect(
+      session.commit({ type: 'deck' }, mutation('旧回调'), '旧保存', undefined, { editVersion: first }),
+    ).rejects.toThrow('草稿版本');
+    persist.mockRejectedValueOnce(new Error('storage failed'));
+    await expect(
+      session.commit({ type: 'deck' }, mutation('第二版'), '保存', undefined, { editVersion: second }),
+    ).rejects.toThrow('storage failed');
+    expect(session.current.revision).toBe(1);
+    expect(session.dirty).toBe(true);
+    await session.commit({ type: 'deck' }, mutation('第二版'), '保存', undefined, { editVersion: second });
+    expect(session.current.slides[0].title).toBe('第二版');
+    expect(session.dirty).toBe(false);
+    expect(isAppIdle()).toBe(true);
+    session.close();
+  });
+  it('普通写入等待事务时开始草稿会使事务内有效性检查失败', async () => {
+    const { deck, state } = fixture();
+    let finish!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    const persist = vi.fn(async (_previous, _next, _record, options) => {
+      await gate;
+      if (!options.isTaskActive()) throw new Error('inactive-edit');
+    });
+    const session = new DeckSession(deck, state.paper, persist);
+    const saving = session.commit(
+      { type: 'deck' },
+      [{ type: 'update-slide', slideId: 'slide-0', changes: { title: '迟到结果' } }],
+      '修改',
+    );
+    await vi.waitFor(() => expect(persist).toHaveBeenCalledOnce());
+    session.registerDraft('crop');
+    finish();
+    await expect(saving).rejects.toThrow('inactive-edit');
+    expect(session.current).toEqual(deck);
+    expect(session.canUndo).toBe(false);
+    expect(session.dirty).toBe(true);
+    session.close();
   });
   it('重复分配和非法图组拒绝保存，未分配讲稿/省略只提醒，溢出拦截', async () => {
     const { deck, state } = fixture();

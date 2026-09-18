@@ -9,8 +9,10 @@ import { pdfError } from './localCompute';
 /** One bounded project cache. In-use canvases cannot be evicted; pixel tasks use the existing local queue. */
 export function createFigureResources(data: AnalysisProject): FigureResources {
   const resources = new Map<string, PdfResource>();
-  const cache = new Map<string, { canvas: HTMLCanvasElement; users: number }>();
-  const pending = new Map<string, Promise<{ canvas: HTMLCanvasElement; users: number }>>();
+  type Entry = { canvas: HTMLCanvasElement; users: number };
+  type Pending = { entry: Entry; controller: AbortController; promise: Promise<void> };
+  const cache = new Map<string, Entry>();
+  const pending = new Map<string, Pending>();
   const lifetime = new AbortController();
   const resource = (documentId: string) => {
     let value = resources.get(documentId);
@@ -34,47 +36,69 @@ export function createFigureResources(data: AnalysisProject): FigureResources {
     }
   }
   async function acquire(documentId: string, pageNumber: number, signal: AbortSignal): Promise<FigureBitmap> {
+    signal = AbortSignal.any([signal, lifetime.signal]);
     signal.throwIfAborted();
     lifetime.signal.throwIfAborted();
-    const doc = data.paper.documents.find((item) => item.id === documentId)!;
+    const doc = data.paper.documents.find((item) => item.id === documentId);
+    if (!doc) throw pdfError('missing-pdf', '原文件不存在。');
     const key = `${documentId}:${doc.pdfAssetId}:${pageNumber}:2200`;
     let entry = cache.get(key);
+    let work: Pending | undefined;
     if (!entry) {
-      let work = pending.get(key);
+      work = pending.get(key);
       if (!work) {
-        work = (async () => {
-          const canvas = document.createElement('canvas');
+        const canvas = document.createElement('canvas');
+        const task: Pending = {
+          entry: { canvas, users: 0 },
+          controller: new AbortController(),
+          promise: Promise.resolve(),
+        };
+        const renderSignal = AbortSignal.any([task.controller.signal, lifetime.signal]);
+        task.promise = (async () => {
           try {
-            await resource(documentId).render(pageNumber, canvas, 2200, lifetime.signal);
-            const value = { canvas, users: 0 };
-            cache.set(key, value);
-            return value;
+            await resource(documentId).render(pageNumber, canvas, 2200, renderSignal);
+            renderSignal.throwIfAborted();
+            cache.set(key, task.entry);
+            evict();
           } catch (cause) {
             canvas.width = 0;
             canvas.height = 0;
             throw cause;
           } finally {
-            pending.delete(key);
+            if (pending.get(key) === task) pending.delete(key);
           }
         })();
+        work = task;
         pending.set(key, work);
       }
-      entry = await abortable(work, signal);
+      entry = work.entry;
     }
-    signal.throwIfAborted();
+    // 等待者提前占用引用；一个消费者取消不能释放其他消费者仍需的画布。
     entry.users++;
-    cache.delete(key);
-    cache.set(key, entry);
-    evict();
     let released = false;
+    const release = () => {
+      if (released) return;
+      released = true;
+      entry.users--;
+      if (!entry.users && work && pending.get(key) === work) {
+        pending.delete(key);
+        work.controller.abort();
+      }
+      evict();
+    };
+    try {
+      if (work) await abortable(work.promise, signal);
+      signal.throwIfAborted();
+      cache.delete(key);
+      cache.set(key, entry);
+      evict();
+    } catch (cause) {
+      release();
+      throw cause;
+    }
     return {
       canvas: entry.canvas,
-      release() {
-        if (released) return;
-        released = true;
-        entry!.users--;
-        evict();
-      },
+      release,
     };
   }
 

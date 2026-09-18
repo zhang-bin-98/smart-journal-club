@@ -214,7 +214,10 @@ export function createSlidesStore({ parsePlanRecord, assertGenerationBase }: Pla
           previousDeckId: input.currentId,
           updatedAt: Date.now(),
         };
+        // 恢复内容不恢复旧版本号，防止来回切版重新满足旧候选/请求的基准。
+        const restored = { ...state.previous, revision: state.previous.revision + 1, updatedAt: project.updatedAt };
         input.assertActive();
+        tx.objectStore('decks').put(restored, restored.id);
         tx.objectStore('projects').put(project, project.id);
         return read(tx, project.id);
       });
