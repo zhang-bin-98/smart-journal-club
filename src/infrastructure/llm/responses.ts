@@ -4,7 +4,7 @@ import { ModelError } from '../../app/llm/modelError';
 import type { normalizeSettings, ModelSettings } from '../../app/settings/modelSettings';
 import { type RequestScheduler, retryAfterMs, TemporaryRateLimit } from './requestScheduler';
 
-export function describeModel(settings: ModelSettings): Model<'openai-responses'> {
+function describeModel(settings: ModelSettings, defaultContextWindow: number): Model<'openai-responses'> {
   return {
     id: settings.modelId,
     name: settings.modelId,
@@ -14,8 +14,8 @@ export function describeModel(settings: ModelSettings): Model<'openai-responses'
     reasoning: true,
     input: ['text', 'image'],
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-    contextWindow: 131072,
-    maxTokens: 24576,
+    contextWindow: settings.contextWindow ?? defaultContextWindow,
+    maxTokens: settings.maxOutputTokens ?? 24576,
     compat: { supportsDeveloperRole: false, supportsStrictMode: false },
   };
 }
@@ -44,7 +44,7 @@ function failure(stage: string, status?: number, code?: string) {
     return new ModelError(
       stage,
       'unsupported-config',
-      '服务不接受当前模型或请求参数。请核对 Responses 地址、模型及所需能力，或将思考强度改回服务默认后重新检查。',
+      '服务不接受当前模型或请求参数。请核对 Responses 地址、模型、Token 上限及所需能力，或将思考强度改回服务默认后重新检查。',
     );
   return new ModelError(stage, 'model-request', '模型请求失败，请检查网络、服务地址及浏览器跨域访问支持后重试。');
 }
@@ -87,7 +87,8 @@ function wireTools(context: Context) {
   return { converted, logical, nameFor };
 }
 
-function estimateTokens(request: ModelRequest) {
+/** 通用端点没有统一 tokenizer；文本和图片按保守近似预留，不裁剪原文。 */
+function estimateInputTokens(request: ModelRequest) {
   let images = 0;
   const text = JSON.stringify(request.context, (_key, value) => {
     if (value && typeof value === 'object' && value.type === 'image') {
@@ -96,102 +97,134 @@ function estimateTokens(request: ModelRequest) {
     }
     return value;
   });
-  return Math.ceil(text.length / 2) + images * 4096 + (request.maxTokens ?? 16384);
+  const schema = request.responseSchema ? JSON.stringify(request.responseSchema) : '';
+  return Math.ceil((text.length + schema.length) / 2) + images * 4096;
 }
 
-export function createResponsesAdapter(scheduler: RequestScheduler, normalize: typeof normalizeSettings): ModelAdapter {
+export function createResponsesAdapter(
+  scheduler: RequestScheduler,
+  normalize: typeof normalizeSettings,
+  defaultContextWindow: number,
+): ModelAdapter {
+  const describe = (settings: ModelSettings) => describeModel(settings, defaultContextWindow);
   return {
-    describe: describeModel,
+    describe,
     async request(input) {
       const settings = normalize(input.settings);
-      const request = { ...input, settings };
+      const maxTokens = Math.min(
+        input.maxTokens ?? settings.maxOutputTokens ?? 16384,
+        settings.maxOutputTokens ?? Number.MAX_SAFE_INTEGER,
+      );
+      const request = { ...input, settings, maxTokens };
       const { signal, stage } = request;
       if (!settings.apiKey) throw new ModelError(stage, 'missing-key', '请先在模型配置中填写 API Key。');
       if (typeof navigator !== 'undefined' && navigator.onLine === false)
         throw new ModelError(stage, 'offline', '当前离线，联网后可使用 AI；本地查看和编辑仍可用。');
-      const timeout = AbortSignal.timeout(180000);
-      const requestSignal = AbortSignal.any([signal, timeout]);
+      const tokens = estimateInputTokens(request) + maxTokens;
+      if (tokens > (settings.contextWindow ?? defaultContextWindow))
+        throw new ModelError(
+          stage,
+          'context-budget',
+          '本次输入与预留输出估算超过上下文窗口。请核对模型配置中的上下文窗口或降低最大输出 Token 后重试。',
+        );
+      // 较长输出增加响应等待；排队/退避不计时，单次发送仍最多等待 30 分钟。
+      const timeoutMs = Math.min(1800000, Math.max(180000, Math.ceil(maxTokens / 16384) * 180000));
       try {
         return await scheduler.run({
-          signal: requestSignal,
-          tokens: estimateTokens(request),
+          signal,
+          tokens,
           actualTokens: (result) => result.usage.totalTokens,
           stage,
           priority: ['ai', 'connection', 'capabilities'].includes(stage) ? 'interactive' : 'background',
-          execute: () =>
-            abortable(requestSignal, async () => {
-              let responseStatus: number | undefined;
-              let providerCode: string | undefined;
-              let retryDelay: number | undefined;
-              let payloadError: ModelError | undefined;
-              let emitted = false;
-              const { converted, logical } = wireTools(request.context);
-              const { stream } = await import('@earendil-works/pi-ai/api/openai-responses');
-              requestSignal.throwIfAborted();
-              const events = stream(describeModel(settings), converted, {
-                apiKey: settings.apiKey,
-                signal: requestSignal,
-                maxTokens: request.maxTokens ?? 16384,
-                maxRetries: 0,
-                timeoutMs: 180000,
-                cacheRetention: 'none',
-                ...(request.outputTool ? { toolChoice: 'auto' as const } : {}),
-                fetch: async (url, init) => {
-                  const response = await fetch(url, { ...init, redirect: 'error' });
-                  responseStatus = response.status;
-                  scheduler.observe(response.headers);
-                  retryDelay = retryAfterMs(response.headers.get('retry-after'));
-                  if (!response.ok) {
-                    const raw = await response
-                      .clone()
-                      .json()
-                      .catch(() => undefined);
-                    providerCode = typeof raw?.error?.code === 'string' ? raw.error.code : raw?.error?.type;
-                  }
-                  return response;
-                },
-                onPayload: (payload) => {
-                  try {
-                    return responsePayload(payload, request);
-                  } catch (cause) {
-                    if (cause instanceof ModelError) payloadError = cause;
-                    throw cause;
-                  }
-                },
-              });
-              for await (const event of events) {
+          execute: async () => {
+            const timeout = new AbortController();
+            const timer = setTimeout(() => timeout.abort(), timeoutMs);
+            const requestSignal = AbortSignal.any([signal, timeout.signal]);
+            try {
+              return await abortable(requestSignal, async () => {
+                let responseStatus: number | undefined;
+                let providerCode: string | undefined;
+                let retryDelay: number | undefined;
+                let payloadError: ModelError | undefined;
+                let emitted = false;
+                const { converted, logical } = wireTools(request.context);
+                const { stream } = await import('@earendil-works/pi-ai/api/openai-responses');
                 requestSignal.throwIfAborted();
-                if (event.type === 'text_delta') {
-                  emitted = true;
-                  request.onText?.(event.delta);
+                const events = stream(describe(settings), converted, {
+                  apiKey: settings.apiKey,
+                  signal: requestSignal,
+                  maxTokens,
+                  maxRetries: 0,
+                  timeoutMs,
+                  cacheRetention: 'none',
+                  ...(request.outputTool ? { toolChoice: 'auto' as const } : {}),
+                  fetch: async (url, init) => {
+                    const response = await fetch(url, { ...init, redirect: 'error' });
+                    responseStatus = response.status;
+                    scheduler.observe(response.headers);
+                    retryDelay = retryAfterMs(response.headers.get('retry-after'));
+                    if (!response.ok) {
+                      const raw = await response
+                        .clone()
+                        .json()
+                        .catch(() => undefined);
+                      providerCode = typeof raw?.error?.code === 'string' ? raw.error.code : raw?.error?.type;
+                    }
+                    return response;
+                  },
+                  onPayload: (payload) => {
+                    try {
+                      return responsePayload(payload, request);
+                    } catch (cause) {
+                      if (cause instanceof ModelError) payloadError = cause;
+                      throw cause;
+                    }
+                  },
+                });
+                for await (const event of events) {
+                  requestSignal.throwIfAborted();
+                  if (event.type === 'text_delta') {
+                    emitted = true;
+                    request.onText?.(event.delta);
+                  }
                 }
-              }
-              const result = await events.result();
-              requestSignal.throwIfAborted();
-              if (payloadError) throw payloadError;
-              if (result.stopReason === 'error' || result.stopReason === 'aborted') {
-                if (
-                  !emitted &&
-                  responseStatus === 429 &&
-                  ['rate_limit_exceeded', 'too_many_requests'].includes(providerCode ?? '')
-                )
-                  throw new TemporaryRateLimit(stage, retryDelay);
-                throw failure(stage, responseStatus, providerCode);
-              }
-              if (result.stopReason === 'length')
-                throw new ModelError(stage, 'truncated', '模型输出未完成，当前阶段没有保存，请重试当前步骤。');
-              return {
-                ...result,
-                content: result.content.map((block) =>
-                  block.type === 'toolCall' ? { ...block, name: logical.get(block.name) ?? block.name } : block,
-                ),
-              };
-            }),
+                const result = await events.result();
+                requestSignal.throwIfAborted();
+                if (payloadError) throw payloadError;
+                if (result.stopReason === 'error' || result.stopReason === 'aborted') {
+                  if (
+                    !emitted &&
+                    responseStatus === 429 &&
+                    ['rate_limit_exceeded', 'too_many_requests'].includes(providerCode ?? '')
+                  )
+                    throw new TemporaryRateLimit(stage, retryDelay);
+                  throw failure(stage, responseStatus, providerCode);
+                }
+                if (result.stopReason === 'length')
+                  throw new ModelError(
+                    stage,
+                    'truncated',
+                    '模型输出达到上限仍未完成。请在模型配置中核对最大输出 Token 后重试，已保存成果仍保留。',
+                  );
+                return {
+                  ...result,
+                  content: result.content.map((block) =>
+                    block.type === 'toolCall' ? { ...block, name: logical.get(block.name) ?? block.name } : block,
+                  ),
+                };
+              });
+            } catch (cause) {
+              signal.throwIfAborted();
+              if (timeout.signal.aborted)
+                throw new ModelError(stage, 'timeout', '模型响应超时，已停止本次请求。完整阶段仍保留，请稍后重试。');
+              throw cause;
+            } finally {
+              clearTimeout(timer);
+            }
+          },
         });
       } catch (cause) {
         signal.throwIfAborted();
-        if (timeout.aborted)
-          throw new ModelError(stage, 'timeout', '模型响应超时，已停止本次请求。完整阶段仍保留，请稍后重试。');
         if (cause instanceof ModelError) throw cause;
         throw failure(stage);
       }

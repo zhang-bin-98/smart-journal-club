@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   DEFAULT_SETTINGS,
+  assertSettingsBase,
   normalizeBaseUrl,
   normalizeSettings,
   readSettingsRecord,
@@ -14,6 +15,27 @@ const settings = {
 };
 
 describe('全局配置唯一契约与提交', () => {
+  it('已有 Responses 配置缺少 Token 字段时沿用默认且只读迁移不改写凭据', () => {
+    const { contextWindow: _context, maxOutputTokens: _output, ...old } = settings;
+    const loaded = readSettingsRecord(old);
+    expect(loaded).toEqual({ settings: normalizeSettings(settings), legacy: false });
+    expect(old).not.toHaveProperty('contextWindow');
+    expect(old.apiKey).toBe(' secret ');
+    expect(() => assertSettingsBase(old, loaded.settings)).not.toThrow();
+    expect(() => assertSettingsBase({ ...old, maxOutputTokens: 65536 }, loaded.settings)).toThrow(/其他页面变化/);
+  });
+  it('Token 允许留空和大容量整数，拒绝非法数值及没有输入空间的配置', () => {
+    expect(normalizeSettings({ ...settings, contextWindow: 1048576, maxOutputTokens: 131072 })).toMatchObject({
+      contextWindow: 1048576,
+      maxOutputTokens: 131072,
+    });
+    for (const contextWindow of [0, -1, 1.5, Infinity, NaN, '131072', Number.MAX_SAFE_INTEGER + 1])
+      expect(() => normalizeSettings({ ...settings, contextWindow })).toThrow(/上下文窗口/);
+    for (const maxOutputTokens of [0, -1, 15, 16.5, Infinity, NaN, '65536', 131072])
+      expect(() => normalizeSettings({ ...settings, maxOutputTokens })).toThrow(/Token/);
+    expect(normalizeSettings({ ...settings, maxOutputTokens: 16 }).maxOutputTokens).toBe(16);
+    expect(normalizeSettings(settings).maxOutputTokens).toBeNull();
+  });
   it('保留自定义路径，拒绝凭据、非 HTTP(S)、查询和片段', () => {
     expect(normalizeSettings(settings)).toMatchObject({
       baseUrl: 'https://models.example/custom/v1',

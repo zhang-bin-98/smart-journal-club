@@ -1,9 +1,12 @@
-import { normalizeSettings } from '../../src/app/settings/modelSettings';
+import { DEFAULT_CONTEXT_WINDOW, normalizeSettings } from '../../src/app/settings/modelSettings';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createResponsesAdapter, responsePayload } from '../../src/infrastructure/llm/responses';
 import { RequestScheduler } from '../../src/infrastructure/llm/requestScheduler';
 import { DEFAULT_SETTINGS, reasoningEfforts } from '../../src/app/settings/modelSettings';
 import { responsesEvent } from '../responses-fixture';
+import { z } from 'zod';
+import { createModelRequests } from '../../src/app/llm/requests';
+import { createAssistantStream } from '../../src/infrastructure/llm/assistantStream';
 
 const request = () => ({
   settings: {
@@ -18,6 +21,70 @@ const request = () => ({
 });
 describe('Pi Responses 适配边界', () => {
   afterEach(() => vi.unstubAllGlobals());
+  it('自定义容量进入 SDK，工作流与 Agent 使用配置输出上限，检查保留小预算', async () => {
+    const budgets: number[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url, init) => {
+        const body = JSON.parse(init.body);
+        budgets.push(body.max_output_tokens);
+        return new Response(
+          responsesEvent(
+            body.tools?.[0]?.name === 'submit_result'
+              ? { tool_calls: [{ function: { name: 'submit_result', arguments: '{"result":{"ok":true}}' } }] }
+              : { content: 'OK' },
+          ),
+          { headers: { 'content-type': 'text/event-stream' } },
+        );
+      }),
+    );
+    const adapter = createResponsesAdapter(
+      new RequestScheduler({ concurrency: 2, requests: 30, tokens: 500000, windowMs: 60000, queue: 64 }),
+      normalizeSettings,
+      DEFAULT_CONTEXT_WINDOW,
+    );
+    const input = request();
+    input.settings = { ...input.settings, contextWindow: 1048576, maxOutputTokens: 131072 };
+    expect(adapter.describe(input.settings)).toMatchObject({ contextWindow: 1048576, maxTokens: 131072 });
+    const requests = createModelRequests(adapter);
+    await requests.requestJson({
+      settings: input.settings,
+      systemPrompt: 'fixed',
+      data: {},
+      schema: z.object({ ok: z.boolean() }),
+      stage: 'understand-summary',
+      signal: input.signal,
+      maxTokens: 24576,
+    });
+    const events = await createAssistantStream(input.settings, adapter.request, adapter.describe)(
+      adapter.describe(input.settings),
+      input.context,
+      { signal: input.signal },
+    );
+    await events.result();
+    await adapter.request({ ...input, stage: 'connection', maxTokens: 2048 });
+    expect(budgets).toEqual([131072, 131072, 2048]);
+  });
+  it('较低输出配置约束检查请求，上下文超限在联网前失败且不裁剪输入', async () => {
+    const fetcher = vi.fn(async (_url, init) => {
+      expect(JSON.parse(init.body).max_output_tokens).toBe(1024);
+      return new Response(responsesEvent({ content: 'OK' }), { headers: { 'content-type': 'text/event-stream' } });
+    });
+    vi.stubGlobal('fetch', fetcher);
+    const adapter = createResponsesAdapter(new RequestScheduler(), normalizeSettings, DEFAULT_CONTEXT_WINDOW);
+    const input = request();
+    await adapter.request({ ...input, settings: { ...input.settings, maxOutputTokens: 1024 }, maxTokens: 2048 });
+    const context = { messages: [{ role: 'user' as const, content: '科学证据'.repeat(2000), timestamp: 0 }] };
+    await expect(
+      adapter.request({
+        ...input,
+        context,
+        settings: { ...input.settings, contextWindow: 4096, maxOutputTokens: 1024 },
+      }),
+    ).rejects.toMatchObject({ stage: 'test', code: 'context-budget' });
+    expect(context.messages[0].content).toHaveLength(8000);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
   it('服务默认省略 reasoning；每个显式值保持原样', () => {
     const input = request();
     expect(
@@ -39,7 +106,7 @@ describe('Pi Responses 适配边界', () => {
       );
     });
     vi.stubGlobal('fetch', fetcher);
-    const adapter = createResponsesAdapter(new RequestScheduler(), normalizeSettings);
+    const adapter = createResponsesAdapter(new RequestScheduler(), normalizeSettings, DEFAULT_CONTEXT_WINDOW);
     const result = await adapter.request({
       ...request(),
       outputTool: 'paper.read',
@@ -77,7 +144,7 @@ describe('Pi Responses 适配边界', () => {
         }),
     );
     vi.stubGlobal('fetch', fetcher);
-    const adapter = createResponsesAdapter(new RequestScheduler(), normalizeSettings);
+    const adapter = createResponsesAdapter(new RequestScheduler(), normalizeSettings, DEFAULT_CONTEXT_WINDOW);
     const result = await adapter.request(request()).catch((cause) => cause);
     expect(result.message).not.toContain('private-key');
     expect(fetcher).toHaveBeenCalledTimes(1);
@@ -107,7 +174,7 @@ describe('Pi Responses 适配边界', () => {
       });
     });
     vi.stubGlobal('fetch', fetcher);
-    const adapter = createResponsesAdapter(new RequestScheduler(), normalizeSettings);
+    const adapter = createResponsesAdapter(new RequestScheduler(), normalizeSettings, DEFAULT_CONTEXT_WINDOW);
     const input = request();
     await expect(
       adapter.request({ ...input, stage: 'figures', settings: { ...input.settings, reasoningEffort: 'high' } }),

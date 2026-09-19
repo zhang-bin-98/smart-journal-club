@@ -40,7 +40,7 @@ export function createAssistantStream(
       signal: signal,
       stage: 'ai',
       json: false,
-      maxTokens: 16384,
+      maxTokens: settings.maxOutputTokens ?? 16384,
       outputTool: undefined,
       onText: (delta) => {
         const block = partial.content[0];

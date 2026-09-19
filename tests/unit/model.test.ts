@@ -2,9 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AssistantMessage } from '@earendil-works/pi-ai';
 import { AssistantMessageEventStream } from '@earendil-works/pi-ai/utils/event-stream';
 import { stream } from '@earendil-works/pi-ai/api/openai-responses';
-import { DEFAULT_SETTINGS } from '../../src/app/settings/modelSettings';
-import { modelRequests } from '../../src/app/composition';
-const { requestModel } = modelRequests;
+import { DEFAULT_CONTEXT_WINDOW, DEFAULT_SETTINGS, normalizeSettings } from '../../src/app/settings/modelSettings';
+import { createResponsesAdapter } from '../../src/infrastructure/llm/responses';
+import { RequestScheduler } from '../../src/infrastructure/llm/requestScheduler';
+let scheduler: RequestScheduler;
+const requestModel: ReturnType<typeof createResponsesAdapter>['request'] = (input) =>
+  createResponsesAdapter(scheduler, normalizeSettings, DEFAULT_CONTEXT_WINDOW).request(input);
 
 vi.mock('@earendil-works/pi-ai/api/openai-responses', () => ({ stream: vi.fn() }));
 
@@ -26,7 +29,7 @@ const message: AssistantMessage = {
   },
 };
 
-async function start(onText?: (delta: string) => void) {
+async function start(onText?: (delta: string) => void, maxTokens = 16384) {
   const controller = new AbortController();
   const events = new AssistantMessageEventStream();
   vi.mocked(stream).mockReturnValue(events);
@@ -36,12 +39,14 @@ async function start(onText?: (delta: string) => void) {
       baseUrl: 'https://api.deepseek.com',
       modelId: 'deepseek-flash',
       apiKey: 'fixed-test-key',
+      contextWindow: 1048576,
+      maxOutputTokens: maxTokens,
     },
     context: { messages: [] },
     signal: controller.signal,
     stage: 'figures',
     json: false,
-    maxTokens: 16384,
+    maxTokens,
     outputTool: undefined,
     onText: onText,
   }).then(
@@ -68,22 +73,21 @@ async function settled(result: Promise<unknown>) {
 }
 
 describe('模型请求的独立超时和取消边界', () => {
-  let timeout: AbortController;
   beforeEach(() => {
+    vi.useFakeTimers();
+    scheduler = new RequestScheduler();
     vi.mocked(stream).mockReset();
     vi.stubGlobal('navigator', { onLine: true });
-    timeout = new AbortController();
-    vi.spyOn(AbortSignal, 'timeout').mockReturnValue(timeout.signal);
   });
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+    vi.useRealTimers();
   });
 
   it('流没有产生任何事件时，3 分钟预算到期也必须结束等待', async () => {
     const { result } = await start();
-    expect(AbortSignal.timeout).toHaveBeenCalledWith(180000);
-    timeout.abort(new DOMException('expired', 'TimeoutError'));
+    await vi.advanceTimersByTimeAsync(180000);
     expect(await settled(result)).toMatchObject({ stage: 'figures', code: 'timeout' });
     expect(vi.mocked(stream).mock.calls[0][2]?.signal?.aborted).toBe(true);
   });
@@ -91,7 +95,7 @@ describe('模型请求的独立超时和取消边界', () => {
   it('流已结束但结果 promise 没有完成时仍必须超时', async () => {
     const { events, result } = await start();
     events.end();
-    timeout.abort(new DOMException('expired', 'TimeoutError'));
+    await vi.advanceTimersByTimeAsync(180000);
     expect(await settled(result)).toMatchObject({ code: 'timeout' });
   });
 
@@ -102,7 +106,7 @@ describe('模型请求的独立超时和取消边界', () => {
     expect(await settled(result)).toMatchObject({ name: 'AbortError' });
     events.push({ type: 'text_delta', contentIndex: 0, delta: 'late', partial: message });
     events.push({ type: 'done', reason: 'stop', message });
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await vi.advanceTimersByTimeAsync(0);
     expect(onText).not.toHaveBeenCalled();
     expect(stream).toHaveBeenCalledTimes(1);
   });
@@ -117,5 +121,40 @@ describe('模型请求的独立超时和取消边界', () => {
     expect(await settled(result)).toEqual(message);
     expect(onText).toHaveBeenCalledExactlyOnceWith('fixed');
     expect(remove).toHaveBeenCalledWith('abort', expect.any(Function));
+    expect(vi.getTimerCount()).toBe(0);
+  });
+  it('大输出可以超过三分钟，仍受有界超时和用户取消保护', async () => {
+    const { controller, result } = await start(undefined, 65536);
+    let finished = false;
+    void result.then(() => {
+      finished = true;
+    });
+    await vi.advanceTimersByTimeAsync(180000);
+    expect(finished).toBe(false);
+    expect(vi.mocked(stream).mock.calls[0][2]?.timeoutMs).toBe(720000);
+    controller.abort();
+    expect(await result).toMatchObject({ name: 'AbortError' });
+    expect(vi.getTimerCount()).toBe(0);
+  });
+  it('排队超过三分钟不会耗尽发送后的响应时间', async () => {
+    scheduler.observe(new Headers({ 'x-ratelimit-remaining-requests': '0', 'x-ratelimit-reset-requests': '4m' }));
+    const events = new AssistantMessageEventStream();
+    vi.mocked(stream).mockReturnValue(events);
+    const result = requestModel({
+      settings: { ...DEFAULT_SETTINGS, baseUrl: 'https://models.example', modelId: 'fixture', apiKey: 'fixed' },
+      context: { messages: [] },
+      signal: new AbortController().signal,
+      stage: 'figures',
+    }).catch((cause) => cause);
+    await vi.advanceTimersByTimeAsync(239999);
+    expect(stream).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(stream).toHaveBeenCalledTimes(1);
+    const signal = vi.mocked(stream).mock.calls[0][2]!.signal!;
+    await vi.advanceTimersByTimeAsync(179999);
+    expect(signal.aborted).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(await result).toMatchObject({ code: 'timeout' });
+    expect(vi.getTimerCount()).toBe(0);
   });
 });

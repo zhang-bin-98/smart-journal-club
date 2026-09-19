@@ -1,12 +1,15 @@
 import { z } from 'zod';
 
 export const reasoningEfforts = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const;
+export const DEFAULT_CONTEXT_WINDOW = 131072;
 export const ModelSettingsSchema = z.strictObject({
   protocol: z.literal('responses'),
   baseUrl: z.string(),
   modelId: z.string(),
   apiKey: z.string(),
   reasoningEffort: z.enum(reasoningEfforts).nullable(),
+  contextWindow: z.number().int().positive().nullable().default(null),
+  maxOutputTokens: z.number().int().min(16).nullable().default(null),
 });
 export type ModelSettings = z.infer<typeof ModelSettingsSchema>;
 export const DEFAULT_SETTINGS: ModelSettings = {
@@ -15,6 +18,8 @@ export const DEFAULT_SETTINGS: ModelSettings = {
   modelId: '',
   apiKey: '',
   reasoningEffort: null,
+  contextWindow: null,
+  maxOutputTokens: null,
 };
 
 export class SettingsError extends Error {
@@ -54,8 +59,17 @@ export function normalizeBaseUrl(input: string): string {
 
 export function normalizeSettings(input: unknown): ModelSettings {
   const parsed = ModelSettingsSchema.safeParse(input);
-  if (!parsed.success) throw new SettingsError('invalid-settings', '配置字段不完整，请重新填写模型配置。');
+  if (!parsed.success) {
+    if (parsed.error.issues.some((issue) => ['contextWindow', 'maxOutputTokens'].includes(String(issue.path[0]))))
+      throw new SettingsError(
+        'invalid-tokens',
+        '上下文窗口须为正整数，最大输出 Token 须为至少 16 的整数；留空使用默认策略。',
+      );
+    throw new SettingsError('invalid-settings', '配置字段不完整，请重新填写模型配置。');
+  }
   const value = parsed.data;
+  if (value.maxOutputTokens !== null && value.maxOutputTokens >= (value.contextWindow ?? DEFAULT_CONTEXT_WINDOW))
+    throw new SettingsError('invalid-tokens', '最大输出 Token 必须小于上下文窗口，为输入内容留出空间。');
   const modelId = value.modelId.trim();
   if (!modelId) throw new SettingsError('missing-model', '请输入模型 ID。');
   return { ...value, baseUrl: normalizeBaseUrl(value.baseUrl), modelId, apiKey: value.apiKey.trim() };

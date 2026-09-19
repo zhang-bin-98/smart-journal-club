@@ -310,6 +310,7 @@ describe('M18 构建、图组与讲述提交', () => {
     });
     const ask = createSlidesAssistant(run);
     const settings = {
+      ...DEFAULT_SETTINGS,
       protocol: 'responses' as const,
       baseUrl: 'https://example.com',
       modelId: 'test',

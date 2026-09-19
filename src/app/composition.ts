@@ -1,4 +1,4 @@
-import { assertSettingsBase, normalizeSettings } from './settings/modelSettings';
+import { assertSettingsBase, DEFAULT_CONTEXT_WINDOW, normalizeSettings } from './settings/modelSettings';
 import { prompts } from '../infrastructure/llm/prompts';
 export const researchStrategies = prompts.strategies.map(({ id, name, description }) => ({ id, name, description }));
 import { PlanRecordSchema, assertGenerationBase } from './presentation/planRecord';
@@ -23,7 +23,7 @@ import { createSettingsService } from './settings/settingsService';
 import { createSettingsChecks } from './settings/settingsChecks';
 import { hasRunningActivity, beginSettingsWrite } from './activity';
 export const modelScheduler = new RequestScheduler();
-const rawAdapter = createResponsesAdapter(modelScheduler, normalizeSettings);
+const rawAdapter = createResponsesAdapter(modelScheduler, normalizeSettings, DEFAULT_CONTEXT_WINDOW);
 const adapter = guardModelRequests(rawAdapter, () => settingsService.isWriting());
 export const modelRequests = createModelRequests(adapter);
 export const describeModel = adapter.describe;

@@ -23,6 +23,7 @@ export class TemporaryRateLimit extends ModelError {
 export class RequestScheduler {
   private queue: Job[] = [];
   private running = 0;
+  private oversizedRunning = false;
   private reservations: { at: number; tokens: number }[] = [];
   private blockedUntil = 0;
   private interactiveStreak = 0;
@@ -108,7 +109,7 @@ export class RequestScheduler {
     stage: string;
   }): Promise<(actual?: number) => void> {
     signal.throwIfAborted();
-    if (!Number.isFinite(tokens) || tokens > this.limits.tokens)
+    if (!Number.isFinite(tokens) || tokens <= 0)
       return Promise.reject(new ModelError(stage, 'token-budget', '单次请求超过当前 Token 预算，请减少输入后重试。'));
     if (this.queue.length >= this.limits.queue)
       return Promise.reject(new ModelError(stage, 'queue-full', '请求队列已满，请等待当前任务完成。'));
@@ -126,6 +127,7 @@ export class RequestScheduler {
             if (job.reservation && actual !== undefined && Number.isFinite(actual) && actual > 0)
               job.reservation.tokens = Math.ceil(actual);
             this.running--;
+            if (tokens > this.limits.tokens) this.oversizedRunning = false;
             this.pump();
           });
         },
@@ -152,9 +154,15 @@ export class RequestScheduler {
       const index =
         background >= 0 && (this.interactiveStreak >= 2 || interactive < 0) ? background : Math.max(0, interactive);
       const job = this.queue[index];
+      const oversized = job.tokens > this.limits.tokens;
+      // 本地速率桶不是模型容量；大请求只在空窗口独占发送，不能因预留输出较大而永久拒绝。
+      if (this.oversizedRunning || (oversized && this.running > 0)) break;
       const used = this.reservations.reduce((sum, entry) => sum + entry.tokens, 0);
       if (this.blockedUntil > now) waitingUntil = this.blockedUntil;
-      if (this.reservations.length >= this.limits.requests || used + job.tokens > this.limits.tokens)
+      if (
+        this.reservations.length >= this.limits.requests ||
+        (this.reservations.length > 0 && (oversized || used + job.tokens > this.limits.tokens))
+      )
         waitingUntil = Math.max(waitingUntil, this.reservations[0].at + this.limits.windowMs);
       if (waitingUntil > now) {
         this.timer = setTimeout(() => this.pump(), Math.min(waitingUntil - now, 2147483647));
@@ -163,6 +171,7 @@ export class RequestScheduler {
       this.queue.splice(index, 1);
       this.interactiveStreak = job.priority === 'interactive' ? this.interactiveStreak + 1 : 0;
       this.running++;
+      this.oversizedRunning = oversized;
       job.reservation = { at: now, tokens: job.tokens };
       this.reservations.push(job.reservation);
       job.start();

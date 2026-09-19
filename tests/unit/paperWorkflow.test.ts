@@ -39,7 +39,7 @@ type ModelCall = {
   };
 };
 
-function fixture(pageCount = 1) {
+function fixture(pageCount = 1, settings = DEFAULT_SETTINGS) {
   let data: AnalysisProject = {
     project: {
       schemaVersion: 2,
@@ -196,7 +196,7 @@ function fixture(pageCount = 1) {
     preparePaper({
       prompts,
       projectId: 'project',
-      settings: DEFAULT_SETTINGS,
+      settings,
       store,
       createResource,
       requests: { requestJson } as unknown as Parameters<typeof preparePaper>[0]['requests'],
@@ -455,6 +455,27 @@ describe('M15 complete paper workflow', () => {
     ).toHaveLength(supplementCalls);
     expect(getAnalysisProgress(setup.snapshot().paper).ready).toBe(true);
   });
+
+  it.each([16384, 65536])(
+    'uses configured output %i without retrying truncation at the same limit',
+    async (maxOutputTokens) => {
+      const setup = fixture(1, { ...DEFAULT_SETTINGS, maxOutputTokens });
+      setup.onModel(async (call) => {
+        if (call.stage === 'figures' && call.data.document?.id === 'main')
+          throw new ModelError('figures', 'truncated', '模型输出未完成');
+      });
+      await expect(setup.run()).rejects.toMatchObject({ stage: 'figures', code: 'truncated' });
+      expect(
+        setup.modelCalls.filter((call) => call.stage === 'figures' && call.data.document?.id === 'main'),
+      ).toHaveLength(1);
+      expect(setup.modelCalls.every((call) => call.maxTokens === maxOutputTokens)).toBe(true);
+      expect(unitComplete(setup.snapshot().paper, 'figure-location', target('main'))).toBe(false);
+      setup.onModel(undefined);
+      await setup.run();
+      expect(setup.modelCalls.every((call) => call.maxTokens === maxOutputTokens)).toBe(true);
+      expect(getAnalysisProgress(setup.snapshot().paper).ready).toBe(true);
+    },
+  );
 
   it('does not retry truncated output after cancellation', async () => {
     const setup = fixture();

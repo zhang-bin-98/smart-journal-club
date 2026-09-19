@@ -45,7 +45,7 @@ export function createModelRequests(adapter: ModelAdapter) {
       signal: signal,
       stage: stage,
       json: false,
-      maxTokens,
+      maxTokens: settings.maxOutputTokens ?? maxTokens,
       outputTool: 'submit_result',
     });
     const calls = response.content.filter((block) => block.type === 'toolCall');

@@ -11,6 +11,53 @@ describe('共享请求调度', () => {
     priority: 'background' as const,
     stage: 'test',
   });
+  it('超过速率桶的大请求等空窗口独占执行，跨窗口仍不与其他请求并行', async () => {
+    const scheduler = new RequestScheduler({ ...limits, concurrency: 2 });
+    await scheduler.run({ ...options(), execute: async () => 1 });
+    let release!: () => void;
+    const large = vi.fn(
+      () =>
+        new Promise<number>((resolve) => {
+          release = () => resolve(150);
+        }),
+    );
+    const pending = scheduler.run({ ...options(), tokens: 150, execute: large, actualTokens: (value) => value });
+    await vi.advanceTimersByTimeAsync(999);
+    expect(large).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(large).toHaveBeenCalledTimes(1);
+    const small = vi.fn(async () => 2);
+    const next = scheduler.run({ ...options(), execute: small });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(small).not.toHaveBeenCalled();
+    release();
+    expect(await pending).toBe(150);
+    expect(await next).toBe(2);
+  });
+  it('大请求等待在途请求完成，取消后不迟到派发', async () => {
+    const scheduler = new RequestScheduler({ ...limits, concurrency: 2 });
+    let release!: () => void;
+    const running = scheduler.run({
+      ...options(),
+      execute: () =>
+        new Promise<void>((resolve) => {
+          release = resolve;
+        }),
+    });
+    const controller = new AbortController();
+    const execute = vi.fn(async () => 1);
+    const pending = scheduler
+      .run({ ...options(), tokens: 150, signal: controller.signal, execute })
+      .catch((cause) => cause);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(execute).not.toHaveBeenCalled();
+    controller.abort();
+    expect(await pending).toMatchObject({ name: 'AbortError' });
+    release();
+    await running;
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(execute).not.toHaveBeenCalled();
+  });
   it('在途预算共用且交互连续两次后让分析前进', async () => {
     const scheduler = new RequestScheduler(limits);
     let release!: () => void;

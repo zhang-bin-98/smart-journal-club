@@ -131,6 +131,43 @@ export function SettingsPage(props: {
               <p className="-mt-3 text-xs leading-relaxed text-muted">
                 服务默认不发送强度参数。显式档位须以当前服务检查为准；更高强度可能增加时间和费用，不保证质量更好。
               </p>
+              <div className="grid grid-cols-2 gap-4">
+                <label className="block text-sm">
+                  上下文窗口（Token）
+                  <input
+                    type="number"
+                    min={1}
+                    step={1}
+                    className={`${inputClass} mt-2`}
+                    placeholder="默认 131072"
+                    value={draft.contextWindow ?? ''}
+                    onChange={(event) =>
+                      change({ ...draft, contextWindow: event.target.value === '' ? null : event.target.valueAsNumber })
+                    }
+                  />
+                </label>
+                <label className="block text-sm">
+                  最大输出 Token
+                  <input
+                    type="number"
+                    min={16}
+                    step={1}
+                    className={`${inputClass} mt-2`}
+                    placeholder="默认按任务分配"
+                    value={draft.maxOutputTokens ?? ''}
+                    onChange={(event) =>
+                      change({
+                        ...draft,
+                        maxOutputTokens: event.target.value === '' ? null : event.target.valueAsNumber,
+                      })
+                    }
+                  />
+                </label>
+              </div>
+              <p className="-mt-3 text-xs leading-relaxed text-muted">
+                按服务商公布的模型能力填写，留空使用默认策略。上下文窗口包含输入与输出；最大输出包含思考和最终结果，
+                是生成上限，不会强制用满。连接与能力检查使用较小输出，不验证模型的最大容量。
+              </p>
             </fieldset>
             <div className="mt-6 flex flex-wrap gap-3">
               <Button disabled={disabled || checking || !online} onClick={() => void controller.check()}>

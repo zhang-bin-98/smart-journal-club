@@ -19,18 +19,29 @@ try {
   const model = settings.getByLabel('模型 ID', { exact: true });
   const key = settings.getByLabel('API Key', { exact: true });
   const effort = settings.getByLabel('思考强度', { exact: true });
+  const contextTokens = settings.getByLabel('上下文窗口（Token）', { exact: true });
+  const outputTokens = settings.getByLabel('最大输出 Token', { exact: true });
   const save = settings.getByRole('button', { name: '保存并返回', exact: true });
   const back = settings.getByRole('button', { name: '返回项目列表', exact: true });
   const check = settings.getByRole('button', { name: '测试连接', exact: true });
   const success = settings.getByText('连接成功；本次未检查完整应用能力，配置尚未保存。', { exact: true });
   const received = [];
   let hold;
+  let markHeld;
+  const held = new Promise((resolve) => {
+    markHeld = resolve;
+  });
   let mode = 'success';
   await page.route('**/responses', async (route) => {
     const body = route.request().postDataJSON();
-    received.push({ effort: body.reasoning?.effort, hasReasoning: Object.hasOwn(body, 'reasoning') });
+    received.push({
+      effort: body.reasoning?.effort,
+      hasReasoning: Object.hasOwn(body, 'reasoning'),
+      maxTokens: body.max_output_tokens,
+    });
     if (mode === 'hold') {
       hold = route;
+      markHeld();
       return;
     }
     if (mode === 'authentication') {
@@ -53,9 +64,18 @@ try {
   await url.fill('https://models.example/custom/v1/responses/');
   await model.fill('fixture');
   await key.fill('fixed-secret');
+  assert.equal(await contextTokens.inputValue(), '');
+  assert.equal(await outputTokens.inputValue(), '');
+  await contextTokens.fill('1048576');
+  await outputTokens.fill('1048576');
+  await save.click();
+  await settings.getByText('最大输出 Token 必须小于上下文窗口，为输入内容留出空间。', { exact: true }).waitFor();
+  assert.equal(received.length, 0);
+  await outputTokens.fill('131072');
   await check.click();
   await success.waitFor();
   assert.equal(received[0].hasReasoning, false);
+  assert.equal(received[0].maxTokens, 2048);
   await settings.getByRole('button', { name: '检查应用所需能力', exact: true }).click();
   await settings.getByText('本次能力检查结束，请查看逐项结果。配置尚未保存。', { exact: true }).waitFor();
   assert.equal(
@@ -78,10 +98,19 @@ try {
     await success.waitFor();
     assert.equal(received.at(-1).effort, value);
   }
+  await outputTokens.fill('65536');
+  assert.equal(await success.count(), 0);
   await save.click();
   await settings.waitFor({ state: 'hidden' });
   await page.getByRole('button', { name: '模型设置', exact: true }).click();
   assert.equal(await url.inputValue(), 'https://models.example/custom/v1');
+  assert.equal(await contextTokens.inputValue(), '1048576');
+  assert.equal(await outputTokens.inputValue(), '65536');
+  await page.reload();
+  await page.getByRole('button', { name: '模型设置', exact: true }).click();
+  await settings.waitFor();
+  assert.equal(await contextTokens.inputValue(), '1048576');
+  assert.equal(await outputTokens.inputValue(), '65536');
   await model.fill('unsaved');
   await page.evaluate(() => {
     window.__settingsPut = IDBObjectStore.prototype.put;
@@ -107,12 +136,15 @@ try {
   await settings.getByText('已清除保存的 Key，其他已保存配置和项目成果保留。', { exact: true }).waitFor();
   assert.equal(await model.inputValue(), 'fixture');
   assert.equal(await key.inputValue(), '');
+  assert.equal(await contextTokens.inputValue(), '1048576');
+  assert.equal(await outputTokens.inputValue(), '65536');
   await model.fill('discard-this');
   await settings.getByRole('button', { name: '恢复已保存配置', exact: true }).click();
   assert.equal(await model.inputValue(), 'fixture');
   await key.fill('fixed-secret');
   mode = 'hold';
   await check.click();
+  await held;
   await page.waitForFunction(() =>
     import('/src/app/composition.ts').then(({ modelScheduler }) => modelScheduler.snapshot().running === 1),
   );
@@ -159,6 +191,7 @@ try {
   await settings.waitFor({ state: 'hidden' });
   await page.context().setOffline(false);
   await page.getByRole('button', { name: '模型设置', exact: true }).click();
+  await settings.waitFor();
   await page.screenshot({ path: resolve('output/playwright/model-settings-fixed.png') });
   await back.click();
   assert.equal(
@@ -176,7 +209,7 @@ try {
   await page.waitForFunction(() => window.scrollY === 420);
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: settings save/clear/restore/return, all effort payloads, capabilities, failed save, stale response, busy/offline and key redaction',
+    'PASS: settings token validation/persistence/reload/check budget, save/clear/restore/return, all effort payloads, capabilities, failed save, stale response, busy/offline and key redaction',
   );
 } finally {
   await browser.close();

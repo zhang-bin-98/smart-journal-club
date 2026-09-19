@@ -1,4 +1,5 @@
 import { prompts } from '../src/infrastructure/llm/prompts';
+import { DEFAULT_SETTINGS } from '../src/app/settings/modelSettings';
 import { slidesStore } from '../src/app/composition';
 import { speechStore } from '../src/app/composition';
 import { generatePresentation } from '../src/app/workflows/generatePresentation';
@@ -41,6 +42,7 @@ export async function verifySlidesStorage(projectId: string) {
     },
   } as unknown as ReturnType<typeof createModelRequests>;
   const settings = {
+    ...DEFAULT_SETTINGS,
     protocol: 'responses' as const,
     baseUrl: 'https://example.com',
     modelId: 'fixed',
