@@ -17,3 +17,11 @@
 下载日期：2026-09-06。校验命令：`pdfinfo test-fixtures/papers/*.pdf`、`Get-FileHash -Algorithm SHA256`。PDF 不属于发布构建输入；若检查需要测试数据，应通过本地选择文件或 fixture 脚本注入，不把 PDF 复制到应用静态资源。
 
 发布后图页等待问题曾使用本地《Longitudinal dynamics of gene expression and metabolomics in an aging population cohort》18 页 PDF 作定向回归。M19 退役旧五阶段入口后，旧 `tests/figure-stalls.mjs` 不再接入默认浏览器主链；当前逐单元失败/迟到响应、暂停与刷新续跑由 `tests/unit/paperWorkflow.test.ts`、`tests/unit/analysisService.test.ts` 和正式 `tests/m15-browser.mjs` 保护。原 PDF 继续本地保留，不进入仓库或部署，也不自动增加真实论文/模型组合。原历史验证结论不改写。
+
+2026-09-19 按用户要求，将此论文补入现有 `tests/m19-live.mjs` 作为 `aging` 定向样例，使用当前四步应用的真实分析入口：
+
+- 本地文件：`El-Sayed Moustafa 等 - 2026 - Longitudinal dynamics of gene expression and metabolomics in an aging population cohort.pdf`。
+- DOI：`10.1126/science.aed6452`；18 页，4,974,276 bytes；SHA-256：`6DEE0662E7605CB70DAA799F9EF080993F334C1AA551F7423D8BDC714AE0A95E`。
+- 覆盖摘要图、正文 Figure 1–6（文件内第 3、4、5、7、8、9 页）、双栏正文与末页出版信息。文件内页码与印刷页码不同，检查使用文件内页码。
+- 启动本地 Vite 后，设置 `SMARTJC_PUBLIC_SAMPLE=aging`、`SMARTJC_BASE_URL` 为本地服务地址，再运行 `node tests/m19-live.mjs`。沿用本地 `.env` 验收凭据、DeepSeek Flash / high 和既有 Playwright 模块环境；真实调用只在明确运行此脚本时发生，不加入默认单元测试。
+- 脚本校验文件摘要和总页数；保存文件/页级分析结果、调用阶段、输出预算、完成原因及 Token 统计，不保存 Key、请求头或隐藏推理。再次运行只续跑同一隔离测试项目的未完成单元；输出位于忽略的 `output/playwright/m19-aging-longitudinal-multiomics-*`。实际结果及限制见 [M19 工作记录](../../docs/spec/M19.md)。

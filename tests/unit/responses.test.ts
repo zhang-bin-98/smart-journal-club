@@ -82,4 +82,36 @@ describe('Pi Responses 适配边界', () => {
     expect(result.message).not.toContain('private-key');
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
+  it('老龄队列论文第 4 页：思考耗尽输出预算的真实结束事件识别为截断', async () => {
+    // 2026-09-19 aging 样例的脱敏响应元数据；不包含原文、凭据或隐藏推理。
+    const response = {
+      id: 'aging-page-4',
+      status: 'incomplete',
+      incomplete_details: { reason: 'max_output_tokens' },
+      output: [],
+      usage: {
+        input_tokens: 4782,
+        output_tokens: 16384,
+        output_tokens_details: { reasoning_tokens: 16384 },
+        total_tokens: 21166,
+      },
+    };
+    const events = [
+      { type: 'response.created', response: { id: response.id, status: 'in_progress' } },
+      { type: 'response.incomplete', response },
+    ];
+    const fetcher = vi.fn(async (_url, init) => {
+      expect(JSON.parse(init.body)).toMatchObject({ max_output_tokens: 16384, reasoning: { effort: 'high' } });
+      return new Response(events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(''), {
+        headers: { 'content-type': 'text/event-stream' },
+      });
+    });
+    vi.stubGlobal('fetch', fetcher);
+    const adapter = createResponsesAdapter(new RequestScheduler(), normalizeSettings);
+    const input = request();
+    await expect(
+      adapter.request({ ...input, stage: 'figures', settings: { ...input.settings, reasoningEffort: 'high' } }),
+    ).rejects.toMatchObject({ stage: 'figures', code: 'truncated' });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
 });

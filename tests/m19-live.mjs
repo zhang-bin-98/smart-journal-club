@@ -1,10 +1,30 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import { tmpdir } from 'node:os';
-const names = { mechanism: 'mechanism-modt-cdifficile', clinical: 'clinical-vrc07-phase1-trial' };
-const name = names[process.env.SMARTJC_PUBLIC_SAMPLE];
-assert.ok(name, 'Select one of the two existing public M19 samples');
+const samples = {
+  mechanism: { name: 'mechanism-modt-cdifficile', pages: 32 },
+  clinical: { name: 'clinical-vrc07-phase1-trial', pages: 25 },
+  aging: {
+    name: 'aging-longitudinal-multiomics',
+    file: 'El-Sayed Moustafa 等 - 2026 - Longitudinal dynamics of gene expression and metabolomics in an aging population cohort.pdf',
+    pages: 18,
+    figurePages: [3, 4, 5, 7, 8, 9],
+    sha256: '6dee0662e7605cb70daa799f9ef080993f334c1aa551f7423d8bdc714ae0a95e',
+  },
+};
+const sample = samples[process.env.SMARTJC_PUBLIC_SAMPLE];
+assert.ok(sample, 'Select mechanism, clinical or aging through SMARTJC_PUBLIC_SAMPLE');
+const { name } = sample;
+const pdfPath = resolve('test-fixtures/papers', sample.file ?? `${name}.pdf`);
+if (sample.sha256)
+  assert.equal(
+    createHash('sha256')
+      .update(await readFile(pdfPath))
+      .digest('hex'),
+    sample.sha256,
+  );
 const { chromium } = await import(process.env.SMARTJC_PLAYWRIGHT_MODULE || 'playwright');
 const base = process.env.SMARTJC_BASE_URL || 'http://127.0.0.1:5191/';
 const output = `output/playwright/m19-${name}`;
@@ -29,9 +49,16 @@ const calls = await readFile(`${output}-calls.json`, 'utf8')
     throw error;
   });
 const pending = [];
+const initialCallCount = calls.length;
+let reopenedReady = false;
+let writingCalls = Promise.resolve();
 try {
   const page = browser.pages()[0] || (await browser.newPage());
   await page.routeWebSocket('**', (socket) => socket.close());
+  const errors = [];
+  const starts = new WeakMap();
+  page.on('pageerror', (error) => errors.push(error.message));
+  page.on('request', (request) => starts.set(request, Date.now()));
   page.on('response', (response) => {
     if (!response.url().startsWith('https://api.deepseek.com/') || response.request().method() !== 'POST') return;
     pending.push(
@@ -62,16 +89,29 @@ try {
                 return { invalidJson: true };
               }
             });
-          calls.push({
+          let stage = 'understand-summary';
+          if (input.blocks) stage = 'understand-page';
+          if (input.imageRegions) stage = 'figures';
+          if (input.figureLabel) stage = 'figure-local';
+          const diagnostic = {
+            stage,
             pageNumber: input.pageNumber,
+            figureLabel: input.figureLabel,
             part: input.sequence?.part,
-            repair: !!input.diagnostics,
+            repair: !!input.diagnostics || JSON.stringify(payload.input).includes('这是唯一一次格式/引用修复'),
             status: response.status(),
             resultStatus: completed?.response?.status,
-            outputs,
+            reason: completed?.response?.incomplete_details?.reason,
+            maxOutputTokens: payload.max_output_tokens,
+            reasoningEffort: payload.reasoning?.effort ?? 'default',
+            durationMs: Date.now() - starts.get(response.request()),
             usage: completed?.response?.usage,
-          });
-          await writeFile(`${output}-calls.json`, JSON.stringify(calls, null, 2));
+          };
+          calls.push({ ...diagnostic, outputs });
+          const snapshot = JSON.stringify(calls, null, 2);
+          writingCalls = writingCalls.then(() => writeFile(`${output}-calls.json`, snapshot));
+          await writingCalls;
+          console.log('MODEL', JSON.stringify(diagnostic));
         } catch {
           console.log('Response ended without complete result');
         }
@@ -92,7 +132,7 @@ try {
     await settings.getByLabel('思考强度', { exact: true }).selectOption('high');
     await settings.getByRole('button', { name: '保存并返回', exact: true }).click();
     await page.getByRole('button', { name: '新建项目', exact: true }).click();
-    await page.getByLabel('选择主论文 PDF', { exact: true }).setInputFiles(resolve(`test-fixtures/papers/${name}.pdf`));
+    await page.getByLabel('选择主论文 PDF', { exact: true }).setInputFiles(pdfPath);
     await page.getByLabel('项目名称', { exact: true }).fill(`M19 ${name}`);
     await page.getByRole('button', { name: '开始分析', exact: true }).click();
   } else {
@@ -106,6 +146,7 @@ try {
       const { getAnalysisProgress } = await import('/src/modules/paper/analysisUnits.ts');
       return getAnalysisProgress((await openProject(id)).paper).ready;
     }, existing.id);
+    reopenedReady = ready;
     if (!ready) await page.getByRole('button', { name: /^(开始分析|继续分析|重试未完成部分)$/ }).click();
   }
   await page.waitForURL(/#\/project\//);
@@ -121,8 +162,8 @@ try {
       const s = analysisService.session(id).snapshot();
       const { openProject } = await import('/src/infrastructure/persistence/projectStore.ts');
       const { getAnalysisProgress } = await import('/src/modules/paper/analysisUnits.ts');
-      s.progress = getAnalysisProgress((await openProject(id)).paper);
-      return { status: s.status, stage: s.stage, pageNumber: s.pageNumber, error: s.error, progress: s.progress };
+      const progress = getAnalysisProgress((await openProject(id)).paper);
+      return { status: s.status, stage: s.stage, pageNumber: s.pageNumber, error: s.error, progress };
     }, id);
     const summary = JSON.stringify(state);
     if (summary !== last) {
@@ -138,15 +179,41 @@ try {
       .find((entry) => /\/src\/app\/composition\.ts(?:\?|$)/.test(entry.name))?.name;
     const { analysisService } = await import(url ?? '/src/app/composition.ts');
     const session = analysisService.session(id);
-    await session.load();
     const s = session.snapshot();
-    return { project: s.data?.project, paper: s.data?.paper, status: s.status, error: s.error, progress: s.progress };
+    const { openProject } = await import('/src/infrastructure/persistence/projectStore.ts');
+    const { getAnalysisProgress } = await import('/src/modules/paper/analysisUnits.ts');
+    const data = await openProject(id);
+    return {
+      project: data.project,
+      paper: data.paper,
+      status: s.status,
+      stage: s.stage,
+      pageNumber: s.pageNumber,
+      error: s.error,
+      progress: getAnalysisProgress(data.paper),
+    };
   }, id);
   await Promise.all(pending);
+  if (reopenedReady) assert.equal(calls.length, initialCallCount, '重开已就绪项目不应发起模型调用');
   await writeFile(`${output}-analysis.json`, JSON.stringify({ durationMs: Date.now() - started, ...result }, null, 2));
   await page.screenshot({ path: `${output}-analysis.png` });
+  assert.equal(result.paper.pages.length, sample.pages, '全部 PDF 页面应完成本地提取');
+  assert.deepEqual(errors, [], '浏览器异常');
   assert.equal(result.progress?.ready, true, result.error);
   assert.ok(result.paper.claims.length > 0);
+  if (sample.figurePages) {
+    for (const [index, pageNumber] of sample.figurePages.entries()) {
+      const figures = result.paper.figures.filter((figure) => Number(figure.label.match(/\d+/)?.[0]) === index + 1);
+      assert.equal(figures.length, 1, `Figure ${index + 1} 应完整且仅登记一次`);
+      const source = result.paper.sources.find((source) => source.id === figures[0].regions[0].sourceId);
+      assert.equal(source?.pageNumber, pageNumber, `Figure ${index + 1} 的文件内页码`);
+    }
+    assert.equal(
+      result.paper.sources.some((source) => source.pageNumber === 18 && source.kind === 'figure'),
+      false,
+      '末页出版信息不能作为科研 Figure 保存',
+    );
+  }
   console.log('PASS: public sample analysis saved; scientific review pending');
 } finally {
   await browser.close();
