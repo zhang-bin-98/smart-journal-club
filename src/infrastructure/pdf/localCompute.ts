@@ -1,4 +1,5 @@
 import type { PdfTextItem, PdfTextResult } from './textBlocks';
+import { QueueCapacity } from '../../shared/queueCapacity';
 
 export interface TextWorker {
   onmessage: ((event: MessageEvent<{ id: number; result?: PdfTextResult; error?: string }>) => void) | null;
@@ -27,6 +28,7 @@ export class PdfTextWorkerPool {
   private queue: Job[] = [];
   private nextId = 0;
   private disposed = false;
+  private capacity = new QueueCapacity();
 
   constructor(
     private readonly createWorker: () => TextWorker = () =>
@@ -38,10 +40,12 @@ export class PdfTextWorkerPool {
       throw new Error('PDF Worker 数量须为 1–2');
   }
 
-  reconstruct(items: PdfTextItem[], signal: AbortSignal): Promise<PdfTextResult> {
+  async reconstruct(items: PdfTextItem[], signal: AbortSignal): Promise<PdfTextResult> {
+    signal.throwIfAborted();
+    while (!this.disposed && this.queue.length >= 16)
+      await this.capacity.wait(signal, () => !this.disposed && this.queue.length >= 16);
     signal.throwIfAborted();
     if (this.disposed) return Promise.reject(pdfError('resource-closed', '项目已关闭'));
-    if (this.queue.length >= 16) return Promise.reject(pdfError('local-queue-full', '本地解析队列已满，请稍后重试'));
     return new Promise((resolve, reject) => {
       const job: Job = {
         id: ++this.nextId,
@@ -54,6 +58,7 @@ export class PdfTextWorkerPool {
           if (slot) this.finish(slot, undefined, signal.reason, true);
           else {
             this.queue = this.queue.filter((item) => item !== job);
+            this.capacity.notify();
             signal.removeEventListener('abort', job.cancel);
             reject(signal.reason);
           }
@@ -101,6 +106,7 @@ export class PdfTextWorkerPool {
           this.slots.push(slot);
         } catch {
           const job = this.queue.shift()!;
+          this.capacity.notify();
           job.signal.removeEventListener('abort', job.cancel);
           job.reject(pdfError('worker-unavailable', '无法启动 PDF 文本 Worker'));
           continue;
@@ -108,6 +114,7 @@ export class PdfTextWorkerPool {
       }
       if (!slot) break;
       const job = this.queue.shift()!;
+      this.capacity.notify();
       slot.job = job;
       const ownedSlot = slot;
       slot.timer = setTimeout(
@@ -124,6 +131,7 @@ export class PdfTextWorkerPool {
 
   dispose() {
     this.disposed = true;
+    this.capacity.notify();
     for (const job of this.queue.splice(0)) {
       job.signal.removeEventListener('abort', job.cancel);
       job.reject(pdfError('resource-closed', '项目已关闭'));

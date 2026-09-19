@@ -13,8 +13,6 @@ import { abortable, boundedDestroy, PdfResourceQueue } from './resourceQueue';
 import type { PdfTextBlock } from './textBlocks';
 
 GlobalWorkerOptions.workerSrc = workerUrl;
-export const PDF_MAX_BYTES = 25 * 1024 * 1024;
-export const PDF_MAX_PAGES = 80;
 export const PDF_PREVIEW_EDGE = 1400;
 export const PDF_EXPORT_EDGE = 2800;
 const IMAGE_CACHE_SIZE = 24;
@@ -23,7 +21,6 @@ const imageQueue = new PdfResourceQueue();
 
 export async function checkPdfFile(file: File) {
   if (!/\.pdf$/i.test(file.name) || !file.size) throw new Error('请选择一份有效 PDF');
-  if (file.size > PDF_MAX_BYTES) throw new Error('PDF 超过 25 MB，请选择较小的可解析版本');
   const header = new TextDecoder('ascii').decode(await file.slice(0, 1024).arrayBuffer());
   if (!header.includes('%PDF-')) throw new Error('文件不是有效 PDF，请重新选择');
 }
@@ -66,7 +63,6 @@ export class PdfResource {
         try {
           const pdf = await loading.promise;
           this.lifetime.signal.throwIfAborted();
-          if (pdf.numPages > PDF_MAX_PAGES) throw pdfError('pdf-too-long', 'PDF 超过 80 页，请选择正文版本');
           this.loaded = pdf;
           return pdf;
         } catch (error) {
@@ -146,7 +142,19 @@ export class PdfResource {
     const combined = AbortSignal.any([signal, this.lifetime.signal]);
     return imageQueue.run(combined, () => this.renderPage(pageNumber, canvas, edge, combined));
   }
-  private async renderPage(pageNumber: number, canvas: HTMLCanvasElement, edge: number, signal: AbortSignal) {
+  /** 直接从 PDF 渲染选区；画布仅分配局部尺寸，不先生成巨幅整页位图。 */
+  async renderRegion(pageNumber: number, canvas: HTMLCanvasElement, bbox: BBox, edge: number, signal: AbortSignal) {
+    BBoxSchema.parse(bbox);
+    const combined = AbortSignal.any([signal, this.lifetime.signal]);
+    return imageQueue.run(combined, () => this.renderPage(pageNumber, canvas, edge, combined, bbox));
+  }
+  private async renderPage(
+    pageNumber: number,
+    canvas: HTMLCanvasElement,
+    edge: number,
+    signal: AbortSignal,
+    bbox: BBox = { x: 0, y: 0, width: 1, height: 1 },
+  ) {
     signal.throwIfAborted();
     if (!Number.isFinite(edge) || edge <= 0 || edge > PDF_EXPORT_EDGE)
       throw pdfError('invalid-render-size', 'PDF 渲染尺寸无效');
@@ -154,10 +162,14 @@ export class PdfResource {
     const page = await abortable(pdf.getPage(pageNumber), signal);
     signal.throwIfAborted();
     const base = page.getViewport({ scale: 1 });
-    const viewport = page.getViewport({ scale: edge / Math.max(base.width, base.height) });
-    canvas.width = Math.ceil(viewport.width);
-    canvas.height = Math.ceil(viewport.height);
-    const task = page.render({ canvas, viewport });
+    const viewport = page.getViewport({ scale: edge / Math.max(base.width * bbox.width, base.height * bbox.height) });
+    canvas.width = Math.ceil(viewport.width * bbox.width);
+    canvas.height = Math.ceil(viewport.height * bbox.height);
+    const task = page.render({
+      canvas,
+      viewport,
+      transform: [1, 0, 0, 1, -bbox.x * viewport.width, -bbox.y * viewport.height],
+    });
     const cancel = () => task.cancel();
     this.renders.add(task);
     signal.addEventListener('abort', cancel, { once: true });

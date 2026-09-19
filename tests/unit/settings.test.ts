@@ -15,6 +15,27 @@ const settings = {
 };
 
 describe('全局配置唯一契约与提交', () => {
+  it('旧配置默认并发五、首响应和停滞三分钟、总时长不限，新值可保存且拒绝非法值', () => {
+    const {
+      concurrency: _concurrency,
+      firstResponseTimeoutSeconds: _first,
+      idleTimeoutSeconds: _idle,
+      totalTimeoutSeconds: _total,
+      ...old
+    } = settings;
+    expect(normalizeSettings(old)).toMatchObject({
+      concurrency: 5,
+      firstResponseTimeoutSeconds: 180,
+      idleTimeoutSeconds: 180,
+      totalTimeoutSeconds: null,
+    });
+    expect(old).not.toHaveProperty('concurrency');
+    for (const field of ['concurrency', 'firstResponseTimeoutSeconds', 'idleTimeoutSeconds', 'totalTimeoutSeconds']) {
+      for (const value of [0, -1, 1.5, Infinity, Number.MAX_SAFE_INTEGER + 1])
+        expect(() => normalizeSettings({ ...settings, [field]: value })).toThrow(/正整数/);
+      expect(normalizeSettings({ ...settings, [field]: 7 })[field as keyof typeof settings]).toBe(7);
+    }
+  });
   it('已有 Responses 配置缺少 Token 字段时沿用默认且只读迁移不改写凭据', () => {
     const { contextWindow: _context, maxOutputTokens: _output, ...old } = settings;
     const loaded = readSettingsRecord(old);

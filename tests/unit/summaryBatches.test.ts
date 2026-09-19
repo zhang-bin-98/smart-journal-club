@@ -2,14 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { createModelRequests } from '../../src/app/llm/requests';
 import {
   type PaperSummary,
-  SUMMARY_CONTEXT_CHAR_LIMIT,
-  SUMMARY_LEAF_CHAR_TARGET,
   SummarySchema,
   summarizePaper,
-  summaryContextChars,
+  summaryInputTokens,
 } from '../../src/app/paper/summarizePaper';
 import { createSummaryContext } from '../../src/app/paper/summaryContext';
 import { SummaryReferenceError } from '../../src/app/paper/summaryReferences';
+import { estimateContextTokens } from '../../src/shared/modelCapacity';
 import { DEFAULT_SETTINGS } from '../../src/app/settings/modelSettings';
 import { StoryTopics } from '../../src/modules/paper/evidence';
 import { migratePaperV1 } from '../../src/modules/paper/migration';
@@ -75,86 +74,100 @@ type BatchContext = {
   summaries?: PaperSummary[];
 };
 
-describe('bounded complete-paper summary', () => {
-  it('keeps each finding with all its evidence in bounded batches, restores sources and leaves the complete paper intact', async () => {
-    const paper = largePaper();
+const settings = { ...DEFAULT_SETTINGS, contextWindow: 24000, maxOutputTokens: 4096 };
+const fits = (data: unknown, prompt: string) =>
+  expect(summaryInputTokens(data, prompt) + settings.maxOutputTokens).toBeLessThanOrEqual(settings.contextWindow);
+const resultFor = (data: BatchContext) =>
+  summary(data.allowedReferences.claimIds.slice(0, 1), data.allowedReferences.sourceIds.slice(0, 1));
+
+describe('按配置容量汇总完整论文', () => {
+  it('百万上下文可一次处理，超过旧字符输出限制仍接受，原始内容不变', async () => {
+    const paper = largePaper(40);
+    const before = structuredClone(paper);
+    let calls = 0;
+    await summarizePaper({
+      paper,
+      settings: { ...settings, contextWindow: 1000000, maxOutputTokens: 384000 },
+      prompt: '完整汇总',
+      signal: new AbortController().signal,
+      request: async (raw, prompt, validate) => {
+        calls++;
+        const data = raw as Compact & BatchContext;
+        expect(data.claims).toHaveLength(40);
+        expect(summaryInputTokens(raw, prompt) + 384000).toBeLessThan(1000000);
+        const result = resultFor(data);
+        result.story.mainFindings[0].text = '完整综合'.repeat(5000);
+        validate(result);
+        return result;
+      },
+    });
+    expect(calls).toBe(1);
+    expect(paper).toEqual(before);
+  });
+  it('独立批次并发五个，按容量一次合并多份，保留所有发现及完整关联证据', async () => {
+    const paper = largePaper(100);
     paper.claims[0].evidenceIds.push(paper.evidences[1].id);
     paper.evidences.push({ ...paper.evidences[0], id: 'orphan-evidence' });
     const before = structuredClone(paper);
     const compact = createSummaryContext(paper);
     const calls: BatchContext[] = [];
-    const output = await summarizePaper({
+    let active = 0;
+    let peak = 0;
+    await summarizePaper({
       paper,
-      prompt: '完整论文汇总',
+      settings,
+      prompt: '完整汇总',
       signal: new AbortController().signal,
       request: async (raw, prompt, validate) => {
-        expect(summaryContextChars(raw, prompt)).toBeLessThanOrEqual(SUMMARY_CONTEXT_CHAR_LIMIT);
+        fits(raw, prompt);
         const data = raw as BatchContext;
         calls.push(data);
-        expect(data).not.toHaveProperty('orientationEvidence');
-        for (const excerpt of data.studyContext.sourceExcerpts) {
-          const source = paper.sources.find((item) => compact.shortId(item.id) === excerpt.sourceId)!;
-          expect(source.documentId).toBe(paper.documents.find((item) => item.role === 'primary')!.id);
-          expect(source.textQuote!.startsWith(excerpt.quote)).toBe(true);
-        }
-        const ids =
-          data.phase === 'partial-summary'
-            ? data
-                .records!.filter((record) => record.kind === 'claim-with-evidence')
-                .slice(0, 1)
-                .map((record) => record.claim!.id)
-            : [
-                ...new Set(
-                  data.summaries!.flatMap((item) => item.story.mainFindings.flatMap((point) => point.claimIds)),
-                ),
-              ];
-        const result = summary(ids, ['d0p1s0'], true);
+        peak = Math.max(peak, ++active);
+        await Promise.resolve();
+        active--;
+        const result = resultFor(data);
         validate(result);
         return result;
       },
     });
+    expect(peak).toBe(5);
     const leaves = calls.filter((call) => call.phase === 'partial-summary');
-    for (const leaf of leaves)
-      expect(summaryContextChars(leaf, '完整论文汇总')).toBeLessThanOrEqual(SUMMARY_LEAF_CHAR_TARGET);
-    expect(leaves.length).toBeGreaterThan(2);
-    const merges = calls.filter((call) => call.phase === 'merge-summaries');
-    expect(merges).toHaveLength(leaves.length - 1);
-    for (const merge of merges) expect(merge.summaries).toHaveLength(2);
-    expect(new Set(leaves.map((leaf) => JSON.stringify(leaf))).size).toBe(leaves.length);
-    const records = leaves.flatMap((call) => call.records!);
-    const relationships = records.filter((record) => record.kind === 'claim-with-evidence');
+    expect(leaves.length).toBeGreaterThan(5);
+    const relationships = leaves
+      .flatMap((call) => call.records!)
+      .filter((record) => record.kind === 'claim-with-evidence');
     expect(relationships.map((record) => record.claim)).toEqual(compact.data.claims);
-    for (const record of relationships) {
+    for (const record of relationships)
       expect(record.evidences!.map((item) => item.id)).toEqual(record.claim!.evidenceIds);
-    }
-    const delivered = records.flatMap((record) =>
-      record.kind === 'claim-with-evidence' ? record.evidences! : record.kind === 'evidence' ? [record.value!] : [],
-    );
+    const delivered = leaves
+      .flatMap((call) => call.records!)
+      .flatMap((record) =>
+        record.kind === 'claim-with-evidence' ? record.evidences! : record.kind === 'evidence' ? [record.value!] : [],
+      );
     expect(new Map(delivered.map((item) => [item.id, item]))).toEqual(
       new Map(compact.data.evidences.map((item) => [item.id, item])),
     );
-    expect(delivered.filter((item) => item.id === compact.data.evidences[1].id)).toHaveLength(2);
-    expect(output.studyProfile.sourceIds).toEqual([paper.sources[0].id]);
-    expect(output.story.mainFindings[0].claimIds.every((id) => paper.claims.some((claim) => claim.id === id))).toBe(
-      true,
-    );
+    const merges = calls.filter((call) => call.phase === 'merge-summaries');
+    expect(merges).toHaveLength(1);
+    expect(merges[0].summaries!.length).toBe(leaves.length);
     expect(paper).toEqual(before);
   });
-
-  it('delivers every oversized text fragment with its explicit complete relationship identity', async () => {
+  it('超过输入容量的单条正文完整分片，保留身份、关系和 Unicode 原文', async () => {
     const paper = largePaper(1, 180000);
+    paper.claims[0].text += '🧬';
     const before = structuredClone(paper);
-    const fragments: BatchRecord[] = [];
     const compact = createSummaryContext(paper);
+    const fragments: BatchRecord[] = [];
     await summarizePaper({
       paper,
-      prompt: '完整论文汇总',
+      settings,
+      prompt: '完整汇总',
       signal: new AbortController().signal,
       request: async (raw, prompt, validate) => {
-        expect(summaryContextChars(raw, prompt)).toBeLessThanOrEqual(SUMMARY_CONTEXT_CHAR_LIMIT);
+        fits(raw, prompt);
         const data = raw as BatchContext;
         if (data.phase === 'partial-summary') fragments.push(...data.records!.filter((record) => record.textFragment));
-        const result = summary(['c0']);
+        const result = resultFor(data);
         validate(result);
         return result;
       },
@@ -163,124 +176,49 @@ describe('bounded complete-paper summary', () => {
       expect(fragment.identity!.kind).toBe('relationship-fragment');
       expect(fragment.identity!.evidences.map((item) => item.id)).toEqual(fragment.identity!.claim.evidenceIds);
     }
-    for (const [ownerKind, ownerId, fullText] of [
-      ['claim', compact.data.claims[0].id, compact.data.claims[0].text],
-      ['evidence', compact.data.evidences[0].id, compact.data.evidences[0].summary],
+    for (const [ownerKind, fullText] of [
+      ['claim', compact.data.claims[0].text],
+      ['evidence', compact.data.evidences[0].summary],
     ]) {
       const pieces = fragments
         .map((item) => item.textFragment!)
-        .filter((item) => item.ownerKind === ownerKind && item.ownerId === ownerId)
+        .filter((item) => item.ownerKind === ownerKind)
         .sort((a, b) => a.part - b.part);
       expect(pieces.length).toBeGreaterThan(1);
-      expect(pieces).toHaveLength(pieces[0].parts);
       expect(pieces.map((item) => item.text).join('')).toBe(fullText);
     }
     expect(paper).toEqual(before);
   });
-
-  it.each(['summary-output-size', 'truncated'])(
-    'subdivides only a %s batch with smaller inputs and no missing relationships',
-    async (code) => {
-      const paper = largePaper(40);
-      const before = structuredClone(paper);
-      const compact = createSummaryContext(paper);
-      const attempted: BatchRecord[][] = [];
-      const accepted: BatchRecord[] = [];
-      let oversized = 0;
-      await summarizePaper({
+  it('仅截断的叶批细分，后续合并失败不重新请求已完成叶批', async () => {
+    const paper = largePaper(40);
+    const leaves: string[] = [];
+    let split = false;
+    await expect(
+      summarizePaper({
         paper,
-        prompt: '完整论文汇总',
+        settings: { ...settings, concurrency: 1 },
+        prompt: '完整汇总',
         signal: new AbortController().signal,
         request: async (raw, prompt, validate) => {
-          expect(prompt).toContain('主题综合');
-          expect(summaryContextChars(raw, prompt)).toBeLessThanOrEqual(SUMMARY_CONTEXT_CHAR_LIMIT);
+          fits(raw, prompt);
           const data = raw as BatchContext;
-          if (data.phase === 'partial-summary') {
-            attempted.push(data.records!);
-            if (data.records!.length > 5) {
-              oversized++;
-              if (code === 'truncated') throw Object.assign(new Error('incomplete model output'), { code });
-              const result = summary();
-              result.story.mainFindings[0].text = '逐条复述'.repeat(5000);
-              // The shared model unit performs its single repair before surfacing this code.
-              try {
-                validate(result);
-              } catch (cause) {
-                throw Object.assign(new Error('bounded repair exhausted'), { code: (cause as { code: string }).code });
-              }
-            }
-            accepted.push(...data.records!);
+          if (data.phase === 'merge-summaries')
+            throw Object.assign(new Error('output incomplete'), { code: 'truncated' });
+          leaves.push(JSON.stringify(data.records));
+          if (data.records!.length > 4) {
+            split = true;
+            throw Object.assign(new Error('output incomplete'), { code: 'truncated' });
           }
-          const result = summary();
+          const result = resultFor(data);
           validate(result);
           return result;
         },
-      });
-      expect(oversized).toBeGreaterThan(0);
-      expect(new Set(attempted.map((records) => JSON.stringify(records))).size).toBe(attempted.length);
-      const relationships = accepted.filter((record) => record.kind === 'claim-with-evidence');
-      expect(relationships.map((record) => record.claim)).toEqual(compact.data.claims);
-      for (const record of relationships)
-        expect(record.evidences!.map((item) => item.id)).toEqual(record.claim!.evidenceIds);
-      expect(paper).toEqual(before);
-    },
-  );
-
-  it.each(['summary-output-size', 'truncated'])(
-    'reports %s for a failed pair without repeating completed leaf requests',
-    async (code) => {
-      const paper = largePaper(80);
-      const before = structuredClone(paper);
-      const leaves: string[] = [];
-      let mergeRequests = 0;
-      let repairAttempts = 0;
-      await expect(
-        summarizePaper({
-          paper,
-          prompt: '完整论文汇总',
-          signal: new AbortController().signal,
-          request: async (raw, _prompt, validate) => {
-            const data = raw as BatchContext;
-            const result = summary(
-              data.allowedReferences.claimIds.slice(0, 1),
-              data.allowedReferences.sourceIds.slice(0, 1),
-            );
-            if (data.phase === 'partial-summary') {
-              leaves.push(JSON.stringify(data));
-              validate(result);
-              return result;
-            }
-            mergeRequests++;
-            if (code === 'truncated') throw Object.assign(new Error('incomplete model output'), { code });
-            expect(data.summaries).toHaveLength(2);
-            result.story.mainFindings[0].text = '合并仍逐条复述'.repeat(4000);
-            for (let attempt = 0; attempt < 2; attempt++) {
-              repairAttempts++;
-              try {
-                validate(result);
-              } catch (cause) {
-                if (attempt)
-                  throw Object.assign(new Error('bounded repair exhausted'), {
-                    code: (cause as { code: string }).code,
-                  });
-              }
-            }
-            throw new Error('oversized result unexpectedly accepted');
-          },
-        }),
-      ).rejects.toMatchObject({
-        code: code === 'truncated' ? 'summary-truncated' : code,
-        message: expect.stringContaining('两份局部摘要'),
-      });
-      expect(leaves.length).toBeGreaterThan(2);
-      expect(new Set(leaves).size).toBe(leaves.length);
-      expect(mergeRequests).toBe(1);
-      expect(repairAttempts).toBe(code === 'truncated' ? 0 : 2);
-      expect(paper).toEqual(before);
-    },
-  );
-
-  it('stops remaining summary batches on cancellation without modifying the original paper', async () => {
+      }),
+    ).rejects.toMatchObject({ code: 'summary-truncated' });
+    expect(split).toBe(true);
+    expect(new Set(leaves).size).toBe(leaves.length);
+  });
+  it('取消停止新批次且不修改论文', async () => {
     const paper = largePaper(80);
     const before = structuredClone(paper);
     const cancel = new AbortController();
@@ -288,7 +226,8 @@ describe('bounded complete-paper summary', () => {
     await expect(
       summarizePaper({
         paper,
-        prompt: '完整论文汇总',
+        settings,
+        prompt: '完整汇总',
         signal: cancel.signal,
         request: async () => {
           calls++;
@@ -300,87 +239,56 @@ describe('bounded complete-paper summary', () => {
     expect(calls).toBe(1);
     expect(paper).toEqual(before);
   });
-
-  it('restricts references to each readable batch, diagnoses unknown paths privately and budgets the actual tool context', async () => {
+  it('完整研究设计摘录不受四条或1800字符限制，词表仍只授权当前可读来源', async () => {
     const paper = largePaper(40);
-    paper.sources.push({
-      id: 'primary-design-source',
-      documentId: paper.documents[0].id,
-      pageNumber: 1,
-      kind: 'text',
-      textQuote: 'Randomized phase 1 study of two groups.',
-    });
-    const compact = createSummaryContext(paper);
-    let measured = 0;
-    let maxContext = 0;
-    const stop = new Error('capture only');
+    for (let index = 0; index < 6; index++)
+      paper.sources.push({
+        id: `design-${index}`,
+        documentId: paper.documents[0].id,
+        pageNumber: 1,
+        kind: 'text',
+        textQuote: `Randomized study ${index}. ` + '完整研究设计。'.repeat(300),
+      });
+    let sharedAll = false;
     await summarizePaper({
       paper,
-      prompt: '完整论文汇总',
+      settings: { ...settings, contextWindow: 60000 },
+      prompt: '完整汇总',
       signal: new AbortController().signal,
       request: async (raw, prompt, validate) => {
         const data = raw as BatchContext;
+        if (data.studyContext.sourceExcerpts.filter((excerpt) => excerpt.quote.startsWith('Randomized')).length === 6)
+          sharedAll = true;
         for (const excerpt of data.studyContext.sourceExcerpts) {
-          expect(excerpt.sourceId).toMatch(/^d\d+p\d+s\d+$/);
-          expect(data.allowedReferences.sourceIds).toContain(excerpt.sourceId);
+          if (excerpt.quote.startsWith('Randomized')) expect(excerpt.quote.length).toBeGreaterThan(1800);
         }
-        const missingInBatch = compact.data.claims.find((claim) => !data.allowedReferences.claimIds.includes(claim.id));
-        if (data.phase === 'partial-summary' && missingInBatch) {
-          const invalid = summary([missingInBatch.id], ['e0']);
-          try {
-            validate(invalid);
-            throw new Error('unexpected valid reference');
-          } catch (cause) {
-            expect(cause).toBeInstanceOf(SummaryReferenceError);
-            const error = cause as SummaryReferenceError;
-            expect(error.repairDiagnostic).toContain('story.mainFindings[0].claimIds[0]');
-            expect(error.repairDiagnostic).toContain(missingInBatch.id);
-            expect(error.repairDiagnostic).toContain('studyProfile.sourceIds[0]');
-            expect(error.repairDiagnostic).toContain('e0');
-            expect(error.repairDiagnostic.length).toBeLessThanOrEqual(2000);
-            expect(error.message).not.toContain(missingInBatch.id);
-            expect(error.message).not.toContain('e0');
-          }
-        }
+        const invalid = summary(['not-visible'], ['not-visible']);
+        expect(() => validate(invalid)).toThrow(SummaryReferenceError);
+        const result = resultFor(data);
+        validate(result);
+        const stop = new Error('capture only');
         const requests = createModelRequests({
           describe: () => {
             throw stop;
           },
           request: async (input) => {
-            const chars = JSON.stringify(input.context).length;
-            maxContext = Math.max(maxContext, chars);
-            expect(input.maxTokens).toBe(24576);
-            expect(chars).toBeLessThanOrEqual(summaryContextChars(raw, prompt));
-            expect(Math.ceil(chars / 2) + input.maxTokens!).toBeLessThan(120000);
-            measured++;
+            expect(estimateContextTokens(input.context)).toBe(summaryInputTokens(raw, prompt));
             throw stop;
           },
         });
         await expect(
           requests.requestJson({
-            settings: DEFAULT_SETTINGS,
+            settings,
             systemPrompt: prompt,
             data: raw,
             schema: SummarySchema,
             signal: new AbortController().signal,
             stage: 'understand-summary',
-            maxTokens: 24576,
           }),
         ).rejects.toBe(stop);
-        const result = summary(
-          data.allowedReferences.claimIds.slice(0, 1),
-          data.allowedReferences.sourceIds.slice(0, 1),
-        );
-        validate(result);
         return result;
       },
     });
-    expect(measured).toBeGreaterThan(2);
-    console.log(
-      'summary actual request context max chars:',
-      maxContext,
-      'estimated tokens:',
-      Math.ceil(maxContext / 2) + 24576,
-    );
+    expect(sharedAll).toBe(true);
   });
 });

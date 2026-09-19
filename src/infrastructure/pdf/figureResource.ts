@@ -186,25 +186,9 @@ export async function runFigurePixels(input: PixelInput, signal: AbortSignal) {
 
 /** Local high-resolution input uses original PDF pixels, never a UI screenshot. */
 export async function localFigureInput(resource: PdfResource, pageNumber: number, bbox: BBox, signal: AbortSignal) {
-  const page = document.createElement('canvas');
   const local = document.createElement('canvas');
   try {
-    await resource.render(pageNumber, page, 2800, signal);
-    local.width = Math.max(1, Math.round(page.width * bbox.width));
-    local.height = Math.max(1, Math.round(page.height * bbox.height));
-    local
-      .getContext('2d')!
-      .drawImage(
-        page,
-        bbox.x * page.width,
-        bbox.y * page.height,
-        bbox.width * page.width,
-        bbox.height * page.height,
-        0,
-        0,
-        local.width,
-        local.height,
-      );
+    await resource.renderRegion(pageNumber, local, bbox, 2800, signal);
     return {
       image: local.toDataURL('image/png'),
       refine: (boxes: BBox[]) => {
@@ -220,8 +204,5 @@ export async function localFigureInput(resource: PdfResource, pageNumber: number
     local.width = 0;
     local.height = 0;
     throw cause;
-  } finally {
-    page.width = 0;
-    page.height = 0;
   }
 }

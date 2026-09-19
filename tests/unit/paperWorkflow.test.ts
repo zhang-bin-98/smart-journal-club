@@ -220,6 +220,22 @@ function fixture(pageCount = 1, settings = DEFAULT_SETTINGS) {
   };
 }
 
+it('页级模型任务跟随并发配置，默认五个而非隐藏上限二', async () => {
+  const setup = fixture(4);
+  const gate = deferred();
+  let started = 0;
+  setup.onModel(async (call) => {
+    if (call.stage !== 'figures') return;
+    started++;
+    await gate.promise;
+  });
+  const pending = setup.run();
+  await vi.waitFor(() => expect(started).toBe(5));
+  gate.resolve();
+  await pending;
+  expect(getAnalysisProgress(setup.snapshot().paper).ready).toBe(true);
+});
+
 describe('M15 complete paper workflow', () => {
   it('locates a repaired failure by its own document and page after siblings update progress', async () => {
     const setup = fixture(2);

@@ -10,6 +10,10 @@ export const ModelSettingsSchema = z.strictObject({
   reasoningEffort: z.enum(reasoningEfforts).nullable(),
   contextWindow: z.number().int().positive().nullable().default(null),
   maxOutputTokens: z.number().int().min(16).nullable().default(null),
+  concurrency: z.number().int().positive().default(5),
+  firstResponseTimeoutSeconds: z.number().int().positive().default(180),
+  idleTimeoutSeconds: z.number().int().positive().default(180),
+  totalTimeoutSeconds: z.number().int().positive().nullable().default(null),
 });
 export type ModelSettings = z.infer<typeof ModelSettingsSchema>;
 export const DEFAULT_SETTINGS: ModelSettings = {
@@ -20,6 +24,10 @@ export const DEFAULT_SETTINGS: ModelSettings = {
   reasoningEffort: null,
   contextWindow: null,
   maxOutputTokens: null,
+  concurrency: 5,
+  firstResponseTimeoutSeconds: 180,
+  idleTimeoutSeconds: 180,
+  totalTimeoutSeconds: null,
 };
 
 export class SettingsError extends Error {
@@ -65,6 +73,14 @@ export function normalizeSettings(input: unknown): ModelSettings {
         'invalid-tokens',
         '上下文窗口须为正整数，最大输出 Token 须为至少 16 的整数；留空使用默认策略。',
       );
+    if (
+      parsed.error.issues.some((issue) =>
+        ['concurrency', 'firstResponseTimeoutSeconds', 'idleTimeoutSeconds', 'totalTimeoutSeconds'].includes(
+          String(issue.path[0]),
+        ),
+      )
+    )
+      throw new SettingsError('invalid-scheduling', '并发数和超时秒数须为正整数；总时长留空表示不限。');
     throw new SettingsError('invalid-settings', '配置字段不完整，请重新填写模型配置。');
   }
   const value = parsed.data;

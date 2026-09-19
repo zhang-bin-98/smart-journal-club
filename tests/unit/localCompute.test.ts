@@ -20,6 +20,19 @@ class FakeWorker implements TextWorker {
 const signal = () => new AbortController().signal;
 
 describe('PDF local computation', () => {
+  it('队列满后等待，释放空间继续派发，关闭也释放尚未入队的消费者', async () => {
+    const worker = new FakeWorker();
+    const pool = new PdfTextWorkerPool(() => worker, 1);
+    const pending = Array.from({ length: 20 }, (_, index) =>
+      pool.reconstruct([item(`page ${index}`)], signal()).catch((error) => error),
+    );
+    worker.complete();
+    expect((await pending[0]).text).toBe('page 0');
+    await Promise.resolve();
+    pool.dispose();
+    for (const result of await Promise.all(pending.slice(1))) expect(result.code).toBe('resource-closed');
+    expect(worker.messages).toHaveLength(2);
+  });
   it('keeps all extracted text and separates paragraphs without shortening methods or captions', () => {
     const long = '方法与发现'.repeat(5000);
     const result = reconstructTextBlocks([item('Figure 1 完整图注'), item(long, 50)]);
@@ -99,6 +112,29 @@ describe('PDF local computation', () => {
 });
 
 describe('bounded PDF resource queue', () => {
+  it('满队列等待入队且可取消，腾出空间后执行，不因任务总量报错', async () => {
+    const queue = new PdfResourceQueue(1, 1);
+    let release!: () => void;
+    const first = queue.run(
+      signal(),
+      () =>
+        new Promise<void>((resolve) => {
+          release = resolve;
+        }),
+    );
+    const second = queue.run(signal(), async () => 2);
+    const cancel = new AbortController();
+    const work = vi.fn(async () => 3);
+    const canceled = queue.run(cancel.signal, work).catch((cause) => cause);
+    const fourth = queue.run(signal(), async () => 4);
+    cancel.abort('cancel admission');
+    release();
+    await first;
+    expect(await second).toBe(2);
+    expect(await canceled).toBe('cancel admission');
+    expect(await fourth).toBe(4);
+    expect(work).not.toHaveBeenCalled();
+  });
   it('holds active resources to the configured bound and never dispatches a cancelled waiter', async () => {
     const queue = new PdfResourceQueue(1, 2);
     let release!: () => void;

@@ -1,4 +1,5 @@
 import { type Paper, type AnalysisUnitRecord, validatePaper } from './model';
+import { sectionContextBlocks, studyContextBlocks } from './contextBlocks';
 
 type Stage = AnalysisUnitRecord['stage'];
 type Target = AnalysisUnitRecord['target'];
@@ -59,30 +60,49 @@ export function getUnitInputKey(paper: Paper, stage: Stage, target: Target): str
   );
   if (stage === 'figure-location' || stage === 'panel-analysis')
     return JSON.stringify(['figures-v1', blocks, selection?.revision, selection && isSelected(selection)]);
-  return JSON.stringify(['evidence-context-v2', getEvidenceContext(paper, target)]);
+  return JSON.stringify(['evidence-context-v3', getEvidenceContext(paper, target)]);
 }
 /** 相邻正文只补齐跨页语境；来源仍使用真实文件和原句身份。 */
-export function getEvidenceContext(paper: Paper, target: { documentId: string; pageNumber: number }) {
+export function getEvidenceContext(paper: Paper, target: { documentId: string; pageNumber: number }, legacy = false) {
   const blocksAt = (pageNumber: number) =>
     paper.blocks.filter((block) => block.documentId === target.documentId && block.pageNumber === pageNumber);
   const blocks = blocksAt(target.pageNumber);
-  const contextBefore = blocksAt(target.pageNumber - 1)
-    .filter((block) => block.text.trim().length > 80)
-    .slice(-2);
-  const contextAfter = blocksAt(target.pageNumber + 1)
-    .filter((block) => block.text.trim().length > 80)
-    .slice(0, 2);
-  const adjacent = new Set([...contextBefore, ...contextAfter].map((block) => block.id));
+  const before = blocksAt(target.pageNumber - 1);
+  const after = blocksAt(target.pageNumber + 1);
+  const contextBefore = legacy ? before.filter((block) => block.text.trim().length > 80).slice(-2) : before;
+  const contextAfter = legacy ? after.filter((block) => block.text.trim().length > 80).slice(0, 2) : after;
+  const documentBlocks = paper.blocks
+    .filter((block) => block.documentId === target.documentId)
+    .sort((a, b) => a.pageNumber - b.pageNumber);
+  const sectionContext = legacy ? [] : sectionContextBlocks(documentBlocks, target.pageNumber);
+  const primary = paper.documents.find((document) => document.role === 'primary');
+  const studyContext = legacy
+    ? []
+    : studyContextBlocks(
+        paper.blocks.filter((block) => block.documentId === primary?.id).sort((a, b) => a.pageNumber - b.pageNumber),
+      );
+  const adjacent = new Set(
+    [...contextBefore, ...contextAfter, ...sectionContext, ...studyContext].map((block) => block.id),
+  );
   const sources = paper.sources.filter(
     (source) =>
-      source.documentId === target.documentId &&
-      (source.pageNumber === target.pageNumber || (source.textSpan && adjacent.has(source.textSpan.blockId))),
+      (source.documentId === target.documentId && source.pageNumber === target.pageNumber) ||
+      (source.textSpan && adjacent.has(source.textSpan.blockId)),
   );
-  return { blocks, contextBefore, contextAfter, sources };
+  return { blocks, contextBefore, contextAfter, sources, ...(!legacy ? { sectionContext, studyContext } : {}) };
 }
 export function unitComplete(paper: Paper, stage: Stage, target: Target) {
-  return paper.analysisUnits.some(
-    (unit) => unit.id === unitId(stage, target) && unit.inputKey === getUnitInputKey(paper, stage, target),
+  return (
+    paper.analysisUnits.some(
+      (unit) => unit.id === unitId(stage, target) && unit.inputKey === getUnitInputKey(paper, stage, target),
+    ) ||
+    (stage === 'evidence' &&
+      target.kind === 'page' &&
+      paper.analysisUnits.some(
+        (unit) =>
+          unit.id === unitId(stage, target) &&
+          unit.inputKey === JSON.stringify(['evidence-context-v2', getEvidenceContext(paper, target, true)]),
+      ))
   );
 }
 export function getAnalysisProgress(paper: Paper) {

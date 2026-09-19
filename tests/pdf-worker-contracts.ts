@@ -1,5 +1,5 @@
 import { PdfTextWorkerPool, type TextWorker } from '../src/infrastructure/pdf/localCompute';
-import { PdfResource } from '../src/infrastructure/pdf/pdfResource';
+import { PdfResource, checkPdfFile } from '../src/infrastructure/pdf/pdfResource';
 import { createAnalysisResource } from '../src/infrastructure/pdf/analysisResource';
 
 function assert(value: unknown, message: string): asserts value {
@@ -51,7 +51,54 @@ export async function runPdfWorkerContracts() {
     URL.revokeObjectURL(crashUrl);
   }
   assert(created.length === terminated, '关闭释放全部 Worker');
+  await checkLongPdfAndRegion();
   return { messages: 'passed', crashRecovery: 'passed', cancellation: 'passed', created: created.length, terminated };
+}
+
+/** 同一浏览器合同补充文件门槛移除及真实 PDF 局部渲染，不调用模型。 */
+async function checkLongPdfAndRegion() {
+  const pages = 81;
+  const contentId = pages + 3;
+  const content = '1 0 0 rg 60 480 180 160 re f';
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    `<< /Type /Pages /Count ${pages} /Kids [${Array.from({ length: pages }, (_, i) => `${i + 3} 0 R`).join(' ')}] >>`,
+    ...Array.from(
+      { length: pages },
+      () => `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 600 800] /Resources << >> /Contents ${contentId} 0 R >>`,
+    ),
+    `<< /Length ${content.length} >>\nstream\n${content}\nendstream`,
+  ];
+  let text = '%PDF-1.4\n';
+  const offsets = [0];
+  for (const [index, object] of objects.entries()) {
+    offsets.push(text.length);
+    text += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  }
+  text += `%${' '.repeat(26 * 1024 * 1024)}\n`;
+  const xref = text.length;
+  text += `xref\n0 ${offsets.length}\n0000000000 65535 f \n${offsets
+    .slice(1)
+    .map((offset) => `${String(offset).padStart(10, '0')} 00000 n \n`)
+    .join('')}trailer\n<< /Size ${offsets.length} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+  const file = new File([text], 'long-vector-fixture.pdf', { type: 'application/pdf' });
+  await checkPdfFile(file);
+  const resource = new PdfResource(file);
+  const canvas = document.createElement('canvas');
+  const signal = new AbortController().signal;
+  try {
+    assert((await resource.getDocument()).numPages === 81, '超过旧文件和页数门槛的合法 PDF 可以读取');
+    await resource.renderRegion(81, canvas, { x: 0.1, y: 0.2, width: 0.3, height: 0.2 }, 2800, signal);
+    assert(Math.max(canvas.width, canvas.height) === 2800, '局部输入长边属于选区而非整页');
+    const pixel = canvas
+      .getContext('2d')!
+      .getImageData(Math.floor(canvas.width / 2), Math.floor(canvas.height / 2), 1, 1).data;
+    assert(pixel[0] === 255 && pixel[1] === 0 && pixel[2] === 0, '选区偏移与原 PDF 图像一致');
+  } finally {
+    canvas.width = 0;
+    canvas.height = 0;
+    await resource.dispose();
+  }
 }
 
 /** Reuses the established three scientific papers; this measures extraction, not model quality. */

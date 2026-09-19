@@ -123,15 +123,18 @@ describe('模型请求的独立超时和取消边界', () => {
     expect(remove).toHaveBeenCalledWith('abort', expect.any(Function));
     expect(vi.getTimerCount()).toBe(0);
   });
-  it('大输出可以超过三分钟，仍受有界超时和用户取消保护', async () => {
-    const { controller, result } = await start(undefined, 65536);
+  it('持续收到响应不受输出大小或三十分钟总时长限制，仍可取消', async () => {
+    const { controller, events, result } = await start(undefined, 384000);
     let finished = false;
     void result.then(() => {
       finished = true;
     });
-    await vi.advanceTimersByTimeAsync(180000);
+    for (let index = 0; index < 20; index++) {
+      await vi.advanceTimersByTimeAsync(120000);
+      events.push({ type: 'text_delta', contentIndex: 0, delta: '.', partial: message });
+      await vi.advanceTimersByTimeAsync(0);
+    }
     expect(finished).toBe(false);
-    expect(vi.mocked(stream).mock.calls[0][2]?.timeoutMs).toBe(720000);
     controller.abort();
     expect(await result).toMatchObject({ name: 'AbortError' });
     expect(vi.getTimerCount()).toBe(0);

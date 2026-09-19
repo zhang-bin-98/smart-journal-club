@@ -1,17 +1,20 @@
-import { pdfError } from './localCompute';
+import { QueueCapacity } from '../../shared/queueCapacity';
 
 /** Bound active canvases and queued requests independently of the model scheduler. */
 export class PdfResourceQueue {
   private active = 0;
   private waiting: Array<() => void> = [];
+  private capacity = new QueueCapacity();
   constructor(
     private readonly concurrency = 2,
     private readonly maxQueued = 32,
   ) {}
   async run<T>(signal: AbortSignal, work: () => Promise<T>): Promise<T> {
     signal.throwIfAborted();
+    while (this.active >= this.concurrency && this.waiting.length >= this.maxQueued)
+      await this.capacity.wait(signal, () => this.active >= this.concurrency && this.waiting.length >= this.maxQueued);
+    signal.throwIfAborted();
     if (this.active >= this.concurrency) {
-      if (this.waiting.length >= this.maxQueued) throw pdfError('render-queue-full', '图像准备队列已满，请稍后重试');
       await new Promise<void>((resolve, reject) => {
         const start = () => {
           signal.removeEventListener('abort', cancel);
@@ -20,6 +23,7 @@ export class PdfResourceQueue {
         };
         const cancel = () => {
           this.waiting = this.waiting.filter((item) => item !== start);
+          this.capacity.notify();
           reject(signal.reason);
         };
         signal.addEventListener('abort', cancel, { once: true });
@@ -32,6 +36,7 @@ export class PdfResourceQueue {
     } finally {
       this.active--;
       this.waiting.shift()?.();
+      this.capacity.notify();
     }
   }
 }

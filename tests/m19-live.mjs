@@ -16,7 +16,9 @@ const samples = {
 };
 const sample = samples[process.env.SMARTJC_PUBLIC_SAMPLE];
 assert.ok(sample, 'Select mechanism, clinical or aging through SMARTJC_PUBLIC_SAMPLE');
-const { name } = sample;
+const capacityCheck = process.env.SMARTJC_CAPACITY_CHECK === '1';
+if (capacityCheck) assert.equal(process.env.SMARTJC_PUBLIC_SAMPLE, 'aging');
+const name = sample.name + (capacityCheck ? '-capacity' : '');
 const pdfPath = resolve('test-fixtures/papers', sample.file ?? `${name}.pdf`);
 if (sample.sha256)
   assert.equal(
@@ -98,7 +100,9 @@ try {
             pageNumber: input.pageNumber,
             figureLabel: input.figureLabel,
             part: input.sequence?.part,
-            repair: !!input.diagnostics || JSON.stringify(payload.input).includes('这是唯一一次格式/引用修复'),
+            repair:
+              !!input.diagnostics ||
+              JSON.stringify([payload.instructions, payload.input]).includes('这是唯一一次格式/引用修复'),
             status: response.status(),
             resultStatus: completed?.response?.status,
             reason: completed?.response?.incomplete_details?.reason,
@@ -113,7 +117,7 @@ try {
           await writingCalls;
           console.log('MODEL', JSON.stringify(diagnostic));
         } catch {
-          console.log('Response ended without complete result');
+          console.log('Response telemetry unavailable; completion is determined from saved analysis units');
         }
       })(),
     );
@@ -129,7 +133,12 @@ try {
     await settings.getByLabel('Base URL', { exact: true }).fill('https://api.deepseek.com');
     await settings.getByLabel('模型 ID', { exact: true }).fill('deepseek-flash');
     await settings.getByLabel('API Key', { exact: true }).fill(apiKey);
-    await settings.getByLabel('思考强度', { exact: true }).selectOption('high');
+    await settings.getByLabel('思考强度', { exact: true }).selectOption(capacityCheck ? 'max' : 'high');
+    if (capacityCheck) {
+      await settings.getByLabel('上下文窗口（Token）', { exact: true }).fill('1000000');
+      await settings.getByLabel('最大输出 Token', { exact: true }).fill('384000');
+      await settings.getByLabel('模型请求并发数', { exact: true }).fill('5');
+    }
     await settings.getByRole('button', { name: '保存并返回', exact: true }).click();
     await page.getByRole('button', { name: '新建项目', exact: true }).click();
     await page.getByLabel('选择主论文 PDF', { exact: true }).setInputFiles(pdfPath);

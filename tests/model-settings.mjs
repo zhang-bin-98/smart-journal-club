@@ -21,6 +21,10 @@ try {
   const effort = settings.getByLabel('思考强度', { exact: true });
   const contextTokens = settings.getByLabel('上下文窗口（Token）', { exact: true });
   const outputTokens = settings.getByLabel('最大输出 Token', { exact: true });
+  const concurrency = settings.getByLabel('模型请求并发数', { exact: true });
+  const firstTimeout = settings.getByLabel('首响应超时（秒）', { exact: true });
+  const idleTimeout = settings.getByLabel('无数据超时（秒）', { exact: true });
+  const totalTimeout = settings.getByLabel('单次请求总时长（秒）', { exact: true });
   const save = settings.getByRole('button', { name: '保存并返回', exact: true });
   const back = settings.getByRole('button', { name: '返回项目列表', exact: true });
   const check = settings.getByRole('button', { name: '测试连接', exact: true });
@@ -66,6 +70,14 @@ try {
   await key.fill('fixed-secret');
   assert.equal(await contextTokens.inputValue(), '');
   assert.equal(await outputTokens.inputValue(), '');
+  assert.equal(await concurrency.inputValue(), '5');
+  assert.equal(await firstTimeout.inputValue(), '180');
+  assert.equal(await idleTimeout.inputValue(), '180');
+  assert.equal(await totalTimeout.inputValue(), '');
+  await concurrency.fill('7');
+  await firstTimeout.fill('120');
+  await idleTimeout.fill('240');
+  await totalTimeout.fill('600');
   await contextTokens.fill('1048576');
   await outputTokens.fill('1048576');
   await save.click();
@@ -106,11 +118,19 @@ try {
   assert.equal(await url.inputValue(), 'https://models.example/custom/v1');
   assert.equal(await contextTokens.inputValue(), '1048576');
   assert.equal(await outputTokens.inputValue(), '65536');
+  assert.equal(await concurrency.inputValue(), '7');
+  assert.equal(await firstTimeout.inputValue(), '120');
+  assert.equal(await idleTimeout.inputValue(), '240');
+  assert.equal(await totalTimeout.inputValue(), '600');
   await page.reload();
   await page.getByRole('button', { name: '模型设置', exact: true }).click();
   await settings.waitFor();
   assert.equal(await contextTokens.inputValue(), '1048576');
   assert.equal(await outputTokens.inputValue(), '65536');
+  assert.equal(await concurrency.inputValue(), '7');
+  assert.equal(await firstTimeout.inputValue(), '120');
+  assert.equal(await idleTimeout.inputValue(), '240');
+  assert.equal(await totalTimeout.inputValue(), '600');
   await model.fill('unsaved');
   await page.evaluate(() => {
     window.__settingsPut = IDBObjectStore.prototype.put;
@@ -138,6 +158,10 @@ try {
   assert.equal(await key.inputValue(), '');
   assert.equal(await contextTokens.inputValue(), '1048576');
   assert.equal(await outputTokens.inputValue(), '65536');
+  assert.equal(await concurrency.inputValue(), '7');
+  assert.equal(await firstTimeout.inputValue(), '120');
+  assert.equal(await idleTimeout.inputValue(), '240');
+  assert.equal(await totalTimeout.inputValue(), '600');
   await model.fill('discard-this');
   await settings.getByRole('button', { name: '恢复已保存配置', exact: true }).click();
   assert.equal(await model.inputValue(), 'fixture');

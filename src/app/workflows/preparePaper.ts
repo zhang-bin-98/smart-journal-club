@@ -6,7 +6,6 @@ import {
   type EvidenceResult,
   type FigureResult,
   getAnalysisProgress,
-  getEvidenceContext,
   getUnitInputKey,
   isSelected,
   PaperAnalysisError,
@@ -22,6 +21,10 @@ import type { AnalysisProject, AnalysisStore, PaperResource, ResourceFactory } f
 import { SummarySchema, summarizePaper } from '../paper/summarizePaper';
 import { SummaryReferenceError } from '../paper/summaryReferences';
 import type { ModelSettings } from '../settings/modelSettings';
+import { mapConcurrent } from '../../shared/concurrent';
+import { selectEvidenceContext } from '../paper/evidenceContext';
+import { estimateJsonTokens } from '../llm/requests';
+import { DEFAULT_CONTEXT_WINDOW } from '../settings/modelSettings';
 
 type Requests = ReturnType<typeof createModelRequests>;
 const FindingSchema = z.strictObject({ claims: z.array(ClaimSchema), evidences: z.array(EvidenceSchema) });
@@ -130,21 +133,7 @@ export async function preparePaper({
     await queued;
   }
   async function parallel<T>(items: T[], work: (item: T) => Promise<void>) {
-    let cursor = 0;
-    let failure: unknown;
-    const worker = async () => {
-      while (cursor < items.length && !failure) {
-        signal.throwIfAborted();
-        const item = items[cursor++];
-        try {
-          await work(item);
-        } catch (cause) {
-          failure = cause;
-        }
-      }
-    };
-    await Promise.all([worker(), worker()]);
-    if (failure) throw failure;
+    await mapConcurrent(items, settings.concurrency, signal, work);
   }
   async function modelUnit<T extends z.ZodType>(
     schema: T,
@@ -194,6 +183,15 @@ export async function preparePaper({
         )
           throw new AnalysisUnitError(stage, context, cause);
         if (attempt) throw new AnalysisUnitError(stage, context, cause);
+        const location = z
+          .object({ document: z.object({ id: z.string() }), pageNumber: z.number() })
+          .safeParse(context);
+        report(
+          '修复当前单元的格式或引用',
+          location.success
+            ? { kind: 'page', documentId: location.data.document.id, pageNumber: location.data.pageNumber }
+            : undefined,
+        );
         diagnostic =
           cause instanceof SummaryReferenceError
             ? cause.repairDiagnostic
@@ -384,18 +382,31 @@ export async function preparePaper({
       report('整理本页发现与证据', target);
       const paper = data.paper;
       const inputKey = getUnitInputKey(paper, 'evidence', target);
-      const context = getEvidenceContext(paper, page);
+      const document = paper.documents.find((doc) => doc.id === page.documentId);
+      const evidencePrompt = `${prompts.common}\n${prompts.stages['extract-evidence']}`;
+      const context = selectEvidenceContext(
+        paper,
+        page,
+        (candidate) =>
+          estimateJsonTokens({
+            data: { document, pageNumber: page.pageNumber, ...candidate },
+            systemPrompt: evidencePrompt,
+            schema: FindingSchema,
+          }) +
+            (settings.maxOutputTokens ?? 16384) <=
+          (settings.contextWindow ?? DEFAULT_CONTEXT_WINDOW),
+      );
       const { sources } = context;
       const sourceIds = new Set(sources.map((source) => source.id));
       const result = await modelUnit(
         FindingSchema,
         'understand-page',
         {
-          document: paper.documents.find((doc) => doc.id === page.documentId),
+          document,
           pageNumber: page.pageNumber,
           ...context,
         },
-        `${prompts.common}\n${prompts.stages['extract-evidence']}`,
+        evidencePrompt,
         (output) => {
           const ids = [...output.claims, ...output.evidences].map((item) => item.id);
           if (
@@ -431,6 +442,7 @@ export async function preparePaper({
       const inputKey = getUnitInputKey(paper, 'evidence', target);
       const summary = await summarizePaper({
         paper,
+        settings,
         prompt: `${prompts.common}\n${prompts.stages['summarize-paper']}`,
         signal,
         onProgress: (stage) => report(stage),

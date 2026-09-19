@@ -4,59 +4,59 @@ import { RequestScheduler, TemporaryRateLimit } from '../../src/infrastructure/l
 describe('共享请求调度', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
-  const limits = { concurrency: 1, requests: 10, tokens: 100, windowMs: 1000, queue: 10 };
+  const limits = { concurrency: 1, queue: 10 };
   const options = () => ({
     signal: new AbortController().signal,
-    tokens: 10,
     priority: 'background' as const,
     stage: 'test',
   });
-  it('超过速率桶的大请求等空窗口独占执行，跨窗口仍不与其他请求并行', async () => {
-    const scheduler = new RequestScheduler({ ...limits, concurrency: 2 });
-    await scheduler.run({ ...options(), execute: async () => 1 });
-    let release!: () => void;
-    const large = vi.fn(
-      () =>
-        new Promise<number>((resolve) => {
-          release = () => resolve(150);
-        }),
+  it('默认允许五个在途请求，释放后立即派发且没有本地分钟窗口', async () => {
+    const scheduler = new RequestScheduler();
+    const releases: (() => void)[] = [];
+    let started = 0;
+    const jobs = Array.from({ length: 36 }, () =>
+      scheduler.run({
+        ...options(),
+        execute: () => {
+          started++;
+          return new Promise<void>((resolve) => releases.push(resolve));
+        },
+      }),
     );
-    const pending = scheduler.run({ ...options(), tokens: 150, execute: large, actualTokens: (value) => value });
-    await vi.advanceTimersByTimeAsync(999);
-    expect(large).not.toHaveBeenCalled();
-    await vi.advanceTimersByTimeAsync(1);
-    expect(large).toHaveBeenCalledTimes(1);
-    const small = vi.fn(async () => 2);
-    const next = scheduler.run({ ...options(), execute: small });
-    await vi.advanceTimersByTimeAsync(1000);
-    expect(small).not.toHaveBeenCalled();
-    release();
-    expect(await pending).toBe(150);
-    expect(await next).toBe(2);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(started).toBe(5);
+    while (started < 36) {
+      for (const release of releases.splice(0)) release();
+      await vi.advanceTimersByTimeAsync(0);
+    }
+    for (const release of releases) release();
+    await Promise.all(jobs);
+    expect(scheduler.snapshot()).toMatchObject({ running: 0, queued: 0 });
   });
-  it('大请求等待在途请求完成，取消后不迟到派发', async () => {
-    const scheduler = new RequestScheduler({ ...limits, concurrency: 2 });
+  it('队列满时等待空间，排队和等待入队均可取消且不会迟到发送', async () => {
+    const scheduler = new RequestScheduler({ concurrency: 1, queue: 1 });
     let release!: () => void;
-    const running = scheduler.run({
+    const first = scheduler.run({
       ...options(),
       execute: () =>
         new Promise<void>((resolve) => {
           release = resolve;
         }),
     });
-    const controller = new AbortController();
     const execute = vi.fn(async () => 1);
-    const pending = scheduler
-      .run({ ...options(), tokens: 150, signal: controller.signal, execute })
-      .catch((cause) => cause);
-    await vi.advanceTimersByTimeAsync(1000);
-    expect(execute).not.toHaveBeenCalled();
-    controller.abort();
-    expect(await pending).toMatchObject({ name: 'AbortError' });
+    const controllers = [new AbortController(), new AbortController()];
+    const canceled = controllers.map((controller) =>
+      scheduler.run({ ...options(), signal: controller.signal, execute }).catch((cause) => cause),
+    );
+    const last = scheduler.run({ ...options(), execute });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(scheduler.snapshot()).toMatchObject({ running: 1, queued: 3 });
+    for (const controller of controllers) controller.abort();
+    for (const result of canceled) expect(await result).toMatchObject({ name: 'AbortError' });
     release();
-    await running;
-    await vi.advanceTimersByTimeAsync(1000);
-    expect(execute).not.toHaveBeenCalled();
+    await first;
+    expect(await last).toBe(1);
+    expect(execute).toHaveBeenCalledTimes(1);
   });
   it('在途预算共用且交互连续两次后让分析前进', async () => {
     const scheduler = new RequestScheduler(limits);
@@ -69,7 +69,7 @@ describe('共享请求调度', () => {
           release = resolve;
         }),
     });
-    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(0);
     const jobs = ['background', 'interactive', 'interactive', 'interactive'].map((priority) =>
       scheduler.run({
         ...options(),
@@ -83,24 +83,6 @@ describe('共享请求调度', () => {
     release();
     await Promise.all([first, ...jobs]);
     expect(order).toEqual(['interactive', 'interactive', 'background', 'interactive']);
-  });
-  it.each([
-    { requests: 1, tokens: 100 },
-    { requests: 10, tokens: 10 },
-  ])('请求和 Token 窗口各自生效 %j，排队可立即取消', async (budget) => {
-    const scheduler = new RequestScheduler({ ...limits, ...budget });
-    const execute = vi.fn(async () => 'done');
-    await scheduler.run({ ...options(), execute });
-    const controller = new AbortController();
-    const canceled = scheduler.run({ ...options(), signal: controller.signal, execute }).catch((cause) => cause);
-    await Promise.resolve();
-    expect(execute).toHaveBeenCalledTimes(1);
-    controller.abort();
-    expect(await canceled).toMatchObject({ name: 'AbortError' });
-    await vi.advanceTimersByTimeAsync(1000);
-    expect(execute).toHaveBeenCalledTimes(1);
-    await scheduler.run({ ...options(), execute });
-    expect(execute).toHaveBeenCalledTimes(2);
   });
   it('临时限流最多重试两次且整个桶退避，取消不会迟到发送', async () => {
     const scheduler = new RequestScheduler(limits);
@@ -119,6 +101,15 @@ describe('共享请求调度', () => {
     const count = execute.mock.calls.length;
     await vi.advanceTimersByTimeAsync(2000);
     expect(execute).toHaveBeenCalledTimes(count);
+  });
+  it('遵循超过两分钟的 Retry-After，仍最多重试两次', async () => {
+    const scheduler = new RequestScheduler(limits);
+    const execute = vi.fn().mockRejectedValueOnce(new TemporaryRateLimit('test', 180000)).mockResolvedValue('done');
+    const pending = scheduler.run({ ...options(), execute });
+    await vi.advanceTimersByTimeAsync(179999);
+    expect(execute).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(await pending).toBe('done');
   });
   it('不可分类错误不重试；可读的服务额度只收紧发送时间', async () => {
     const scheduler = new RequestScheduler(limits);

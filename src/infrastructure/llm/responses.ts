@@ -3,6 +3,8 @@ import type { ModelAdapter, ModelRequest } from '../../app/llm/ports';
 import { ModelError } from '../../app/llm/modelError';
 import type { normalizeSettings, ModelSettings } from '../../app/settings/modelSettings';
 import { type RequestScheduler, retryAfterMs, TemporaryRateLimit } from './requestScheduler';
+import { estimateContextTokens } from '../../shared/modelCapacity';
+import { responseTimeout } from './responseTimeout';
 
 function describeModel(settings: ModelSettings, defaultContextWindow: number): Model<'openai-responses'> {
   return {
@@ -29,8 +31,6 @@ export function responsePayload(payload: unknown, request: ModelRequest): Record
   if (request.responseSchema)
     body.text = { format: { type: 'json_schema', name: 'result', strict: true, schema: request.responseSchema } };
   else if (request.json) body.text = { format: { type: 'json_object' } };
-  if (new TextEncoder().encode(JSON.stringify(body)).byteLength > 8 * 1024 * 1024)
-    throw new ModelError(request.stage, 'request-size', '本阶段内容超过请求预算，请减少输入内容后重试。');
   return body;
 }
 
@@ -39,6 +39,12 @@ function failure(stage: string, status?: number, code?: string) {
     return new ModelError(stage, 'authentication', '模型认证失败，请检查 API Key 后重试。');
   if (status === 402 || code === 'insufficient_quota' || code === 'quota_exceeded')
     return new ModelError(stage, 'quota', '模型额度不足，请检查供应商账户后重试。');
+  if (status === 413)
+    return new ModelError(
+      stage,
+      'request-size',
+      '服务拒绝了当前请求大小。请核对该服务的请求体或图片限制；已保存成果仍保留。',
+    );
   if (status === 429) return new ModelError(stage, 'rate-limit', '模型请求受到限流或额度限制，请检查服务额度后重试。');
   if (status === 400 || status === 404 || status === 422)
     return new ModelError(
@@ -87,20 +93,6 @@ function wireTools(context: Context) {
   return { converted, logical, nameFor };
 }
 
-/** 通用端点没有统一 tokenizer；文本和图片按保守近似预留，不裁剪原文。 */
-function estimateInputTokens(request: ModelRequest) {
-  let images = 0;
-  const text = JSON.stringify(request.context, (_key, value) => {
-    if (value && typeof value === 'object' && value.type === 'image') {
-      images++;
-      return '[image]';
-    }
-    return value;
-  });
-  const schema = request.responseSchema ? JSON.stringify(request.responseSchema) : '';
-  return Math.ceil((text.length + schema.length) / 2) + images * 4096;
-}
-
 export function createResponsesAdapter(
   scheduler: RequestScheduler,
   normalize: typeof normalizeSettings,
@@ -120,25 +112,21 @@ export function createResponsesAdapter(
       if (!settings.apiKey) throw new ModelError(stage, 'missing-key', '请先在模型配置中填写 API Key。');
       if (typeof navigator !== 'undefined' && navigator.onLine === false)
         throw new ModelError(stage, 'offline', '当前离线，联网后可使用 AI；本地查看和编辑仍可用。');
-      const tokens = estimateInputTokens(request) + maxTokens;
+      const tokens = estimateContextTokens(request.context, request.responseSchema) + maxTokens;
       if (tokens > (settings.contextWindow ?? defaultContextWindow))
         throw new ModelError(
           stage,
           'context-budget',
           '本次输入与预留输出估算超过上下文窗口。请核对模型配置中的上下文窗口或降低最大输出 Token 后重试。',
         );
-      // 较长输出增加响应等待；排队/退避不计时，单次发送仍最多等待 30 分钟。
-      const timeoutMs = Math.min(1800000, Math.max(180000, Math.ceil(maxTokens / 16384) * 180000));
+      scheduler.configure(settings.concurrency);
       try {
         return await scheduler.run({
           signal,
-          tokens,
-          actualTokens: (result) => result.usage.totalTokens,
           stage,
           priority: ['ai', 'connection', 'capabilities'].includes(stage) ? 'interactive' : 'background',
           execute: async () => {
-            const timeout = new AbortController();
-            const timer = setTimeout(() => timeout.abort(), timeoutMs);
+            const timeout = responseTimeout(settings);
             const requestSignal = AbortSignal.any([signal, timeout.signal]);
             try {
               return await abortable(requestSignal, async () => {
@@ -155,7 +143,8 @@ export function createResponsesAdapter(
                   signal: requestSignal,
                   maxTokens,
                   maxRetries: 0,
-                  timeoutMs,
+                  // 首响应/停滞/总时长由上面的应用计时器统一控制。
+                  timeoutMs: 2147483647,
                   cacheRetention: 'none',
                   ...(request.outputTool ? { toolChoice: 'auto' as const } : {}),
                   fetch: async (url, init) => {
@@ -170,7 +159,7 @@ export function createResponsesAdapter(
                         .catch(() => undefined);
                       providerCode = typeof raw?.error?.code === 'string' ? raw.error.code : raw?.error?.type;
                     }
-                    return response;
+                    return timeout.watch(response);
                   },
                   onPayload: (payload) => {
                     try {
@@ -183,6 +172,7 @@ export function createResponsesAdapter(
                 });
                 for await (const event of events) {
                   requestSignal.throwIfAborted();
+                  if (event.type !== 'start') timeout.activity();
                   if (event.type === 'text_delta') {
                     emitted = true;
                     request.onText?.(event.delta);
@@ -219,7 +209,7 @@ export function createResponsesAdapter(
                 throw new ModelError(stage, 'timeout', '模型响应超时，已停止本次请求。完整阶段仍保留，请稍后重试。');
               throw cause;
             } finally {
-              clearTimeout(timer);
+              timeout.dispose();
             }
           },
         });

@@ -166,7 +166,41 @@ export function SettingsPage(props: {
               </div>
               <p className="-mt-3 text-xs leading-relaxed text-muted">
                 按服务商公布的模型能力填写，留空使用默认策略。上下文窗口包含输入与输出；最大输出包含思考和最终结果，
-                是生成上限，不会强制用满。连接与能力检查使用较小输出，不验证模型的最大容量。
+                是生成上限，不会强制用满。连接与能力检查使用较小输出，不验证模型的最大容量。 通用端点的输入 Token
+                为近似估算，图片计数也可能与服务实际用量不同。
+              </p>
+              <div className="grid grid-cols-2 gap-4">
+                {(
+                  [
+                    ['concurrency', '模型请求并发数', '默认 5'],
+                    ['firstResponseTimeoutSeconds', '首响应超时（秒）', '默认 180'],
+                    ['idleTimeoutSeconds', '无数据超时（秒）', '默认 180'],
+                    ['totalTimeoutSeconds', '单次请求总时长（秒）', '留空不限'],
+                  ] as const
+                ).map(([key, label, placeholder]) => (
+                  <label key={key} className="block text-sm">
+                    {label}
+                    <input
+                      type="number"
+                      min={1}
+                      step={1}
+                      className={`${inputClass} mt-2`}
+                      placeholder={placeholder}
+                      value={Number.isNaN(draft[key]) ? '' : (draft[key] ?? '')}
+                      onChange={(event) => {
+                        const value =
+                          event.target.value === '' && key === 'totalTimeoutSeconds'
+                            ? null
+                            : event.target.valueAsNumber;
+                        change({ ...draft, [key]: value });
+                      }}
+                    />
+                  </label>
+                ))}
+              </div>
+              <p className="-mt-3 text-xs leading-relaxed text-muted">
+                并发数由所有模型任务共享。仅在服务实际限流时等待；首响应与无数据超时从发送开始计算，排队不计时。
+                持续收到数据时继续等待，总时长留空不限。取消始终有效。
               </p>
             </fieldset>
             <div className="mt-6 flex flex-wrap gap-3">

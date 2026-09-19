@@ -21,6 +21,24 @@ const request = () => ({
 });
 describe('Pi Responses 适配边界', () => {
   afterEach(() => vi.unstubAllGlobals());
+  it('384000 输出上限原样发送，五个大请求并发，完成后下一请求立即开始', async () => {
+    const releases: (() => void)[] = [];
+    const fetcher = vi.fn(async (_url, init) => {
+      expect(JSON.parse(init.body).max_output_tokens).toBe(384000);
+      await new Promise<void>((resolve) => releases.push(resolve));
+      return new Response(responsesEvent({ content: 'OK' }), { headers: { 'content-type': 'text/event-stream' } });
+    });
+    vi.stubGlobal('fetch', fetcher);
+    const adapter = createResponsesAdapter(new RequestScheduler(), normalizeSettings, DEFAULT_CONTEXT_WINDOW);
+    const input = request();
+    input.settings = { ...input.settings, contextWindow: 1000000, maxOutputTokens: 384000 };
+    const jobs = Array.from({ length: 6 }, () => adapter.request(input));
+    await vi.waitFor(() => expect(fetcher).toHaveBeenCalledTimes(5));
+    releases.shift()!();
+    await vi.waitFor(() => expect(fetcher).toHaveBeenCalledTimes(6));
+    for (const release of releases) release();
+    await Promise.all(jobs);
+  });
   it('自定义容量进入 SDK，工作流与 Agent 使用配置输出上限，检查保留小预算', async () => {
     const budgets: number[] = [];
     vi.stubGlobal(
@@ -38,11 +56,7 @@ describe('Pi Responses 适配边界', () => {
         );
       }),
     );
-    const adapter = createResponsesAdapter(
-      new RequestScheduler({ concurrency: 2, requests: 30, tokens: 500000, windowMs: 60000, queue: 64 }),
-      normalizeSettings,
-      DEFAULT_CONTEXT_WINDOW,
-    );
+    const adapter = createResponsesAdapter(new RequestScheduler(), normalizeSettings, DEFAULT_CONTEXT_WINDOW);
     const input = request();
     input.settings = { ...input.settings, contextWindow: 1048576, maxOutputTokens: 131072 };
     expect(adapter.describe(input.settings)).toMatchObject({ contextWindow: 1048576, maxTokens: 131072 });
@@ -136,19 +150,23 @@ describe('Pi Responses 适配边界', () => {
     expect(payloads[0]).not.toHaveProperty('reasoning');
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
-  it.each([401, 429, 500])('认证、未知 429 和服务错误不叠加 SDK 重试，错误不回显秘密 (%i)', async (status) => {
-    const fetcher = vi.fn(
-      async () =>
-        new Response(JSON.stringify({ error: { code: 'unknown', message: 'private-key provider detail' } }), {
-          status,
-        }),
-    );
-    vi.stubGlobal('fetch', fetcher);
-    const adapter = createResponsesAdapter(new RequestScheduler(), normalizeSettings, DEFAULT_CONTEXT_WINDOW);
-    const result = await adapter.request(request()).catch((cause) => cause);
-    expect(result.message).not.toContain('private-key');
-    expect(fetcher).toHaveBeenCalledTimes(1);
-  });
+  it.each([401, 413, 429, 500])(
+    '认证、请求大小、未知 429 和服务错误不叠加 SDK 重试，错误不回显秘密 (%i)',
+    async (status) => {
+      const fetcher = vi.fn(
+        async () =>
+          new Response(JSON.stringify({ error: { code: 'unknown', message: 'private-key provider detail' } }), {
+            status,
+          }),
+      );
+      vi.stubGlobal('fetch', fetcher);
+      const adapter = createResponsesAdapter(new RequestScheduler(), normalizeSettings, DEFAULT_CONTEXT_WINDOW);
+      const result = await adapter.request(request()).catch((cause) => cause);
+      expect(result.message).not.toContain('private-key');
+      if (status === 413) expect(result.code).toBe('request-size');
+      expect(fetcher).toHaveBeenCalledTimes(1);
+    },
+  );
   it('老龄队列论文第 4 页：思考耗尽输出预算的真实结束事件识别为截断', async () => {
     // 2026-09-19 aging 样例的脱敏响应元数据；不包含原文、凭据或隐藏推理。
     const response = {

@@ -6,7 +6,7 @@
 
 每个 Claim 必须关联本次返回的 Evidence；每个 Evidence 引用输入中直接支持其内容的精确 Source ID。不得新造 Source。临时 Claim/Evidence ID 在本次输出中唯一，由程序按文件及页身份登记；不要将文件角色误作汇报主线或补充。
 
-blocks 是当前页；contextBefore/contextAfter 仅用于消解跨页断句、图注续页和代词指向。整理当前页涉及的发现与方法，引用必要的相邻页 Source；不要把相邻页所有发现重复搬入当前页。图注续页即使没有新图号或以半句开头，也须保留其样本、基因型、处理条件及测量证据，不能因页底有参考文献而略过。
+blocks 是当前页；contextBefore/contextAfter 用于消解跨页断句、图注续页和代词指向。sectionContext 提供同章节语境，studyContext 提供有来源的主论文研究设计背景；这些内容按剩余上下文容量提供，未出现不等于原文没有。只整理当前页承载的发现，保留背景来源归属与冲突，不重复提取其他页独立发现。整理当前页涉及的发现与方法，引用必要的相邻页 Source；不要把相邻页所有发现重复搬入当前页。图注续页即使没有新图号或以半句开头，也须保留其样本、基因型、处理条件及测量证据，不能因页底有参考文献而略过。
 
 每条 Claim 必须独立保留完整实验条件（如缺失基因与遗传背景的组合），不能依赖上一条 Claim 补齐限定。遇到 these cells/this mutant 等代词须回查前句；区分本文结果与 previous work/已有研究，后者仅作为有来源的背景 Evidence，不改写成本文发现。复核数字、组别和比较方向后输出；无法消解的内容只保存不确定 Evidence，不作更强 Claim。讨论中以带文献编号的既往观察支持本文解释的陈述（例如“also supported by the observation … [文献编号]”），即使没有逐字写 previous work，也须把该观察保存为 kind=prior_work，Evidence.summary 明确写出前人研究归属，不作为本文直接实验 Claim。不能将“为本文解释提供支持”改写为“本文做了该实验”；结合相邻页判断同一引用的归属并保持一致。
 

@@ -3,6 +3,30 @@ import { z } from 'zod';
 import { type ModelSettings, SettingsError } from '../settings/modelSettings';
 import { ModelOutputError } from './modelError';
 import type { ModelAdapter, ModelRequest } from './ports';
+import { estimateContextTokens } from '../../shared/modelCapacity';
+
+type JsonInput = { systemPrompt: string; data: unknown; schema: z.ZodType; image?: string };
+
+/** 分批估算与实际发送使用同一封装，计入工具 Schema，不另设字符上限。 */
+export function jsonContext({ systemPrompt, data, schema, image }: JsonInput): Context {
+  const content: Exclude<Context['messages'][number], { role: 'assistant' | 'toolResult' }>['content'] = [
+    { type: 'text', text: JSON.stringify(data) },
+  ];
+  if (image) content.push({ type: 'image', mimeType: 'image/png', data: image.slice(image.indexOf(',') + 1) });
+  return {
+    systemPrompt: `${systemPrompt}\n\n使用 submit_result 返回本阶段结构化结果；所有必填字段均须提供。`,
+    tools: [
+      {
+        name: 'submit_result',
+        description: '返回完整阶段结果，必填字段不得省略；不直接保存项目。',
+        parameters: z.toJSONSchema(z.strictObject({ result: schema })) as Tool['parameters'],
+      },
+    ],
+    messages: [{ role: 'user', content, timestamp: Date.now() }],
+  };
+}
+
+export const estimateJsonTokens = (input: JsonInput) => estimateContextTokens(jsonContext(input));
 
 export function createModelRequests(adapter: ModelAdapter) {
   const requestModel = (input: ModelRequest) => adapter.request(input);
@@ -25,23 +49,9 @@ export function createModelRequests(adapter: ModelAdapter) {
     image?: string;
     maxTokens?: number;
   }): Promise<z.infer<T>> {
-    const content: Exclude<Context['messages'][number], { role: 'assistant' | 'toolResult' }>['content'] = [
-      { type: 'text', text: JSON.stringify(data) },
-    ];
-    if (image) content.push({ type: 'image', mimeType: 'image/png', data: image.slice(image.indexOf(',') + 1) });
     const response = await requestModel({
       settings: settings,
-      context: {
-        systemPrompt: `${systemPrompt}\n\n使用 submit_result 返回本阶段结构化结果；所有必填字段均须提供。`,
-        tools: [
-          {
-            name: 'submit_result',
-            description: '返回完整阶段结果，必填字段不得省略；不直接保存项目。',
-            parameters: z.toJSONSchema(z.strictObject({ result: schema })) as Tool['parameters'],
-          },
-        ],
-        messages: [{ role: 'user', content, timestamp: Date.now() }],
-      },
+      context: jsonContext({ systemPrompt, data, schema, image }),
       signal: signal,
       stage: stage,
       json: false,
